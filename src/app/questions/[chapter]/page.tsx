@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { useLlm } from "@/lib/llm-context";
 import { updateStudyState, addPoints } from "@/lib/study-state";
+import { getAiCache, setAiCache } from "@/lib/ai-cache";
 import type { Question } from "@/types";
 import {
   Lightbulb,
@@ -120,6 +121,19 @@ function QuestionCard({ question, index }: { question: Question; index: number }
 
   const handleAiHelp = async () => {
     if (aiLoading || aiStructured) return;
+
+    const cached = getAiCache(question.id);
+    if (cached) {
+      setAiStructured({
+        insight: cached.insight,
+        approach: cached.approach,
+        hint: cached.hint,
+        stepByStep: cached.stepByStep,
+        answer: cached.answer,
+      });
+      return;
+    }
+
     setAiLoading(true);
 
     const topicContent = getTopicContent(vault, question);
@@ -153,8 +167,10 @@ Format the JSON exactly like this:
 
     if (structured) {
       setAiStructured(structured);
+      setAiCache(question.id, { ...structured, rawContent: content });
     } else {
       setAiRawContent(content);
+      setAiCache(question.id, { insight: "", approach: "", hint: "", stepByStep: "", answer: "", rawContent: content });
     }
     setAiLoading(false);
   };
@@ -292,6 +308,8 @@ Evaluate the student's answer strictly. Respond ONLY with a JSON object:
             <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Asking AI...</>
           ) : aiStructured || aiRawContent ? (
             <><Bot className="w-3.5 h-3.5 text-[#8B5CF6]" /> AI Insights Generated</>
+          ) : getAiCache(question.id) ? (
+            <><Bot className="w-3.5 h-3.5 text-[#10B981]" /> Load Cached AI Insights</>
           ) : (
             <><Bot className="w-3.5 h-3.5" /> Ask AI to analyze this question</>
           )}

@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Search, Command, Sun, Moon } from "lucide-react";
 import { useThemeStore } from "@/stores/theme-store";
+import { GlobalSearch } from "@/components/global-search";
 import { cn } from "@/lib/cn";
 
 interface HeaderProps {
@@ -14,7 +15,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
   const { theme, toggle } = useThemeStore();
 
   return (
-    <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-4 sm:px-6 glass border-b-0 rounded-none">
+    <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-4 sm:px-6 border-b border-[var(--glass-border)] bg-[var(--bg-surface)] rounded-none">
       <div className="flex items-center gap-3">
         {breadcrumbs && breadcrumbs.length > 0 && (
           <div className="flex items-center gap-1.5 text-sm">
@@ -47,6 +48,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
         animate={{ opacity: 1 }}
         className="flex items-center gap-2 sm:gap-3"
       >
+        <GlobalSearch />
         <button
           onClick={toggle}
           className="p-2 rounded-xl glass-interactive"

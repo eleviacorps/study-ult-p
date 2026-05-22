@@ -6,7 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { AiTutorSidebar } from "@/components/ai-tutor-sidebar";
 import { useLlm } from "@/lib/llm-context";
+import { addPoints } from "@/lib/study-state";
 import type { Note } from "@/types";
 import { Bot, Loader2, X } from "lucide-react";
 
@@ -16,9 +18,6 @@ export default function ReaderPage() {
   const { ask, config } = useLlm();
   const [note, setNote] = useState<Note | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
-  const [aiQuery, setAiQuery] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoaded || !vault) return;
@@ -118,7 +117,7 @@ export default function ReaderPage() {
             <a
               key={i}
               href={`#${h.text.toLowerCase().replace(/\s+/g, "-")}`}
-              className="block px-2 py-1 text-xs text-white/35 hover:text-white/70 transition-colors rounded-md hover:bg-white/[0.03]"
+              className="block px-2 py-1 text-xs text-white/35 hover:text-white/70 transition-colors hover:bg-white/[0.03]"
               style={{ paddingLeft: `${8 + (h.level - 1) * 12}px` }}
             >
               {h.text}
@@ -144,63 +143,21 @@ export default function ReaderPage() {
                   {note.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="text-[10px] px-2.5 py-1 rounded-lg bg-white/[0.04] text-white/30 border border-white/[0.04]"
+                      className="text-[10px] px-2.5 py-1 bg-white/[0.04] text-white/30 border border-white/[0.04]"
                     >
                       {tag}
                     </span>
                   ))}
                 </div>
               )}
-
-              <div className="mt-6 p-4 glass rounded-2xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <Bot className="w-4 h-4 text-[#8B5CF6]" />
-                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-                    Ask AI about this topic
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={aiQuery}
-                    onChange={(e) => setAiQuery(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === "Enter" && aiQuery.trim() && !aiLoading) {
-                        setAiLoading(true);
-                        const context = `You are a JEE physics tutor. Here is the full chapter content:\n\n${note.content.substring(0, 4000)}\n\nStudent question:`;
-                        const { content } = await ask(context, aiQuery);
-                        setAiResponse(content);
-                        setAiLoading(false);
-                      }
-                    }}
-                    placeholder="Ask a question about this topic..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm outline-none"
-                    style={{ color: "var(--text-primary)" }}
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!aiQuery.trim() || aiLoading) return;
-                      setAiLoading(true);
-                      const context = `You are a JEE physics tutor. Here is the full chapter content:\n\n${note.content.substring(0, 4000)}\n\nStudent question:`;
-                      const { content } = await ask(context, aiQuery);
-                      setAiResponse(content);
-                      setAiLoading(false);
-                    }}
-                    disabled={aiLoading || !aiQuery.trim()}
-                    className="px-3 py-2 rounded-xl bg-[#8B5CF6]/15 text-[#8B5CF6] text-xs disabled:opacity-30 hover:bg-[#8B5CF6]/25 transition-colors"
-                  >
-                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Ask"}
-                  </button>
-                </div>
-                {aiResponse && (
-                  <div className="mt-3 p-3 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10 text-xs opacity-60 leading-relaxed">
-                    {aiResponse}
-                  </div>
-                )}
-              </div>
             </motion.article>
           </AnimatePresence>
         </main>
+
+        <AiTutorSidebar
+          context={note.content}
+          chapterName={decodeURIComponent(params.chapter)}
+        />
       </div>
     </div>
   );

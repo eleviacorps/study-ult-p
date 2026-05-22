@@ -113,12 +113,28 @@ body::before {
   border-radius: var(--radius-2xl);
 }
 
+.glass-square {
+  background: var(--glass-light);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 0;
+}
+
 .glass-medium {
   background: var(--glass-medium);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-2xl);
+}
+
+.glass-medium-square {
+  background: var(--glass-medium);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 0;
 }
 
 .glass-heavy {

@@ -16,6 +16,8 @@ export interface StudyState {
   userTodos: { id: string; task: string; priority: "high" | "medium" | "low"; createdAt: string; completed: boolean }[];
   activityLog: { timestamp: string; action: string; details: string; points: number }[];
   topicAccuracy: Record<string, { correct: number; total: number }>;
+  predictedWeakness: { topic: string; prediction: string; confidence: string }[];
+  lastAiAnalysis: string;
 }
 
 const STORAGE_KEY = "studyult-state";
@@ -51,6 +53,8 @@ function getDefaultState(): StudyState {
     userTodos: [],
     activityLog: [],
     topicAccuracy: {},
+    predictedWeakness: [],
+    lastAiAnalysis: "",
   };
 }
 
