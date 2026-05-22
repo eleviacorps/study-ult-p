@@ -113,6 +113,16 @@ export interface VaultContent {
   graphData: GraphData;
 }
 
+export interface StudyState {
+  streak: number;
+  lastStudyDate: string;
+  studyMinutes: Record<string, number>;
+  reviewedFlashcards: Record<string, number>;
+  masteredFlashcards: Record<string, number>;
+  questionAttempts: Record<string, { correct: number; total: number }>;
+  testScores: { date: string; score: number; total: number; chapter: string }[];
+}
+
 export interface StudyProgress {
   chapterId: string;
   chapterName: string;

@@ -43,13 +43,15 @@ export function Sidebar() {
 
   return (
     <>
-      {!isMobile && <div style={{ width: sidebarWidth, flexShrink: 0 }} />}
+      {!isMobile && (
+        <div style={{ width: sidebarWidth, flexShrink: 0 }} />
+      )}
 
       <aside
         className={cn(
           "fixed top-0 left-0 h-full z-30 flex flex-col",
           "bg-[var(--bg-surface)] border-r border-[var(--glass-border)]",
-          isMobile ? (mobileOpen ? "translate-x-0" : "-translate-x-full") : "",
+          isMobile ? (mobileOpen ? "translate-x-0" : "-translate-x-full") : "translate-x-0",
           "transition-transform duration-200"
         )}
         style={{ width: sidebarWidth }}

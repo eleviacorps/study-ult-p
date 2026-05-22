@@ -1,64 +1,35 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import type { VaultContent, ChapterMeta, Note } from "@/types";
+import type { VaultContent } from "@/types";
+import { loadStudyState, computeAnalytics, addAiTodo, addPoints, updateStudyState } from "@/lib/study-state";
+import type { StudyState } from "@/lib/study-state";
+import { useLlm } from "@/lib/llm-context";
 import {
   Flame,
   Clock,
   BookOpen,
   Target,
-  Zap,
+  Trophy,
   Brain,
   TrendingUp,
   AlertCircle,
   BarChart3,
   ArrowRight,
-  FileQuestion,
   Layers,
+  CheckCircle2,
+  Circle,
+  Plus,
+  Sparkles,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface DashboardWidgetsProps {
   vault: VaultContent;
-}
-
-interface StudyState {
-  streak: number;
-  lastStudyDate: string;
-  studyMinutes: Record<string, number>;
-  reviewedFlashcards: Record<string, number>;
-  masteredFlashcards: Record<string, number>;
-  questionAttempts: Record<string, { correct: number; total: number }>;
-  testScores: { date: string; score: number; total: number; chapter: string }[];
-}
-
-function loadStudyState(): StudyState {
-  if (typeof window === "undefined") {
-    return {
-      streak: 0,
-      lastStudyDate: "",
-      studyMinutes: {},
-      reviewedFlashcards: {},
-      masteredFlashcards: {},
-      questionAttempts: {},
-      testScores: [],
-    };
-  }
-  try {
-    const raw = localStorage.getItem("studyult-state");
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return {
-    streak: 0,
-    lastStudyDate: "",
-    studyMinutes: {},
-    reviewedFlashcards: {},
-    masteredFlashcards: {},
-    questionAttempts: {},
-    testScores: [],
-  };
 }
 
 function WidgetCard({
@@ -75,141 +46,146 @@ function WidgetCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay, ease: [0.25, 0.4, 0.25, 1] }}
-      className={cn(
-        "glass p-5 flex flex-col gap-3 group transition-all duration-300",
-        className
-      )}
+      className={cn("glass p-5 flex flex-col gap-3", className)}
     >
       {children}
     </motion.div>
   );
 }
 
-function computeWeakAreas(
-  vault: VaultContent,
-  studyState: StudyState
-): { topic: string; accuracy: number; chapter: string }[] {
-  const areas: Map<string, { chapter: string; correct: number; total: number }> =
-    new Map();
-
-  for (const question of vault.questions) {
-    if (!question.topic) continue;
-    const existing = areas.get(question.topic) || {
-      chapter: question.chapter,
-      correct: 0,
-      total: 0,
-    };
-    const key = `q-${question.id}`;
-    const attempt = studyState.questionAttempts[key];
-    if (attempt) {
-      existing.correct += attempt.correct;
-      existing.total += attempt.total;
-    }
-    areas.set(question.topic, existing);
-  }
-
-  const result: { topic: string; accuracy: number; chapter: string }[] = [];
-  for (const [topic, data] of areas) {
-    if (data.total >= 2) {
-      const acc = Math.round((data.correct / data.total) * 100);
-      if (acc < 70) {
-        result.push({ topic, accuracy: acc, chapter: data.chapter });
-      }
-    }
-  }
-
-  result.sort((a, b) => a.accuracy - b.accuracy);
-  return result.slice(0, 4);
-}
-
-function computeChapterProgress(
-  vault: VaultContent,
-  studyState: StudyState
-): { name: string; totalTopics: number; reviewedCards: number; totalCards: number; percent: number }[] {
-  return vault.chapters.map((ch) => {
-    const chapterFlashcards = vault.flashcards.filter(
-      (f) => f.chapter === ch.name
-    );
-    let reviewed = 0;
-    for (const fc of chapterFlashcards) {
-      if (studyState.reviewedFlashcards[fc.id]) reviewed++;
-    }
-    const total = chapterFlashcards.length || 1;
-    const percent = Math.round((reviewed / total) * 100);
-    return {
-      name: ch.name,
-      totalTopics: ch.totalTopics,
-      reviewedCards: reviewed,
-      totalCards: chapterFlashcards.length,
-      percent,
-    };
-  });
-}
-
-function getTodayStudyMinutes(studyState: StudyState): number {
-  const today = new Date().toISOString().split("T")[0];
-  return studyState.studyMinutes[today] || 0;
-}
-
-function getStreak(studyState: StudyState): number {
-  return studyState.streak || 1;
-}
-
-function getWeeklyActivity(studyState: StudyState): number[] {
-  const days: number[] = [];
-  const today = new Date();
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().split("T")[0];
-    const minutes = studyState.studyMinutes[key] || 0;
-    days.push(Math.min(100, Math.max(5, Math.round((minutes / 120) * 100))));
-  }
-  return days;
-}
-
 export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
+  const { ask, config } = useLlm();
   const [studyState, setStudyState] = useState<StudyState>(loadStudyState);
   const [mounted, setMounted] = useState(false);
+  const [newTodo, setNewTodo] = useState("");
+  const [newTodoPriority, setNewTodoPriority] = useState<"high" | "medium" | "low">("medium");
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setStudyState(loadStudyState());
   }, []);
 
+  const refresh = useCallback(() => {
+    setStudyState(loadStudyState());
+  }, []);
+
+  const analytics = computeAnalytics(studyState);
+
   const totalFlashcards = vault.flashcards.length;
   const totalQuestions = vault.questions.length;
   const totalChapters = vault.chapters.length;
-  const chapterProgress = computeChapterProgress(vault, studyState);
-  const weakAreas = computeWeakAreas(vault, studyState);
-  const todayMinutes = getTodayStudyMinutes(studyState);
-  const streak = getStreak(studyState);
-  const weeklyActivity = getWeeklyActivity(studyState);
 
-  const reviewedCards = vault.flashcards.filter(
-    (fc) => studyState.reviewedFlashcards[fc.id]
-  ).length;
-  const masteredCards = vault.flashcards.filter(
-    (fc) => studyState.masteredFlashcards[fc.id]
-  ).length;
-  const reviewPercent =
-    totalFlashcards > 0
-      ? Math.round((reviewedCards / totalFlashcards) * 100)
-      : 0;
-
-  const totalAttempts = Object.values(studyState.questionAttempts).reduce(
-    (sum, a) => sum + a.total,
-    0
-  );
-  const totalCorrect = Object.values(studyState.questionAttempts).reduce(
-    (sum, a) => sum + a.correct,
-    0
-  );
-  const overallAccuracy =
-    totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
+  const reviewedCards = analytics.reviewedCards;
+  const masteredCards = analytics.masteredCards;
+  const reviewPercent = totalFlashcards > 0 ? Math.round((reviewedCards / totalFlashcards) * 100) : 0;
 
   const days = ["S", "M", "T", "W", "T", "F", "S"];
   const today = new Date().getDay();
+
+  const addUserTodo = () => {
+    if (!newTodo.trim()) return;
+    updateStudyState((state) => {
+      state.userTodos.unshift({
+        id: `user-${Date.now()}`,
+        task: newTodo.trim(),
+        priority: newTodoPriority,
+        createdAt: new Date().toISOString(),
+        completed: false,
+      });
+    });
+    addPoints(5, "Todo Added", newTodo.trim());
+    setNewTodo("");
+    refresh();
+  };
+
+  const toggleTodo = (id: string, isAi: boolean) => {
+    updateStudyState((state) => {
+      const list = isAi ? state.aiTodos : state.userTodos;
+      const item = list.find((t) => t.id === id);
+      if (item) {
+        item.completed = !item.completed;
+        if (item.completed && isAi) {
+          addPoints(15, "Todo Completed", item.task);
+        }
+      }
+    });
+    refresh();
+  };
+
+  const deleteTodo = (id: string, isAi: boolean) => {
+    updateStudyState((state) => {
+      if (isAi) {
+        state.aiTodos = state.aiTodos.filter((t) => t.id !== id);
+      } else {
+        state.userTodos = state.userTodos.filter((t) => t.id !== id);
+      }
+    });
+    refresh();
+  };
+
+  const generateAiTodos = async () => {
+    if (!config.enabled || aiGenerating) return;
+    setAiGenerating(true);
+
+    const weakTopics = (studyState.weakAreas || []).slice(0, 3).map((w) => w.topic).join(", ");
+    const strongTopics = (studyState.strongAreas || []).slice(0, 2).map((w) => w.topic).join(", ");
+    const testScores = (studyState.testScores || []).slice(-3).map((t) => `${t.chapter}: ${t.score}/${t.total}`).join("; ");
+    const accuracy = analytics.accuracy;
+    const flashcardProgress = reviewPercent;
+
+    const context = `You are a JEE study planner. The student's stats:
+- Overall accuracy: ${accuracy}%
+- Weak topics: ${weakTopics || "none yet"}
+- Strong topics: ${strongTopics || "none yet"}
+- Recent test scores: ${testScores || "none yet"}
+- Flashcards reviewed: ${reviewPercent}% of total
+- Total points: ${analytics.points}
+
+Based on this, generate 3-5 priority study tasks. Output ONLY valid JSON array:
+[{"task": "Review Gauss's Law - focus on cylindrical symmetry", "priority": "high"}]
+
+Priorities: "high", "medium", or "low". Be specific and actionable.`;
+
+    try {
+      const { content } = await ask(context, "");
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const tasks = JSON.parse(jsonMatch[0]);
+        for (const t of tasks) {
+          if (t.task && t.priority) {
+            addAiTodo(t.task, t.priority, "AI Analysis");
+          }
+        }
+      }
+    } catch {}
+    setAiGenerating(false);
+    refresh();
+  };
+
+  const getWeeklyActivity = (): number[] => {
+    const days: number[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      const minutes = studyState.studyMinutes?.[key] || 0;
+      days.push(Math.min(100, Math.max(5, Math.round((minutes / 120) * 100))));
+    }
+    return days;
+  };
+
+  const weeklyActivity = getWeeklyActivity();
+
+  const highPriorityTodos = [
+    ...analytics.userTodos.filter((t) => !t.completed && t.priority === "high"),
+    ...analytics.aiTodos.filter((t) => !t.completed && t.priority === "high"),
+  ].slice(0, 5);
+
+  const allPendingTodos = [
+    ...analytics.aiTodos.filter((t) => !t.completed),
+    ...analytics.userTodos.filter((t) => !t.completed),
+  ];
 
   if (!mounted) {
     return (
@@ -229,9 +205,15 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
             Welcome back, <span className="text-[#1856FF]">Student</span>
           </h1>
           <p className="text-sm text-white/40 mt-1">
-            {totalChapters} chapters • {vault.notes.length} notes •{" "}
-            {totalQuestions} problems
+            {totalChapters} chapters · {vault.notes.length} notes · {totalQuestions} problems
           </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20">
+            <Trophy className="w-4 h-4 text-[#F59E0B]" />
+            <span className="text-sm font-bold text-[#F59E0B]">{analytics.points}</span>
+            <span className="text-[10px] text-[#F59E0B]/60">pts</span>
+          </div>
         </div>
       </div>
 
@@ -242,7 +224,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <Flame className="w-5 h-5 text-[#1856FF]" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">{streak}</p>
+              <p className="text-2xl font-bold tracking-tight">{analytics.streak}</p>
               <p className="text-xs text-white/35">Day Streak</p>
             </div>
           </div>
@@ -275,9 +257,9 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
             </div>
             <div>
               <p className="text-2xl font-bold tracking-tight">
-                {todayMinutes > 60
-                  ? `${(todayMinutes / 60).toFixed(1)}h`
-                  : `${todayMinutes}m`}
+                {analytics.todayMinutes > 60
+                  ? `${(analytics.todayMinutes / 60).toFixed(1)}h`
+                  : `${analytics.todayMinutes}m`}
               </p>
               <p className="text-xs text-white/35">Today</p>
             </div>
@@ -299,12 +281,8 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <Layers className="w-5 h-5 text-[#8B5CF6]" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">
-                {reviewedCards}
-              </p>
-              <p className="text-xs text-white/35">
-                of {totalFlashcards} cards
-              </p>
+              <p className="text-2xl font-bold tracking-tight">{reviewedCards}</p>
+              <p className="text-xs text-white/35">of {totalFlashcards} cards</p>
             </div>
           </div>
           <div className="flex items-center gap-2 mt-2">
@@ -314,16 +292,11 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
                 style={{ width: `${reviewPercent}%` }}
               />
             </div>
-            <span className="text-xs text-white/30">
-              {reviewPercent}% reviewed
-            </span>
+            <span className="text-xs text-white/30">{reviewPercent}%</span>
           </div>
           {masteredCards > 0 && (
             <p className="text-[10px] text-white/25">
-              {masteredCards} mastered ({Math.round(
-                (masteredCards / reviewedCards) * 100
-              )}
-              % of reviewed)
+              {masteredCards} mastered ({reviewedCards > 0 ? Math.round((masteredCards / reviewedCards) * 100) : 0}%)
             </p>
           )}
         </WidgetCard>
@@ -335,20 +308,20 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
             </div>
             <div>
               <p className="text-2xl font-bold tracking-tight">
-                {overallAccuracy > 0 ? `${overallAccuracy}%` : "--"}
+                {analytics.totalAttempts > 0 ? `${analytics.accuracy}%` : "--"}
               </p>
               <p className="text-xs text-white/35">Accuracy</p>
             </div>
           </div>
           <div className="mt-2">
             <div className="flex justify-between text-[10px] text-white/25 mb-1">
-              <span>{totalAttempts} attempts</span>
-              <span>{totalCorrect} correct</span>
+              <span>{analytics.totalAttempts} attempts</span>
+              <span>{analytics.totalCorrect} correct</span>
             </div>
             <div className="h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-[#10B981] to-[#06B6D4] transition-all"
-                style={{ width: `${overallAccuracy > 0 ? overallAccuracy : 5}%` }}
+                style={{ width: `${analytics.totalAttempts > 0 ? analytics.accuracy : 5}%` }}
               />
             </div>
           </div>
@@ -362,39 +335,36 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <BookOpen className="w-4 h-4 text-[#1856FF]" />
               Chapter Progress
             </h3>
-            <span className="text-[10px] text-white/25">
-              {totalChapters} chapters
-            </span>
           </div>
           <div className="space-y-2.5 mt-1">
-            {chapterProgress.map((ch, i) => (
-              <Link
-                key={ch.name}
-                href={`/reader/${encodeURIComponent(ch.name)}`}
-                className="flex items-center gap-3 p-2.5 rounded-xl glass-interactive cursor-pointer no-underline"
-              >
-                <span className="text-xs text-white/20 w-5 flex-shrink-0">
-                  {i + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{ch.name}</p>
-                  <p className="text-[10px] text-white/25">
-                    {ch.totalTopics} topics • {ch.totalCards} flashcards
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <div className="w-16 h-1 rounded-full bg-white/[0.05] overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#1856FF]/60 transition-all"
-                      style={{ width: `${ch.percent}%` }}
-                    />
+            {vault.chapters.map((ch, i) => {
+              const chapterCards = vault.flashcards.filter((f) => f.chapter === ch.name);
+              const reviewed = chapterCards.filter((f) => studyState.reviewedFlashcards?.[f.id]).length;
+              const pct = chapterCards.length > 0 ? Math.round((reviewed / chapterCards.length) * 100) : 0;
+              const chapterQuestions = vault.questions.filter((q) => q.chapter === ch.name);
+              const attempted = chapterQuestions.filter((q) => studyState.questionAttempts?.[`q-${q.id}`]).length;
+              return (
+                <Link
+                  key={ch.name}
+                  href={`/reader/${encodeURIComponent(ch.name)}`}
+                  className="flex items-center gap-3 p-2.5 rounded-xl glass-interactive cursor-pointer no-underline"
+                >
+                  <span className="text-xs text-white/20 w-5 flex-shrink-0">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{ch.name}</p>
+                    <p className="text-[10px] text-white/25">
+                      {ch.totalTopics} topics · {chapterCards.length} cards · {attempted}/{chapterQuestions.length} questions
+                    </p>
                   </div>
-                  <span className="text-[10px] text-white/25 w-8 text-right">
-                    {ch.percent}%
-                  </span>
-                </div>
-              </Link>
-            ))}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="w-16 h-1 rounded-full bg-white/[0.05] overflow-hidden">
+                      <div className="h-full rounded-full bg-[#1856FF]/60 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-[10px] text-white/25 w-8 text-right">{pct}%</span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </WidgetCard>
 
@@ -405,13 +375,10 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               Weak Areas
             </h3>
           </div>
-          <div className="space-y-2.5 mt-1">
-            {weakAreas.length > 0 ? (
-              weakAreas.map((area) => (
-                <div
-                  key={area.topic}
-                  className="flex items-center gap-3 p-2 rounded-xl"
-                >
+          <div className="space-y-2 mt-1">
+            {analytics.weakAreas.length > 0 ? (
+              analytics.weakAreas.slice(0, 4).map((area) => (
+                <div key={area.topic} className="flex items-center gap-3 p-2 rounded-xl">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs truncate">{area.topic}</p>
                     <p className="text-[10px] text-white/20">{area.chapter}</p>
@@ -419,181 +386,246 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="w-12 h-1 rounded-full bg-white/[0.05] overflow-hidden">
                       <div
-                        className={cn(
-                          "h-full rounded-full",
-                          area.accuracy < 50
-                            ? "bg-[#EF4444]/60"
-                            : "bg-[#F59E0B]/60"
-                        )}
+                        className={cn("h-full rounded-full", area.accuracy < 50 ? "bg-[#EF4444]/60" : "bg-[#F59E0B]/60")}
                         style={{ width: `${area.accuracy}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-white/25">
-                      {area.accuracy}%
-                    </span>
+                    <span className="text-[10px] text-white/25">{area.accuracy}%</span>
                   </div>
                 </div>
               ))
+            ) : analytics.strongAreas.length > 0 ? (
+              analytics.strongAreas.slice(0, 3).map((area) => (
+                <div key={area.topic} className="flex items-center gap-3 p-2 rounded-xl">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs truncate">{area.topic}</p>
+                    <p className="text-[10px] text-white/20">{area.chapter}</p>
+                  </div>
+                  <span className="text-[10px] text-[#10B981]">{area.accuracy}%</span>
+                </div>
+              ))
             ) : (
-              <p className="text-xs text-white/25 py-4 text-center">
-                Start practicing questions to see weak areas
-              </p>
+              <p className="text-xs text-white/25 py-4 text-center">Start practicing to see analysis</p>
             )}
           </div>
-          {weakAreas.length > 0 && (
-            <Link
-              href="/analytics"
-              className="mt-2 flex items-center gap-1 text-[11px] text-[#1856FF] hover:text-[#06B6D4] transition-colors"
-            >
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
-          )}
         </WidgetCard>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <WidgetCard delay={0.3}>
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-[#8B5CF6]" />
-            <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-              Quick Actions
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#8B5CF6]" />
+              AI To-Do List
             </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={generateAiTodos}
+                disabled={aiGenerating || !config.enabled}
+                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-[#8B5CF6]/10 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {aiGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+                {aiGenerating ? "Analyzing..." : "AI Suggest"}
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
-            {vault.chapters.slice(0, 1).map((ch) => (
-              <Link
-                key={`read-${ch.name}`}
-                href={`/reader/${encodeURIComponent(ch.name)}`}
-                className="p-2.5 rounded-xl glass-interactive cursor-pointer flex items-center justify-between no-underline"
-              >
-                <div>
-                  <p className="text-xs font-medium">Continue Reading</p>
-                  <p className="text-[10px] text-white/25">{ch.name}</p>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-white/20" />
-              </Link>
-            ))}
-            <Link
-              href="/flashcards"
-              className="p-2.5 rounded-xl glass-interactive cursor-pointer flex items-center justify-between no-underline"
-            >
-              <div>
-                <p className="text-xs font-medium">Review Flashcards</p>
-                <p className="text-[10px] text-white/25">
-                  {totalFlashcards - reviewedCards} pending
-                </p>
-              </div>
-              <ArrowRight className="w-3.5 h-3.5 text-white/20" />
-            </Link>
-            {vault.chapters.filter((ch) =>
-              vault.questions.some((q) => q.chapter === ch.name)
-            ).length > 0 && (
-              <Link
-                href={`/tests/${encodeURIComponent(
-                  vault.chapters.find((ch) =>
-                    vault.questions.some((q) => q.chapter === ch.name)
-                  )?.name || ""
-                )}`}
-                className="p-2.5 rounded-xl glass-interactive cursor-pointer flex items-center justify-between no-underline"
-              >
-                <div>
-                  <p className="text-xs font-medium">Take Mock Test</p>
-                  <p className="text-[10px] text-white/25">
-                    {
-                      vault.chapters.find((ch) =>
-                        vault.questions.some((q) => q.chapter === ch.name)
-                      )?.name
-                    }
-                  </p>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-white/20" />
-              </Link>
+          <div className="space-y-1.5 mt-1 max-h-[280px] overflow-y-auto">
+            {analytics.aiTodos.filter((t) => !t.completed).length === 0 && analytics.aiTodos.filter((t) => t.completed).length === 0 ? (
+              <p className="text-xs text-white/25 py-4 text-center">
+                {config.enabled ? "Click AI Suggest to get personalized tasks" : "Enable AI in Settings for suggestions"}
+              </p>
+            ) : (
+              <>
+                {analytics.aiTodos
+                  .sort((a, b) => {
+                    const p = { high: 0, medium: 1, low: 2 };
+                    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                    return (p[a.priority] || 1) - (p[b.priority] || 1);
+                  })
+                  .slice(0, 10)
+                  .map((todo) => (
+                    <div
+                      key={todo.id}
+                      className={cn("flex items-center gap-2 p-2 rounded-lg group", todo.completed ? "opacity-30" : "hover:bg-white/[0.03]")}
+                    >
+                      <button onClick={() => toggleTodo(todo.id, true)} className="flex-shrink-0">
+                        {todo.completed ? (
+                          <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                        ) : (
+                          <Circle className="w-4 h-4 opacity-20" />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-xs", todo.completed && "line-through")}>{todo.task}</p>
+                        <p className="text-[9px] opacity-20">{todo.source} · {new Date(todo.createdAt).toLocaleDateString()}</p>
+                      </div>
+                      <span className={cn("text-[9px] px-1.5 py-0.5 rounded flex-shrink-0",
+                        todo.priority === "high" ? "bg-[#EF4444]/10 text-[#EF4444]" :
+                        todo.priority === "medium" ? "bg-[#F59E0B]/10 text-[#F59E0B]" :
+                        "bg-white/[0.04] text-white/40"
+                      )}>{todo.priority}</span>
+                      <button onClick={() => deleteTodo(todo.id, true)} className="opacity-0 group-hover:opacity-30 hover:!opacity-60 transition-opacity flex-shrink-0">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+              </>
             )}
           </div>
         </WidgetCard>
 
         <WidgetCard delay={0.35}>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-[#10B981]" />
-            <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-              Study Insights
-            </h3>
-          </div>
-          <div className="flex-1 flex flex-col justify-center">
-            <p className="text-xs text-white/60 leading-relaxed">
-              {totalQuestions > 0
-                ? `You have ${totalQuestions} questions to practice across ${totalChapters} chapters. `
-                : ""}
-              {reviewedCards > 0
-                ? `${reviewedCards} flashcards reviewed. `
-                : "Start reviewing flashcards to build knowledge. "}
-              {weakAreas.length > 0
-                ? `Focus on ${weakAreas[0]?.topic} to improve accuracy.`
-                : "Keep practicing to identify improvement areas."}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="w-2 h-2 rounded-full bg-[#10B981] shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
-            <span className="text-[10px] text-white/25">
-              {totalAttempts > 0
-                ? `Based on ${totalAttempts} question attempts`
-                : "Start solving questions"}
-            </span>
-          </div>
-        </WidgetCard>
-
-        <WidgetCard delay={0.4} className="md:col-span-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-[#06B6D4]" />
-              Weekly Activity
+              <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+              My Tasks
             </h3>
-            <span className="text-[10px] text-white/25">Last 7 days</span>
+            <span className="text-[10px] opacity-25">{analytics.pendingUserTodos} pending</span>
           </div>
-          <div className="flex items-end gap-2 h-20 mt-1">
-            {weeklyActivity.map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 flex flex-col items-center gap-1"
-              >
-                <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-[#1856FF]/40 to-[#06B6D4]/40 transition-all"
-                  style={{ height: `${h}%` }}
-                />
-                <span className="text-[9px] text-white/20">
-                  {["M", "T", "W", "T", "F", "S", "S"][i]}
-                </span>
-              </div>
-            ))}
+          <div className="space-y-1.5 mt-1 max-h-[200px] overflow-y-auto">
+            {analytics.userTodos.filter((t) => !t.completed).length === 0 && analytics.userTodos.filter((t) => t.completed).length === 0 ? (
+              <p className="text-xs text-white/25 py-2">Add your own study tasks below</p>
+            ) : (
+              analytics.userTodos
+                .sort((a, b) => {
+                  const p = { high: 0, medium: 1, low: 2 };
+                  if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                  return (p[a.priority] || 1) - (p[b.priority] || 1);
+                })
+                .map((todo) => (
+                  <div
+                    key={todo.id}
+                    className={cn("flex items-center gap-2 p-2 rounded-lg group", todo.completed ? "opacity-30" : "hover:bg-white/[0.03]")}
+                  >
+                    <button onClick={() => toggleTodo(todo.id, false)} className="flex-shrink-0">
+                      {todo.completed ? (
+                        <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                      ) : (
+                        <Circle className="w-4 h-4 opacity-20" />
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-xs", todo.completed && "line-through")}>{todo.task}</p>
+                    </div>
+                    <span className={cn("text-[9px] px-1.5 py-0.5 rounded flex-shrink-0",
+                      todo.priority === "high" ? "bg-[#EF4444]/10 text-[#EF4444]" :
+                      todo.priority === "medium" ? "bg-[#F59E0B]/10 text-[#F59E0B]" :
+                      "bg-white/[0.04] text-white/40"
+                    )}>{todo.priority}</span>
+                    <button onClick={() => deleteTodo(todo.id, false)} className="opacity-0 group-hover:opacity-30 hover:!opacity-60 transition-opacity flex-shrink-0">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))
+            )}
           </div>
-          <p className="text-[10px] text-white/25 mt-2">
-            {todayMinutes > 0
-              ? `Total this week: ~${Math.round(
-                  Object.entries(studyState.studyMinutes).reduce(
-                    (sum, [date, mins]) => {
-                      const d = new Date(date);
-                      const weekAgo = new Date();
-                      weekAgo.setDate(weekAgo.getDate() - 7);
-                      return d >= weekAgo ? sum + mins : sum;
-                    },
-                    0
-                  )
-                )} minutes`
-              : "No activity tracked yet this week"}
-          </p>
+          <div className="mt-2 flex gap-1.5">
+            <input
+              type="text"
+              value={newTodo}
+              onChange={(e) => setNewTodo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addUserTodo()}
+              placeholder="Add a task..."
+              className="flex-1 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#10B981]/30"
+              style={{ color: "var(--text-primary)" }}
+            />
+            <select
+              value={newTodoPriority}
+              onChange={(e) => setNewTodoPriority(e.target.value as any)}
+              className="w-20 px-2 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[10px] outline-none"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <option value="high">High</option>
+              <option value="medium">Med</option>
+              <option value="low">Low</option>
+            </select>
+            <button
+              onClick={addUserTodo}
+              disabled={!newTodo.trim()}
+              className="px-3 py-1.5 rounded-lg bg-[#10B981]/15 text-[#10B981] text-xs disabled:opacity-20 border border-[#10B981]/20 hover:bg-[#10B981]/25"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </WidgetCard>
       </div>
 
-      {vault.chapters.length > 0 && studyState.testScores.length > 0 && (
-        <div className="flex items-center gap-2 text-xs text-white/25">
-          <span>
-            Latest test:{" "}
-            {studyState.testScores[studyState.testScores.length - 1]?.score}/
-            {studyState.testScores[studyState.testScores.length - 1]?.total} on{" "}
-            {
-              studyState.testScores[studyState.testScores.length - 1]?.chapter
-            }
-          </span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <WidgetCard delay={0.4} className="lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[#10B981]" />
+              Performance
+            </h3>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            <div className="p-3 rounded-xl bg-[#1856FF]/5 border border-[#1856FF]/10">
+              <p className="text-[10px] opacity-30 mb-1">Questions</p>
+              <p className="text-lg font-bold">{analytics.totalAttempts}</p>
+              <p className="text-[10px] opacity-30">{analytics.totalCorrect} correct · {analytics.accuracy}%</p>
+            </div>
+            <div className="p-3 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10">
+              <p className="text-[10px] opacity-30 mb-1">Tests Taken</p>
+              <p className="text-lg font-bold">{analytics.recentTests.length}</p>
+              {analytics.recentTests[0] && (
+                <p className="text-[10px] opacity-30">Latest: {analytics.recentTests[0].score}/{analytics.recentTests[0].total}</p>
+              )}
+            </div>
+            <div className="p-3 rounded-xl bg-[#F59E0B]/5 border border-[#F59E0B]/10">
+              <p className="text-[10px] opacity-30 mb-1">Points Earned</p>
+              <p className="text-lg font-bold text-[#F59E0B]">{analytics.points}</p>
+              <p className="text-[10px] opacity-30">Keep it up!</p>
+            </div>
+            <div className="p-3 rounded-xl bg-[#10B981]/5 border border-[#10B981]/10">
+              <p className="text-[10px] opacity-30 mb-1">Trend</p>
+              <p className={cn("text-lg font-bold", analytics.testTrend >= 0 ? "text-[#10B981]" : "text-[#EF4444]")}>
+                {analytics.testTrend >= 0 ? "+" : ""}{Math.round(analytics.testTrend * 100)}%
+              </p>
+              <p className="text-[10px] opacity-30">from last test</p>
+            </div>
+          </div>
+        </WidgetCard>
+
+        <WidgetCard delay={0.45}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[#06B6D4]" />
+              Recent Activity
+            </h3>
+          </div>
+          <div className="space-y-2 mt-1 max-h-[240px] overflow-y-auto">
+            {analytics.activityLog.length > 0 ? (
+              analytics.activityLog.slice(0, 8).map((entry, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded-lg">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#1856FF]/50 mt-1.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px]">{entry.action}</p>
+                    <p className="text-[10px] opacity-25 truncate">{entry.details}</p>
+                  </div>
+                  <span className="text-[10px] text-[#10B981] flex-shrink-0">+{entry.points}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-white/25 py-4 text-center">Activity will appear here as you study</p>
+            )}
+          </div>
+        </WidgetCard>
+      </div>
+
+      {highPriorityTodos.length > 0 && (
+        <div className="p-4 rounded-xl bg-[#EF4444]/5 border border-[#EF4444]/20">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="w-4 h-4 text-[#EF4444]" />
+            <span className="text-xs font-semibold text-[#EF4444]">Priority Tasks</span>
+          </div>
+          <div className="space-y-1">
+            {highPriorityTodos.map((todo) => (
+              <div key={todo.id} className="flex items-center gap-2 p-1.5">
+                <div className="w-1 h-1 rounded-full bg-[#EF4444] flex-shrink-0" />
+                <p className="text-xs opacity-60">{todo.task}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

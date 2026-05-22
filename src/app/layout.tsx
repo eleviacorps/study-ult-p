@@ -32,11 +32,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col relative">
+      <body className="min-h-full flex relative">
         <LlmProvider>
           <VaultLoader />
           <Sidebar />
-          <main className="flex-1 min-h-screen relative z-0 w-full overflow-x-hidden">
+          <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">
             {children}
           </main>
         </LlmProvider>

@@ -20,7 +20,7 @@ export default function TestsRootPage() {
       <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Mock Tests</h1>
         <p className="text-sm text-white/35 mb-8">
-          JEE-pattern tests with timer, marking, and analytics
+          JEE-pattern tests with timer, marking, and AI-powered analytics
         </p>
 
         {!isLoaded ? (
@@ -57,10 +57,10 @@ export default function TestsRootPage() {
                       </div>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#10B981]/10 text-[#10B981]">
-                          Configurable
+                          Custom quantity & timer
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-white/25">
-                          Timer
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#8B5CF6]/10 text-[#8B5CF6]">
+                          AI feedback
                         </span>
                       </div>
                     </Link>
@@ -72,19 +72,33 @@ export default function TestsRootPage() {
             <div className="mb-6">
               <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
                 <BookOpen className="w-4 h-4 text-[#8B5CF6]" />
-                Full-Length Tests
+                Full-Length & Advanced Tests
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   {
                     name: "Full Physics — All Chapters",
-                    count: vault?.questions.length || 0,
-                    time: "60 min",
+                    desc: `${vault?.questions.length || 0} questions available`,
+                    time: "2 hours",
+                    chapter: vault?.chapters[0]?.name || "",
                   },
                   {
                     name: "Mixed Chapter — Random Selection",
-                    count: Math.min(30, vault?.questions.length || 0),
-                    time: "45 min",
+                    desc: "Questions from all chapters mixed",
+                    time: "1.5 hours",
+                    chapter: vault?.chapters[0]?.name || "",
+                  },
+                  {
+                    name: "JEE Advanced Pattern",
+                    desc: "Multiple sections, negative marking",
+                    time: "3 hours",
+                    chapter: vault?.chapters[0]?.name || "",
+                  },
+                  {
+                    name: "Quick Sprint — 15 Questions",
+                    desc: "Fast-paced practice with tight timer",
+                    time: "15 min",
+                    chapter: vault?.chapters[0]?.name || "",
                   },
                 ].map((test, i) => (
                   <motion.div
@@ -94,38 +108,24 @@ export default function TestsRootPage() {
                     transition={{ delay: i * 0.04 }}
                     className="glass p-5 flex flex-col"
                   >
-                    <h3 className="text-sm font-semibold mb-2">{test.name}</h3>
+                    <h3 className="text-sm font-semibold mb-1">{test.name}</h3>
+                    <p className="text-[10px] text-white/25 mb-3">{test.desc}</p>
                     <div className="flex items-center gap-3 text-[10px] text-white/30 mb-4">
-                      <span>{test.count} questions</span>
-                      <span>•</span>
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {test.time}
                       </span>
                     </div>
                     <div className="flex gap-2 mt-auto">
                       <Link
-                        href={`/tests/${encodeURIComponent(vault?.chapters[0]?.name || "")}?full=true&count=${test.count}&time=60`}
+                        href={`/tests/${encodeURIComponent(test.chapter)}`}
                         className="flex-1 py-2.5 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 text-[#8B5CF6] text-xs hover:bg-[#8B5CF6]/20 transition-colors text-center no-underline"
                       >
-                        Start Full Test
+                        Start
                       </Link>
                     </div>
                   </motion.div>
                 ))}
               </div>
-            </div>
-
-            <div className="glass p-6">
-              <h3 className="text-sm font-semibold mb-1">
-                JEE Advanced Simulator
-              </h3>
-              <p className="text-xs text-white/30 mb-4">
-                Full JEE Advanced pattern with 3 sections, negative marking, and
-                percentile simulation.
-              </p>
-              <button className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-[#1856FF]/10 to-[#8B5CF6]/10 border border-[#1856FF]/10 text-white/50 text-xs hover:text-white/80 transition-all">
-                Coming Soon
-              </button>
             </div>
           </>
         )}

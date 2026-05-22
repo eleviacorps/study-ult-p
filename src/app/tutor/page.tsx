@@ -6,6 +6,8 @@ import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
 import { Bot, Send, Brain, BookOpen, FileQuestion, Settings2, ChevronDown, ChevronUp } from "lucide-react";
+import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { updateStudyState, addPoints } from "@/lib/study-state";
 import { cn } from "@/lib/cn";
 
 interface ChatMessage {
@@ -59,6 +61,13 @@ export default function TutorPage() {
     const context = buildContext();
     const { content, reasoning } = await ask(context, userMsg);
     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
+
+    updateStudyState((state) => {
+      const today = new Date().toISOString().split("T")[0];
+      state.lastStudyDate = today;
+      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
+    });
+    addPoints(3, "Tutor Chat", userMsg.substring(0, 50));
   };
 
   return (
@@ -76,7 +85,9 @@ export default function TutorPage() {
               )}
               <div className={cn("max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl text-sm leading-relaxed",
                 msg.role === "user" ? "bg-[#1856FF]/15 border border-[#1856FF]/20" : "glass")}>
-                <span style={{ color: "var(--text-primary)" }}>{msg.content}</span>
+                <div className="prose-glass text-sm leading-relaxed max-w-none" style={{ color: "var(--text-primary)" }}>
+                  <MarkdownRenderer content={msg.content} />
+                </div>
                 {msg.reasoning && (
                   <div className="mt-2">
                     <button
@@ -120,9 +131,15 @@ export default function TutorPage() {
               {quickActions.map((action) => (
                 <button key={action.label} onClick={() => {
                   setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  ask(buildContext(), action.query).then(({ content, reasoning }) =>
-                    setMessages((prev) => [...prev, { role: "assistant", content, reasoning }])
-                  );
+                  ask(buildContext(), action.query).then(({ content, reasoning }) => {
+                    setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
+                    updateStudyState((state) => {
+                      const today = new Date().toISOString().split("T")[0];
+                      state.lastStudyDate = today;
+                      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
+                    });
+                    addPoints(3, action.label, action.query.substring(0, 50));
+                  });
                 }} className="glass glass-interactive p-4 text-left">
                   <action.icon className="w-4 h-4 text-[#8B5CF6] mb-2" />
                   <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{action.label}</p>

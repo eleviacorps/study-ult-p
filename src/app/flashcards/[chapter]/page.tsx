@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { updateStudyState, addPoints } from "@/lib/study-state";
 import type { Flashcard } from "@/types";
 import { RotateCw, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -110,6 +111,19 @@ export default function FlashcardsPage() {
 
   const setRating = (rating: number) => {
     setConfidence((prev) => new Map(prev).set(currentIndex, rating));
+
+    updateStudyState((state) => {
+      const fcId = card.id;
+      state.reviewedFlashcards[fcId] = (state.reviewedFlashcards[fcId] || 0) + 1;
+      if (rating >= 4) {
+        state.masteredFlashcards[fcId] = (state.masteredFlashcards[fcId] || 0) + 1;
+      }
+      const today = new Date().toISOString().split("T")[0];
+      state.lastStudyDate = today;
+      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 2;
+    });
+    addPoints(rating >= 4 ? 8 : 3, rating >= 4 ? "Card Mastered" : "Card Reviewed", `${card.chapter} - ${card.topic}`);
+
     if (currentIndex < cards.length - 1) {
       setTimeout(() => {
         setCurrentIndex((i) => i + 1);

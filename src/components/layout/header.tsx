@@ -14,7 +14,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
   const { theme, toggle } = useThemeStore();
 
   return (
-    <header className="sticky top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-6 glass border-b-0 border-l-0 border-r-0 rounded-none">
+    <header className="sticky top-0 z-20 h-16 flex items-center justify-between px-4 sm:px-6 glass border-b-0 rounded-none">
       <div className="flex items-center gap-3">
         {breadcrumbs && breadcrumbs.length > 0 && (
           <div className="flex items-center gap-1.5 text-sm">

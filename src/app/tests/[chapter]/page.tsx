@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
+import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { updateStudyState } from "@/lib/study-state";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -16,6 +18,9 @@ interface TestQuestion {
   type: "mcq" | "input";
 }
 
+const QUESTION_COUNTS = [5, 10, 15, 20, 30, 50] as const;
+const TIME_LIMITS = [10, 15, 20, 30, 45, 60, 90, 120] as const;
+
 export default function TestTakePage() {
   const params = useParams<{ chapter: string }>();
   const { vault, isLoaded } = useVaultStore();
@@ -25,15 +30,20 @@ export default function TestTakePage() {
   const [phase, setPhase] = useState<"config" | "loading" | "started" | "finished">("config");
   const [questionCount, setQuestionCount] = useState(10);
   const [timeMinutes, setTimeMinutes] = useState(15);
+  const [customQuestionCount, setCustomQuestionCount] = useState("");
+  const [customTimeMinutes, setCustomTimeMinutes] = useState("");
   const [questions, setQuestions] = useState<TestQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<Map<number, string | number>>(new Map());
   const [marked, setMarked] = useState<Set<number>>(new Set());
   const [timeLeft, setTimeLeft] = useState(0);
+  const [timeSpent, setTimeSpent] = useState(0);
   const [score, setScore] = useState<{ correct: number; wrong: number; total: number; feedback: string } | null>(null);
   const [aiScoreLoading, setAiScoreLoading] = useState(false);
 
   const generateQuestions = useCallback(async () => {
+    const actualCount = customQuestionCount ? parseInt(customQuestionCount) || questionCount : questionCount;
+
     setPhase("loading");
     
     const chapterQs = vault?.questions.filter((q) => q.chapter === chapterName) || [];
@@ -45,11 +55,12 @@ export default function TestTakePage() {
       setQuestions([{ text: "No questions available for this chapter.", options: ["OK"], correctIndex: 0, type: "mcq" }]);
       setPhase("started");
       setTimeLeft(timeMinutes * 60);
+      setTimeSpent(0);
       return;
     }
 
     if (!config.enabled) {
-      const fallback = chapterQs.slice(0, questionCount).map((q) => {
+      const fallback = chapterQs.slice(0, actualCount).map((q) => {
         const opts = q.options && q.options.length >= 2
           ? q.options.map(o => o.text)
           : ["A", "B", "C", "D"];
@@ -63,6 +74,7 @@ export default function TestTakePage() {
       });
       setQuestions(fallback as TestQuestion[]);
       setTimeLeft(timeMinutes * 60);
+      setTimeSpent(0);
       setCurrentQ(0);
       setAnswers(new Map());
       setMarked(new Set());
@@ -71,7 +83,7 @@ export default function TestTakePage() {
     }
 
     try {
-      const prompt = `You are a JEE physics test generator. From the question bank below, select exactly ${questionCount} questions. Output ONLY valid JSON, nothing else. No thinking, no markdown, no explanation. Just the JSON array.
+      const prompt = `You are a JEE physics test generator. From the question bank below, select exactly ${actualCount} questions. Output ONLY valid JSON, nothing else. No thinking, no markdown, no explanation. Just the JSON array.
 Format: [{"text":"question text","options":["A) option","B) option","C) option","D) option"],"correctIndex":0,"type":"mcq"}]
 
 Question bank:
@@ -90,8 +102,9 @@ ${questionsContent}`;
             (q: any) => q.text && (q.type === "input" || (q.options && q.options.length >= 2))
           );
           if (valid.length > 0) {
-            setQuestions(valid.slice(0, questionCount));
+            setQuestions(valid.slice(0, actualCount));
             setTimeLeft(timeMinutes * 60);
+            setTimeSpent(0);
             setCurrentQ(0);
             setAnswers(new Map());
             setMarked(new Set());
@@ -110,12 +123,13 @@ ${questionsContent}`;
         type: "mcq",
       }]);
       setTimeLeft(timeMinutes * 60);
+      setTimeSpent(0);
       setCurrentQ(0);
       setAnswers(new Map());
       setMarked(new Set());
       setPhase("started");
     } catch {
-      const fallback = chapterQs.slice(0, questionCount).map((q) => ({
+      const fallback = chapterQs.slice(0, actualCount).map((q) => ({
         text: q.given || q.title,
         options: q.options?.map(o => o.text) || [],
         correctIndex: 0,
@@ -123,21 +137,29 @@ ${questionsContent}`;
       }));
       setQuestions(fallback as TestQuestion[]);
       setTimeLeft(timeMinutes * 60);
+      setTimeSpent(0);
       setCurrentQ(0);
       setAnswers(new Map());
       setMarked(new Set());
       setPhase("started");
     }
-  }, [vault, chapterName, questionCount, timeMinutes, ask, config.enabled]);
+  }, [vault, chapterName, questionCount, timeMinutes, customQuestionCount, ask, config.enabled]);
 
   useEffect(() => {
     if (phase !== "started" || timeLeft <= 0) return;
     if (timeLeft <= 1) { finishTest(); return; }
-    const t = setInterval(() => setTimeLeft((p) => Math.max(0, p - 1)), 1000);
+    const t = setInterval(() => {
+      setTimeLeft((p) => Math.max(0, p - 1));
+      setTimeSpent((p) => p + 1);
+    }, 1000);
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
-  const startTest = () => generateQuestions();
+  const startTest = () => {
+    const totalMin = customTimeMinutes ? parseInt(customTimeMinutes) || timeMinutes : timeMinutes;
+    setTimeMinutes(totalMin);
+    generateQuestions();
+  };
 
   const finishTest = async () => {
     let correct = 0;
@@ -157,11 +179,44 @@ ${questionsContent}`;
         const wrongQs = questions
           .map((q, i) => answers.get(i) !== q.correctIndex ? `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${answers.get(i) || "skipped"}` : "")
           .filter(Boolean).join("\n\n");
+
+        const feedbackContext = `You are a JEE tutor analyzing test results. The student took a test on "${chapterName}" and got ${correct}/${questions.length} (${Math.round((correct / questions.length) * 100)}%). They spent ${Math.round(timeSpent / 60)} minutes.`;
+
         const { content } = await ask(
-          "You are a JEE tutor. Give CONCISE feedback on these wrong answers. Point out the mistake and what to study.",
-          wrongQs
+          feedbackContext,
+          `Analyze these wrong answers and provide structured feedback. Use markdown with headings and bullet points. Include:
+1. A summary of weak areas identified
+2. Specific mistakes with corrections (use LaTeX $$ for formulas)
+3. A study plan with 2-3 actionable items
+
+Here are the wrong answers:\n${wrongQs}`
         );
         setScore((prev) => prev ? { ...prev, feedback: content } : prev);
+
+        const total = questions.length;
+        questions.forEach((q, i) => {
+          const userAns = answers.get(i);
+          const isCorrect = q.type === "mcq"
+            ? (typeof userAns === "number" && userAns === q.correctIndex)
+            : (typeof userAns === "string" && userAns.trim().length > 0);
+          updateStudyState((state) => {
+            const key = `test-${chapterName}-q${i}`;
+            const current = state.questionAttempts[key] || { correct: 0, total: 0 };
+            state.questionAttempts[key] = {
+              correct: current.correct + (isCorrect ? 1 : 0),
+              total: current.total + 1,
+            };
+            state.testScores.push({
+              date: new Date().toISOString(),
+              score: correct,
+              total,
+              chapter: chapterName,
+            });
+            const today = new Date().toISOString().split("T")[0];
+            state.lastStudyDate = today;
+            state.studyMinutes[today] = (state.studyMinutes[today] || 0) + Math.round(timeSpent / 60);
+          });
+        });
       } catch {}
       setAiScoreLoading(false);
     }
@@ -186,26 +241,48 @@ ${questionsContent}`;
             <div className="space-y-4">
               <div>
                 <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Questions</label>
-                <div className="flex gap-2">
-                  {[5, 10, 15, 20].map((n) => (
-                    <button key={n} onClick={() => setQuestionCount(n)}
-                      className={cn("flex-1 py-2 rounded-lg text-xs",
-                        questionCount === n ? "bg-[#1856FF]/20 text-[#1856FF] border border-[#1856FF]/30" : "bg-white/[0.03] opacity-50 border border-transparent")}>
+                <div className="flex gap-2 flex-wrap">
+                  {QUESTION_COUNTS.map((n) => (
+                    <button key={n} onClick={() => { setQuestionCount(n); setCustomQuestionCount(""); }}
+                      className={cn("py-2 px-3 rounded-lg text-xs",
+                        questionCount === n && !customQuestionCount ? "bg-[#1856FF]/20 text-[#1856FF] border border-[#1856FF]/30" : "bg-white/[0.03] opacity-50 border border-transparent")}>
                       {n}
                     </button>
                   ))}
                 </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={customQuestionCount}
+                    onChange={(e) => { setCustomQuestionCount(e.target.value); if (e.target.value) setQuestionCount(0); }}
+                    placeholder="Custom"
+                    className="w-20 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                  {customQuestionCount && <span className="text-[10px] opacity-30">custom quantity</span>}
+                </div>
               </div>
               <div>
-                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Time</label>
-                <div className="flex gap-2">
-                  {[10, 15, 20, 30].map((n) => (
-                    <button key={n} onClick={() => setTimeMinutes(n)}
-                      className={cn("flex-1 py-2 rounded-lg text-xs",
-                        timeMinutes === n ? "bg-[#1856FF]/20 text-[#1856FF] border border-[#1856FF]/30" : "bg-white/[0.03] opacity-50 border border-transparent")}>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Time Limit (minutes)</label>
+                <div className="flex gap-2 flex-wrap">
+                  {TIME_LIMITS.map((n) => (
+                    <button key={n} onClick={() => { setTimeMinutes(n); setCustomTimeMinutes(""); }}
+                      className={cn("py-2 px-3 rounded-lg text-xs",
+                        timeMinutes === n && !customTimeMinutes ? "bg-[#1856FF]/20 text-[#1856FF] border border-[#1856FF]/30" : "bg-white/[0.03] opacity-50 border border-transparent")}>
                       {n}m
                     </button>
                   ))}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={customTimeMinutes}
+                    onChange={(e) => { setCustomTimeMinutes(e.target.value); if (e.target.value) setTimeMinutes(0); }}
+                    placeholder="Custom min"
+                    className="w-24 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                  {customTimeMinutes && <span className="text-[10px] opacity-30">custom time</span>}
                 </div>
               </div>
             </div>
@@ -247,7 +324,8 @@ ${questionsContent}`;
             </div>
             <h1 className="text-2xl font-bold mb-2">Test Complete</h1>
             <p className="text-3xl font-bold text-[#1856FF] mb-1">{score.correct}/{score.total}</p>
-            <p className="text-sm opacity-40 mb-6">{pct}% accuracy</p>
+            <p className="text-sm opacity-40 mb-1">{pct}% accuracy</p>
+            <p className="text-[10px] opacity-20 mb-4">Time: {Math.round(timeSpent / 60)}m {timeSpent % 60}s</p>
 
             {aiScoreLoading && (
               <div className="flex items-center justify-center gap-2 mb-4 opacity-60">
@@ -256,8 +334,10 @@ ${questionsContent}`;
             )}
 
             {score.feedback && (
-              <div className="text-left p-4 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10 text-xs opacity-60 leading-relaxed mb-6 whitespace-pre-wrap">
-                {score.feedback}
+              <div className="text-left p-4 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10 mb-6">
+                <div className="prose-glass text-xs leading-relaxed max-w-none opacity-70">
+                  <MarkdownRenderer content={score.feedback} />
+                </div>
               </div>
             )}
 
