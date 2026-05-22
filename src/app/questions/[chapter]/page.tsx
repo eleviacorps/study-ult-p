@@ -14,20 +14,50 @@ import {
   BrainCircuit,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+
+const PAGE_SIZE = 15;
 
 const steps = [
   { key: "think", label: "Think Yourself", icon: BrainCircuit, color: "cyan" },
   { key: "hint", label: "Show Hint", icon: Lightbulb, color: "amber" },
-  { key: "approach", label: "Show Approach", icon: ListOrdered, color: "purple" },
+  {
+    key: "approach",
+    label: "Show Approach",
+    icon: ListOrdered,
+    color: "purple",
+  },
   { key: "formula", label: "Formula Used", icon: Calculator, color: "primary" },
-  { key: "solution", label: "Step-by-Step", icon: ListOrdered, color: "emerald" },
-  { key: "insight", label: "AI Insight", icon: BrainCircuit, color: "indigo" },
-  { key: "mistake", label: "Common Mistake", icon: AlertTriangle, color: "red" },
+  {
+    key: "solution",
+    label: "Step-by-Step",
+    icon: ListOrdered,
+    color: "emerald",
+  },
+  {
+    key: "insight",
+    label: "AI Insight",
+    icon: BrainCircuit,
+    color: "indigo",
+  },
+  {
+    key: "mistake",
+    label: "Common Mistake",
+    icon: AlertTriangle,
+    color: "red",
+  },
 ];
 
-function QuestionCard({ question, index }: { question: Question; index: number }) {
+function QuestionCard({
+  question,
+  index,
+}: {
+  question: Question;
+  index: number;
+}) {
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
 
   const toggle = (key: string) => {
@@ -43,12 +73,13 @@ function QuestionCard({ question, index }: { question: Question; index: number }
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="glass p-6"
+      className="glass p-5 sm:p-6"
     >
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-xs font-mono text-white/20">Q{index + 1}</span>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <span className="text-xs font-mono text-white/20">
+          Q{index + 1}
+        </span>
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className={cn(
               "text-[10px] px-2 py-0.5 rounded-md font-medium",
@@ -66,7 +97,9 @@ function QuestionCard({ question, index }: { question: Question; index: number }
               {question.topic}
             </span>
           )}
-          <span className="text-[10px] text-white/20">{question.marks} marks</span>
+          <span className="text-[10px] text-white/20">
+            {question.marks} marks
+          </span>
         </div>
       </div>
 
@@ -90,8 +123,8 @@ function QuestionCard({ question, index }: { question: Question; index: number }
         </div>
       )}
 
-      {question.options && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
+      {question.options && question.options.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
           {question.options.map((opt) => (
             <div
               key={opt.label}
@@ -115,23 +148,15 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                 <step.icon
                   className={cn(
                     "w-4 h-4",
-                    revealed.has(step.key)
-                      ? cn(
-                          step.color === "cyan" && "text-[#06B6D4]",
-                          step.color === "amber" && "text-[#F59E0B]",
-                          step.color === "purple" && "text-[#8B5CF6]",
-                          step.color === "primary" && "text-[#1856FF]",
-                          step.color === "emerald" && "text-[#10B981]",
-                          step.color === "indigo" && "text-[#6366F1]",
-                          step.color === "red" && "text-[#EF4444]"
-                        )
-                      : "text-white/20"
+                    revealed.has(step.key) ? "text-white/60" : "text-white/20"
                   )}
                 />
                 <span
                   className={cn(
                     "text-xs",
-                    revealed.has(step.key) ? "text-white/70" : "text-white/30"
+                    revealed.has(step.key)
+                      ? "text-white/70"
+                      : "text-white/30"
                   )}
                 >
                   {step.label}
@@ -156,44 +181,47 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                   <div className="p-3 mx-1 rounded-b-xl bg-white/[0.02] border-t border-white/[0.04]">
                     {step.key === "think" && (
                       <p className="text-xs text-white/40 italic">
-                        Take a moment to think about the approach before revealing the solution...
+                        Take a moment to think before revealing the answer...
                       </p>
                     )}
                     {step.key === "hint" && (
                       <p className="text-xs text-white/50">
-                        💡 Start by identifying the relevant formula. For this problem, consider
-                        the relationship between the given quantities and what you need to find.
+                        Identify relevant physical laws and convert to SI units
+                        first.
                       </p>
                     )}
                     {step.key === "approach" && (
                       <div className="text-xs text-white/50 space-y-1">
-                        <p>1. Identify all given quantities and their units</p>
-                        <p>2. Determine which physical law applies</p>
-                        <p>3. Set up the equation with known values</p>
-                        <p>4. Solve for the unknown</p>
+                        <p>1. List all given quantities with SI units</p>
+                        <p>2. Select the appropriate formula</p>
+                        <p>3. Substitute values</p>
+                        <p>4. Calculate the result</p>
                       </div>
                     )}
                     {step.key === "formula" && (
                       <p className="text-xs text-white/50">
-                        The relevant formula involves the quantities mentioned in the given section.
-                        Check the corresponding topic notes for exact equations.
+                        The relevant formula is determined by the topic. Check
+                        the notes for exact expressions.
                       </p>
                     )}
                     {step.key === "solution" && (
-                      <div className="text-xs text-white/60 leading-relaxed">
-                        {question.solution || question.answer}
+                      <div className="text-xs text-white/60 leading-relaxed whitespace-pre-wrap break-words">
+                        {String(question.solution || question.answer || "")
+                          .replace(/\[\[([^\]]+)\]\]/g, "$1")
+                          .replace(/\*\*/g, "")}
                       </div>
                     )}
                     {step.key === "insight" && (
                       <p className="text-xs text-white/50">
-                        This type of problem frequently appears in JEE. Understanding the underlying
-                        concept will help you solve variations with different values.
+                        This type of problem tests conceptual understanding.
+                        Understanding the underlying physics is more important
+                        than memorizing formulas.
                       </p>
                     )}
                     {step.key === "mistake" && (
                       <p className="text-xs text-white/50">
-                        ⚠️ Common mistake: Forgetting to convert units to SI before plugging into
-                        formulas. Always check centimeters → meters, micro → 10⁻⁶, etc.
+                        ⚠️ Common mistake: Forgetting unit conversions. Always
+                        convert to SI before calculations.
                       </p>
                     )}
                   </div>
@@ -216,7 +244,11 @@ function QuestionCard({ question, index }: { question: Question; index: number }
               Answer
             </span>
           </div>
-          <p className="text-xs text-white/60">{question.answer}</p>
+          <p className="text-xs text-white/60 whitespace-pre-wrap break-words">
+            {String(question.answer || "")
+              .replace(/\[\[([^\]]+)\]\]/g, "$1")
+              .replace(/\*\*/g, "")}
+          </p>
         </motion.div>
       )}
     </motion.div>
@@ -226,6 +258,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
 export default function QuestionsPage() {
   const params = useParams<{ chapter: string }>();
   const { vault, isLoaded } = useVaultStore();
+  const [page, setPage] = useState(0);
 
   const chapterName = decodeURIComponent(params.chapter);
 
@@ -242,7 +275,14 @@ export default function QuestionsPage() {
     );
   }
 
-  const questions = vault.questions.filter((q) => q.chapter === chapterName);
+  const allQuestions = vault.questions.filter(
+    (q) => q.chapter === chapterName
+  );
+  const totalPages = Math.max(1, Math.ceil(allQuestions.length / PAGE_SIZE));
+  const questions = allQuestions.slice(
+    page * PAGE_SIZE,
+    (page + 1) * PAGE_SIZE
+  );
 
   return (
     <div className="min-h-screen">
@@ -252,18 +292,108 @@ export default function QuestionsPage() {
           { label: chapterName, href: "#" },
         ]}
       />
-      <div className="p-6 lg:p-8 max-w-3xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold mb-1">{chapterName}</h1>
-          <p className="text-sm text-white/35">
-            {questions.length} questions
-          </p>
+      <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
+        <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold mb-1">
+              {chapterName}
+            </h1>
+            <p className="text-sm text-white/35">
+              {allQuestions.length} questions · Page {page + 1} of{" "}
+              {totalPages}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+              className="p-2 rounded-xl glass-interactive disabled:opacity-20 text-white/40"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-white/30 px-2">
+              {page + 1}/{totalPages}
+            </span>
+            <button
+              onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+              disabled={page >= totalPages - 1}
+              className="p-2 rounded-xl glass-interactive disabled:opacity-20 text-white/40"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
+
         <div className="space-y-4">
           {questions.map((q, i) => (
-            <QuestionCard key={q.id} question={q} index={i} />
+            <QuestionCard
+              key={q.id}
+              question={q}
+              index={page * PAGE_SIZE + i}
+            />
           ))}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-8">
+            <button
+              onClick={() => setPage(0)}
+              disabled={page === 0}
+              className="text-[10px] text-white/30 hover:text-white/60 disabled:opacity-20"
+            >
+              First
+            </button>
+            <button
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+              className="p-2 rounded-xl glass-interactive disabled:opacity-20 text-white/40"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i;
+              } else if (page < 3) {
+                pageNum = i;
+              } else if (page > totalPages - 4) {
+                pageNum = totalPages - 5 + i;
+              } else {
+                pageNum = page - 2 + i;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setPage(pageNum)}
+                  className={cn(
+                    "w-8 h-8 rounded-lg text-xs transition-all",
+                    pageNum === page
+                      ? "bg-[#1856FF]/15 text-[#1856FF] border border-[#1856FF]/20"
+                      : "text-white/30 hover:text-white/60"
+                  )}
+                >
+                  {pageNum + 1}
+                </button>
+              );
+            })}
+            <button
+              onClick={() =>
+                setPage(Math.min(totalPages - 1, page + 1))
+              }
+              disabled={page >= totalPages - 1}
+              className="p-2 rounded-xl glass-interactive disabled:opacity-20 text-white/40"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage(totalPages - 1)}
+              disabled={page >= totalPages - 1}
+              className="text-[10px] text-white/30 hover:text-white/60 disabled:opacity-20"
+            >
+              Last
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

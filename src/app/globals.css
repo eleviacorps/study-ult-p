@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
-:root {
+:root,
+[data-theme="dark"] {
   --bg-base: #09090B;
   --bg-surface: #0F1117;
   --bg-elevated: #151821;
@@ -32,6 +33,32 @@
   --radius-xl: 20px;
   --radius-2xl: 24px;
   --radius-3xl: 32px;
+}
+
+[data-theme="cream"] {
+  --bg-base: #FAF8F5;
+  --bg-surface: #F5F0E8;
+  --bg-elevated: #EDE4D5;
+  --bg-overlay: #E8DECA;
+
+  --glass-light: rgba(17, 17, 17, 0.04);
+  --glass-medium: rgba(17, 17, 17, 0.06);
+  --glass-heavy: rgba(17, 17, 17, 0.10);
+  --glass-border: rgba(17, 17, 17, 0.08);
+  --glass-border-strong: rgba(17, 17, 17, 0.12);
+
+  --accent-primary: #2563EB;
+  --accent-cyan: #0891B2;
+  --accent-emerald: #059669;
+  --accent-purple: #7C3AED;
+  --accent-orange: #EA580C;
+  --accent-red: #DC2626;
+  --accent-amber: #D97706;
+  --accent-indigo: #4F46E5;
+
+  --text-primary: #1C1917;
+  --text-secondary: #57534E;
+  --text-muted: #8C8A85;
 }
 
 @theme inline {

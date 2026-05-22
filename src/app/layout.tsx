@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { VaultLoader } from "@/components/layout/vault-loader";
+import { ThemeInitializer } from "@/stores/theme-store";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +17,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "StudyUlt — AI Educational OS",
-  description: "Premium AI-powered JEE preparation platform with Obsidian vault integration, interactive flashcards, mock tests, and knowledge graphs.",
+  description:
+    "Premium AI-powered JEE preparation platform with Obsidian vault integration, interactive flashcards, mock tests, and knowledge graphs.",
 };
 
 export default function RootLayout({
@@ -28,12 +30,13 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      style={{ colorScheme: "dark" }}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex relative">
+      <body className="min-h-full flex flex-col relative">
+        <ThemeInitializer />
         <VaultLoader />
         <Sidebar />
-        <main className="flex-1 ml-[260px] min-h-screen relative z-10">
+        <main className="flex-1 lg:ml-[260px] min-h-screen relative z-10 w-full">
           {children}
         </main>
       </body>

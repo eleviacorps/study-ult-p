@@ -249,6 +249,42 @@ function parseQuestions(): Question[] {
   return questions;
 }
 
+function cleanMdText(text: string): string {
+  return text
+    .replace(/^>\s*/gm, "")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/#+\s*/g, "")
+    .trim();
+}
+
+function extractFlashcardField(
+  block: string,
+  headers: string[]
+): string | undefined {
+  for (const header of headers) {
+    const pat = new RegExp(
+      `#{1,4}\\s+${header}:?\\s*\\n([\\s\\S]*?)\\n#{1,4}\\s+|#{1,4}\\s+${header}:?\\s*\\n([\\s\\S]*?)\\n---`,
+      "i"
+    );
+    const m = block.match(pat);
+    if (m && (m[1] || m[2])) {
+      return cleanMdText(m[1] || m[2]);
+    }
+
+    const endPat = new RegExp(
+      `#{1,4}\\s+${header}:?\\s*\\n([\\s\\S]*?)$`,
+      "i"
+    );
+    const em = block.match(endPat);
+    if (em && em[1].trim()) {
+      return cleanMdText(em[1]);
+    }
+  }
+  return undefined;
+}
+
 function parseFlashcards(): Flashcard[] {
   const allFiles = findAllMdFiles(VAULT_ROOT);
   const flashcards: Flashcard[] = [];
@@ -264,9 +300,7 @@ function parseFlashcards(): Flashcard[] {
     const subject = "Physics";
     const tags = parseTags(content);
 
-    const fcBlocks = content
-      .split(/^##\s+FC\d+/m)
-      .filter((b) => b.trim());
+    const fcBlocks = content.split(/^##\s+FC\d+/m).filter((b) => b.trim());
     const titles = content.match(/^##\s+(FC\d+.+)$/gm) || [];
 
     fcBlocks.forEach((block, i) => {
@@ -274,77 +308,35 @@ function parseFlashcards(): Flashcard[] {
       const title = titleMatch ? titleMatch[1].trim() : `Flashcard ${i + 1}`;
 
       const topicMatch = block.match(/\*\*Topic:\*\*\s*(.+)/);
+      let topic = topicMatch?.[1]?.trim() || "";
+      topic = topic.replace(/\[\[|\]\]/g, "").replace(/\|.+$/, "").trim();
+
       const subMatch = block.match(/\*\*Subtopic:\*\*\s*(.+)/);
       const typeMatch = block.match(/\*\*Type:\*\*\s*(.+)/);
 
-      const qMatch = block.match(/> \*\*Question:\*\*\s*\n>\s*(.+)/);
-      const qBlock = block.match(
-        /### Question:\s*\n([\s\S]*?)(?=###\s+Answer)/
-      );
-      const aMatch = block.match(/> \*\*Answer:\*\*\s*\n>\s*(.+)/);
-      const aBlock = block.match(
-        /### Answer:\s*\n([\s\S]*?)(?=###\s+Formula|###\s+Variable|###\s+When|###\s+Memory|#|$)/
-      );
+      const questionText =
+        extractFlashcardField(block, ["Question", "Q"]) || title;
 
-      const formulaMatch = block.match(/### Formula:\s*\n([\s\S]*?)(?=###|$)/);
-      const trickMatch = block.match(
-        /### Memory Trick:\s*\n([\s\S]*?)(?=###|$|#)/
-      );
+      const answerText = extractFlashcardField(block, ["Answer", "A"]) || "";
 
-      let questionText = "";
-      if (qMatch) {
-        questionText = qMatch[1].trim();
-      } else if (qBlock) {
-        const lines = qBlock[1]
-          .split("\n")
-          .filter((l) => l.trim() && !l.startsWith(">"))
-          .join(" ");
-        questionText = lines.trim();
-      } else {
-        questionText = title;
-      }
-
-      let answerText = "";
-      if (aMatch) {
-        answerText = aMatch[1].trim();
-      } else if (aBlock) {
-        const lines = aBlock[1]
-          .split("\n")
-          .filter((l) => l.trim() && !l.startsWith(">"))
-          .join(" ");
-        answerText = lines.trim();
-      } else {
-        answerText = "";
-      }
-
-      let formula: string | undefined;
-      if (formulaMatch) {
-        formula = formulaMatch[1].trim();
-      }
-
-      let memoryTrick: string | undefined;
-      if (trickMatch) {
-        const trickContent = trickMatch[1].trim();
-        const tipMatch = trickContent.match(
-          /\[!TIP\]\s*\n>\s*(.+)/
-        );
-        memoryTrick = tipMatch
-          ? tipMatch[1].trim()
-          : trickContent.replace(/^> /gm, "").trim();
-      }
+      const formulaText = extractFlashcardField(block, ["Formula"]);
+      const trickText = extractFlashcardField(block, [
+        "Memory Trick",
+        "Memory",
+      ]);
 
       flashcards.push({
         id: slugify(`${chapter}-fc${i + 1}`),
         chapter,
         subject,
-        topic: topicMatch?.[1]?.trim() || "",
+        topic,
         subtopic: subMatch?.[1]?.trim(),
         type: typeMatch?.[1]?.trim() || "Conceptual",
         question: questionText,
         answer: answerText,
-        formula,
+        formula: formulaText,
         variableMeanings: [],
-        memoryTrick,
+        memoryTrick: trickText,
         tags,
       });
     });
