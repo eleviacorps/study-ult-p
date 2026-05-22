@@ -2,13 +2,6 @@
 
 import { create } from "zustand";
 import type { VaultContent, ChapterMeta, Note, Question, Flashcard } from "@/types";
-import {
-  getVault,
-  getChapterNotes,
-  getNoteById,
-  getChapterQuestions,
-  getChapterFlashcards,
-} from "@/lib/vault-parser";
 
 interface VaultState {
   vault: VaultContent | null;
@@ -17,13 +10,9 @@ interface VaultState {
   isLoaded: boolean;
   isLoading: boolean;
 
-  loadVault: () => void;
+  loadVault: () => Promise<void>;
   setCurrentChapter: (chapter: ChapterMeta | null) => void;
   setCurrentNote: (note: Note | null) => void;
-  getChapterNotes: (chapterName: string) => Note[];
-  getNoteById: (id: string) => Note | undefined;
-  getChapterQuestions: (chapterName: string) => Question[];
-  getChapterFlashcards: (chapterName: string) => Flashcard[];
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -33,11 +22,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   isLoaded: false,
   isLoading: false,
 
-  loadVault: () => {
+  loadVault: async () => {
     if (get().isLoaded || get().isLoading) return;
     set({ isLoading: true });
     try {
-      const vault = getVault();
+      const res = await fetch("/api/vault");
+      const vault: VaultContent = await res.json();
       set({ vault, isLoaded: true, isLoading: false });
     } catch (err) {
       console.error("Failed to load vault:", err);
@@ -47,10 +37,4 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   setCurrentChapter: (chapter) => set({ currentChapter: chapter }),
   setCurrentNote: (note) => set({ currentNote: note }),
-
-  getChapterNotes: (chapterName) => getChapterNotes(chapterName),
-  getNoteById: (id) => getNoteById(id),
-
-  getChapterQuestions: (chapterName) => getChapterQuestions(chapterName),
-  getChapterFlashcards: (chapterName) => getChapterFlashcards(chapterName),
 }));
