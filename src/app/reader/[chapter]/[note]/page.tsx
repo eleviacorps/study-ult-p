@@ -168,8 +168,8 @@ export default function ReaderPage() {
                       if (e.key === "Enter" && aiQuery.trim() && !aiLoading) {
                         setAiLoading(true);
                         const context = `You are a JEE physics tutor. Here is the full chapter content:\n\n${note.content.substring(0, 4000)}\n\nStudent question:`;
-                        const res = await ask(context, aiQuery);
-                        setAiResponse(res);
+                        const { content } = await ask(context, aiQuery);
+                        setAiResponse(content);
                         setAiLoading(false);
                       }
                     }}
@@ -182,8 +182,8 @@ export default function ReaderPage() {
                       if (!aiQuery.trim() || aiLoading) return;
                       setAiLoading(true);
                       const context = `You are a JEE physics tutor. Here is the full chapter content:\n\n${note.content.substring(0, 4000)}\n\nStudent question:`;
-                      const res = await ask(context, aiQuery);
-                      setAiResponse(res);
+                      const { content } = await ask(context, aiQuery);
+                      setAiResponse(content);
                       setAiLoading(false);
                     }}
                     disabled={aiLoading || !aiQuery.trim()}

@@ -76,8 +76,8 @@ function QuestionCard({ question, index }: { question: Question; index: number }
     if (aiLoading || aiAnswer) return;
     setAiLoading(true);
     const context = `You are a JEE physics tutor. Here is the chapter content:\n\n${getTopicContent(vault, question)}\n\nQuestion: ${question.title}\nGiven: ${question.given || "N/A"}\nSolution: ${question.solution || "Not provided"}\nAnswer: ${question.answer}`;
-    const response = await ask(context, "Explain this question's concept, solution approach, and any tips for similar problems. Be concise.");
-    setAiAnswer(response);
+    const { content } = await ask(context, "Explain this question's concept, solution approach, and any tips for similar problems. Be concise.");
+    setAiAnswer(content);
     setAiLoading(false);
   };
 

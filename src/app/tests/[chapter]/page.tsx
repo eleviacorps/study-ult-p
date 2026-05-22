@@ -71,32 +71,49 @@ export default function TestTakePage() {
     }
 
     try {
-      const prompt = `You are a JEE physics test generator. From the question bank below, select ${questionCount} questions. For each, DECIDE if it should be MCQ or text-input. 
-For MCQs: include 4 options with the correct one marked.
-For text-input: the student types the answer.
-Return ONLY a JSON array with this exact format (no markdown, no explanation):
-[{"text":"question text","options":["A","B","C","D"],"correctIndex":0,"type":"mcq"},{"text":"question text","options":[],"correctIndex":0,"type":"input"}]
+      const prompt = `You are a JEE physics test generator. From the question bank below, select exactly ${questionCount} questions. Output ONLY valid JSON, nothing else. No thinking, no markdown, no explanation. Just the JSON array.
+Format: [{"text":"question text","options":["A) option","B) option","C) option","D) option"],"correctIndex":0,"type":"mcq"}]
 
 Question bank:
 ${questionsContent}`;
 
-      const response = await ask(prompt, "");
-      
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      const { content: response } = await ask(prompt, "");
+
+      const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        const valid = parsed.filter((q: any) => q.text && (q.type === "input" || (q.options && q.options.length >= 2)));
-        if (valid.length > 0) {
-          setQuestions(valid.slice(0, questionCount));
-          setTimeLeft(timeMinutes * 60);
-          setCurrentQ(0);
-          setAnswers(new Map());
-          setMarked(new Set());
-          setPhase("started");
-          return;
+        try {
+          const cleaned = jsonMatch[0]
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+            .replace(/,\s*\]/g, "]");
+          const parsed = JSON.parse(cleaned);
+          const valid = parsed.filter(
+            (q: any) => q.text && (q.type === "input" || (q.options && q.options.length >= 2))
+          );
+          if (valid.length > 0) {
+            setQuestions(valid.slice(0, questionCount));
+            setTimeLeft(timeMinutes * 60);
+            setCurrentQ(0);
+            setAnswers(new Map());
+            setMarked(new Set());
+            setPhase("started");
+            return;
+          }
+        } catch (e) {
+          console.error("JSON parse error:", e);
         }
       }
-      throw new Error("Failed to parse AI response");
+
+      setQuestions([{
+        text: `AI generated questions but the response couldn't be parsed. Raw response: ${response.substring(0, 300)}`,
+        options: ["Retry", "Use offline questions"],
+        correctIndex: 0,
+        type: "mcq",
+      }]);
+      setTimeLeft(timeMinutes * 60);
+      setCurrentQ(0);
+      setAnswers(new Map());
+      setMarked(new Set());
+      setPhase("started");
     } catch {
       const fallback = chapterQs.slice(0, questionCount).map((q) => ({
         text: q.given || q.title,
@@ -140,11 +157,11 @@ ${questionsContent}`;
         const wrongQs = questions
           .map((q, i) => answers.get(i) !== q.correctIndex ? `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${answers.get(i) || "skipped"}` : "")
           .filter(Boolean).join("\n\n");
-        const fb = await ask(
+        const { content } = await ask(
           "You are a JEE tutor. Give CONCISE feedback on these wrong answers. Point out the mistake and what to study.",
           wrongQs
         );
-        setScore((prev) => prev ? { ...prev, feedback: fb } : prev);
+        setScore((prev) => prev ? { ...prev, feedback: content } : prev);
       } catch {}
       setAiScoreLoading(false);
     }

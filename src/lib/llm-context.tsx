@@ -8,12 +8,17 @@ interface LlmConfig {
   enabled: boolean;
 }
 
+interface LlmResponse {
+  content: string;
+  reasoning: string;
+}
+
 interface LlmContextValue {
   config: LlmConfig;
   setProvider: (url: string) => void;
   setModel: (model: string) => void;
   toggleEnabled: () => void;
-  ask: (context: string, question: string) => Promise<string>;
+  ask: (context: string, question: string) => Promise<LlmResponse>;
   isAsking: boolean;
   availableModels: string[];
   fetchModels: () => Promise<void>;
@@ -92,8 +97,9 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
   }, [config.provider, config.model, setModel]);
 
   const ask = useCallback(
-    async (context: string, question: string): Promise<string> => {
-      if (!config.enabled) return "LLM is not enabled. Enable it in Settings.";
+    async (context: string, question: string): Promise<LlmResponse> => {
+      if (!config.enabled)
+        return { content: "LLM is not enabled.", reasoning: "" };
 
       setIsAsking(true);
       try {
@@ -104,31 +110,25 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
               { role: "system", content: context.substring(0, 4000) },
               { role: "user", content: question },
             ]
-          : [
-              { role: "user", content: context },
-            ];
+          : [{ role: "user", content: context }];
 
         const res = await fetch("/api/llm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: config.provider,
-            model: modelName,
-            messages,
-          }),
+          body: JSON.stringify({ provider: config.provider, model: modelName, messages }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          if (data.content) return data.content;
-          if (data.error) throw new Error(data.error);
+          return {
+            content: data.content || "",
+            reasoning: data.reasoning || "",
+          };
         }
 
-        throw new Error(
-          `Cannot reach LM Studio at ${config.provider}. Check that LM Studio is running and a model is loaded.`
-        );
+        return { content: `Error: Cannot reach LM Studio at ${config.provider}`, reasoning: "" };
       } catch (err: any) {
-        return `Error: ${err.message || "Could not connect to LM Studio"}`;
+        return { content: `Error: ${err.message}`, reasoning: "" };
       } finally {
         setIsAsking(false);
       }

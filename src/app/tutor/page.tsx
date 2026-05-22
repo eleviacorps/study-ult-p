@@ -5,12 +5,13 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
-import { Bot, Send, Brain, BookOpen, FileQuestion, Settings2 } from "lucide-react";
+import { Bot, Send, Brain, BookOpen, FileQuestion, Settings2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;
 }
 
 export default function TutorPage() {
@@ -29,6 +30,7 @@ export default function TutorPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [localUrl, setLocalUrl] = useState(config.provider);
   const [localModel, setLocalModel] = useState(config.model);
+  const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,8 +57,8 @@ export default function TutorPage() {
     setInput("");
 
     const context = buildContext();
-    const response = await ask(context, userMsg);
-    setMessages((prev) => [...prev, { role: "assistant", content: response }]);
+    const { content, reasoning } = await ask(context, userMsg);
+    setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
   };
 
   return (
@@ -75,6 +77,31 @@ export default function TutorPage() {
               <div className={cn("max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl text-sm leading-relaxed",
                 msg.role === "user" ? "bg-[#1856FF]/15 border border-[#1856FF]/20" : "glass")}>
                 <span style={{ color: "var(--text-primary)" }}>{msg.content}</span>
+                {msg.reasoning && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => {
+                        setExpandedReasoning((prev) => {
+                          const next = new Set(prev);
+                          next.has(i) ? next.delete(i) : next.add(i);
+                          return next;
+                        });
+                      }}
+                      className="flex items-center gap-1 text-[10px] opacity-30 hover:opacity-60 transition-opacity"
+                    >
+                      {expandedReasoning.has(i) ? (
+                        <><ChevronUp className="w-3 h-3" /> Hide thinking</>
+                      ) : (
+                        <><ChevronDown className="w-3 h-3" /> Show thinking</>
+                      )}
+                    </button>
+                    {expandedReasoning.has(i) && (
+                      <div className="mt-1.5 p-2.5 rounded-lg bg-[#8B5CF6]/5 border border-[#8B5CF6]/8 text-[11px] opacity-40 leading-relaxed max-h-48 overflow-y-auto">
+                        {msg.reasoning}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}
@@ -93,8 +120,8 @@ export default function TutorPage() {
               {quickActions.map((action) => (
                 <button key={action.label} onClick={() => {
                   setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  ask(buildContext(), action.query).then((r) =>
-                    setMessages((prev) => [...prev, { role: "assistant", content: r }])
+                  ask(buildContext(), action.query).then(({ content, reasoning }) =>
+                    setMessages((prev) => [...prev, { role: "assistant", content, reasoning }])
                   );
                 }} className="glass glass-interactive p-4 text-left">
                   <action.icon className="w-4 h-4 text-[#8B5CF6] mb-2" />
