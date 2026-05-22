@@ -15,13 +15,15 @@ export async function POST(request: NextRequest) {
         model: modelName,
         messages,
         temperature: 0.3,
-        max_tokens: 600,
+        max_tokens: 2000,
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      return NextResponse.json({ content: data.choices?.[0]?.message?.content || "" });
+      const choice = data.choices?.[0]?.message;
+      const content = choice?.content || choice?.reasoning_content || "";
+      return NextResponse.json({ content });
     }
 
     return NextResponse.json(
