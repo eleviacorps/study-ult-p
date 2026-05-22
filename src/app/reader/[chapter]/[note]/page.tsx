@@ -6,14 +6,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { useLlm } from "@/lib/llm-context";
 import type { Note } from "@/types";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { Bot, Loader2, X } from "lucide-react";
 
 export default function ReaderPage() {
   const params = useParams<{ chapter: string; note: string }>();
   const { vault, isLoaded } = useVaultStore();
+  const { ask, config } = useLlm();
   const [note, setNote] = useState<Note | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoaded || !vault) return;
@@ -146,6 +151,53 @@ export default function ReaderPage() {
                   ))}
                 </div>
               )}
+
+              <div className="mt-6 p-4 glass rounded-2xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <Bot className="w-4 h-4 text-[#8B5CF6]" />
+                  <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                    Ask AI about this topic
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={aiQuery}
+                    onChange={(e) => setAiQuery(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter" && aiQuery.trim() && !aiLoading) {
+                        setAiLoading(true);
+                        const context = `You are a JEE physics tutor. Here is the full chapter content:\n\n${note.content.substring(0, 4000)}\n\nStudent question:`;
+                        const res = await ask(context, aiQuery);
+                        setAiResponse(res);
+                        setAiLoading(false);
+                      }
+                    }}
+                    placeholder="Ask a question about this topic..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm outline-none"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!aiQuery.trim() || aiLoading) return;
+                      setAiLoading(true);
+                      const context = `You are a JEE physics tutor. Here is the full chapter content:\n\n${note.content.substring(0, 4000)}\n\nStudent question:`;
+                      const res = await ask(context, aiQuery);
+                      setAiResponse(res);
+                      setAiLoading(false);
+                    }}
+                    disabled={aiLoading || !aiQuery.trim()}
+                    className="px-3 py-2 rounded-xl bg-[#8B5CF6]/15 text-[#8B5CF6] text-xs disabled:opacity-30 hover:bg-[#8B5CF6]/25 transition-colors"
+                  >
+                    {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Ask"}
+                  </button>
+                </div>
+                {aiResponse && (
+                  <div className="mt-3 p-3 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10 text-xs opacity-60 leading-relaxed">
+                    {aiResponse}
+                  </div>
+                )}
+              </div>
             </motion.article>
           </AnimatePresence>
         </main>

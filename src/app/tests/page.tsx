@@ -103,12 +103,12 @@ export default function TestsRootPage() {
                       </span>
                     </div>
                     <div className="flex gap-2 mt-auto">
-                      <button className="flex-1 py-2.5 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 text-[#8B5CF6] text-xs hover:bg-[#8B5CF6]/20 transition-colors">
+                      <Link
+                        href={`/tests/${encodeURIComponent(vault?.chapters[0]?.name || "")}?full=true&count=${test.count}&time=60`}
+                        className="flex-1 py-2.5 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 text-[#8B5CF6] text-xs hover:bg-[#8B5CF6]/20 transition-colors text-center no-underline"
+                      >
                         Start Full Test
-                      </button>
-                      <button className="px-3 py-2.5 rounded-xl glass-interactive text-white/30 text-xs">
-                        Configure
-                      </button>
+                      </Link>
                     </div>
                   </motion.div>
                 ))}

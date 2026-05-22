@@ -183,11 +183,11 @@ function parseQuestions(): Question[] {
     const subject = "Physics";
 
     const questionBlocks = content
-      .split(/^##\s+Q\d+/m)
-      .filter((b) => b.trim());
+      .split(/^##\s+Q\d+/m);
+    const qContentBlocks = questionBlocks.slice(1).filter((b) => b.trim());
     const titles = content.match(/^##\s+(Q\d+.+)$/gm) || [];
 
-    questionBlocks.forEach((block, i) => {
+    qContentBlocks.forEach((block, i) => {
       const titleMatch = titles[i]?.match(/^##\s+(.+)$/m);
       const title = titleMatch ? titleMatch[1].trim() : `Question ${i + 1}`;
 
@@ -256,36 +256,67 @@ function cleanMdText(text: string): string {
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/#+\s*/g, "")
+    .replace(/^\s*✅\s*/gm, "")
+    .replace(/^\s*⚠️\s*/gm, "")
     .trim();
 }
 
-function extractFlashcardField(
-  block: string,
-  headers: string[]
-): string | undefined {
-  for (const header of headers) {
-    const pat = new RegExp(
-      `#{1,4}\\s+${header}:?\\s*\\n([\\s\\S]*?)\\n#{1,4}\\s+|#{1,4}\\s+${header}:?\\s*\\n([\\s\\S]*?)\\n---`,
-      "i"
-    );
-    const m = block.match(pat);
-    if (m && (m[1] || m[2])) {
-      return cleanMdText(m[1] || m[2]);
+type ParsedBlock = Map<string, string>;
+
+function parseBlockByHeadings(block: string): ParsedBlock {
+  const result = new Map<string, string>();
+  const lines = block.split("\n");
+  let currentKey = "";
+  let currentValue: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const hMatch = line.match(/^#{1,4}\s+([A-Za-z][A-Za-z\s]*?):?\s*$/);
+    const boldHMatch = line.match(/^\*\*([A-Z][A-Za-z\s]*?):?\*\*\s*$/);
+
+    if (hMatch) {
+      if (currentKey) {
+        result.set(currentKey.toLowerCase(), currentValue.join("\n"));
+      }
+      currentKey = hMatch[1].trim();
+      currentValue = [];
+      continue;
     }
 
-    const endPat = new RegExp(
-      `#{1,4}\\s+${header}:?\\s*\\n([\\s\\S]*?)$`,
-      "i"
+    if (boldHMatch) {
+      if (currentKey) {
+        result.set(currentKey.toLowerCase(), currentValue.join("\n"));
+      }
+      currentKey = boldHMatch[1].trim();
+      currentValue = [];
+      continue;
+    }
+
+    const boldInlineMatch = line.match(
+      /^\*\*([A-Z][A-Za-z\s]*?):\*\*\s+(.+)$/
     );
-    const em = block.match(endPat);
-    if (em && em[1].trim()) {
-      return cleanMdText(em[1]);
+    if (boldInlineMatch) {
+      if (currentKey) {
+        result.set(currentKey.toLowerCase(), currentValue.join("\n"));
+      }
+      currentKey = boldInlineMatch[1].trim();
+      currentValue = [boldInlineMatch[2]];
+      continue;
+    }
+
+    if (currentKey) {
+      currentValue.push(line);
     }
   }
-  return undefined;
+
+  if (currentKey) {
+    result.set(currentKey.toLowerCase(), currentValue.join("\n"));
+  }
+
+  return result;
 }
 
-function parseFlashcards(): Flashcard[] {
+export function parseFlashcards(): Flashcard[] {
   const allFiles = findAllMdFiles(VAULT_ROOT);
   const flashcards: Flashcard[] = [];
 
@@ -300,12 +331,15 @@ function parseFlashcards(): Flashcard[] {
     const subject = "Physics";
     const tags = parseTags(content);
 
-    const fcBlocks = content.split(/^##\s+FC\d+/m).filter((b) => b.trim());
+    const fcBlocks = content.split(/^##\s+FC\d+/m);
+    const fcContentBlocks = fcBlocks.slice(1).filter((b) => b.trim());
     const titles = content.match(/^##\s+(FC\d+.+)$/gm) || [];
 
-    fcBlocks.forEach((block, i) => {
+    fcContentBlocks.forEach((block, i) => {
       const titleMatch = titles[i]?.match(/^##\s+(.+)$/m);
       const title = titleMatch ? titleMatch[1].trim() : `Flashcard ${i + 1}`;
+
+      const parsed = parseBlockByHeadings(block);
 
       const topicMatch = block.match(/\*\*Topic:\*\*\s*(.+)/);
       let topic = topicMatch?.[1]?.trim() || "";
@@ -314,16 +348,19 @@ function parseFlashcards(): Flashcard[] {
       const subMatch = block.match(/\*\*Subtopic:\*\*\s*(.+)/);
       const typeMatch = block.match(/\*\*Type:\*\*\s*(.+)/);
 
-      const questionText =
-        extractFlashcardField(block, ["Question", "Q"]) || title;
+      const rawQuestion =
+        parsed.get("question") || parsed.get("q") || title;
+      const rawAnswer = parsed.get("answer") || parsed.get("a") || "";
+      const rawFormula = parsed.get("formula");
+      const rawMemory =
+        parsed.get("memory trick") ||
+        parsed.get("memory") ||
+        parsed.get("memory trick");
 
-      const answerText = extractFlashcardField(block, ["Answer", "A"]) || "";
-
-      const formulaText = extractFlashcardField(block, ["Formula"]);
-      const trickText = extractFlashcardField(block, [
-        "Memory Trick",
-        "Memory",
-      ]);
+      const questionText = cleanMdText(rawQuestion);
+      const answerText = cleanMdText(rawAnswer);
+      const formulaText = rawFormula ? cleanMdText(rawFormula) : undefined;
+      const trickText = rawMemory ? cleanMdText(rawMemory) : undefined;
 
       flashcards.push({
         id: slugify(`${chapter}-fc${i + 1}`),
@@ -513,7 +550,7 @@ function buildGraphData(notes: Note[]): GraphData {
 let cachedVault: VaultContent | null = null;
 
 export function getVault(): VaultContent {
-  if (cachedVault) return cachedVault;
+  cachedVault = null;
 
   const chapters = parseChapters();
   const notes = parseNotes();

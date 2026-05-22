@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { VaultLoader } from "@/components/layout/vault-loader";
-import { ThemeInitializer } from "@/stores/theme-store";
+import { LlmProvider } from "@/lib/llm-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,12 +33,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col relative">
-        <ThemeInitializer />
-        <VaultLoader />
-        <Sidebar />
-        <main className="flex-1 lg:ml-[260px] min-h-screen relative z-10 w-full">
-          {children}
-        </main>
+        <LlmProvider>
+          <VaultLoader />
+          <Sidebar />
+          <main className="flex-1 min-h-screen relative z-0 w-full overflow-x-hidden">
+            {children}
+          </main>
+        </LlmProvider>
       </body>
     </html>
   );

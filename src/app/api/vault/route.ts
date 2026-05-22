@@ -6,10 +6,6 @@ export async function GET() {
     const vault = getVault();
     return NextResponse.json(vault);
   } catch (err) {
-    console.error("Vault API error:", err);
-    return NextResponse.json(
-      { error: "Failed to load vault" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

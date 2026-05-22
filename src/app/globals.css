@@ -64,6 +64,7 @@
 @theme inline {
   --color-background: var(--bg-base);
   --color-foreground: var(--text-primary);
+  --color-white: var(--text-primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -79,6 +80,18 @@ body {
   font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
   min-height: 100vh;
   overflow-x: hidden;
+}
+
+[data-theme="cream"] .glass {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.06);
+}
+
+[data-theme="cream"] .glass-interactive:hover {
+  box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+}
+
+[data-theme="cream"] .glass-divider {
+  background: linear-gradient(90deg, transparent, var(--glass-border), transparent);
 }
 
 body::before {
