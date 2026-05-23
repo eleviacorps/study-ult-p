@@ -1,0 +1,10 @@
++--------------------- Traceback (most recent call last) ---------------------+
+| C:\Users\Rehan\AppData\Roaming\Python\Python314\site-packages\manim\cli\ren |
+| der\commands.py:125 in render                                               |
+|                                                                             |
+|   122             try:                                                      |
+|   123                 with tempconfig({}):                                  |
+|   124                     scene = SceneClass()                              |
+| > 125                     scene.render()                                    |
+|   126             except Exception:                                         |
+|   127                 error_console.print_exception()                
