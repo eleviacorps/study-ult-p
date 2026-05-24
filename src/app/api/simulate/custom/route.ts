@@ -5,34 +5,62 @@ import path from "path";
 
 const CACHE_DIR = path.join(process.cwd(), "public", "simulations", "cache", "custom");
 
-function runPython(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
+function runPython(args: string[], cwd: string, timeoutMs: number = 180000): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const pythonCmd = process.platform === "win32" ? "python" : "python3";
-    const proc = spawn(pythonCmd, args, { cwd, env: { ...process.env, PYTHONUNBUFFERED: "1" } });
+    const proc = spawn(pythonCmd, args, {
+      cwd,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
     let stdout = "";
     let stderr = "";
 
     proc.stdout.on("data", (data: Buffer) => { stdout += data.toString(); });
     proc.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
 
+    const timer = setTimeout(() => {
+      proc.kill("SIGTERM");
+      reject(new Error("Render timed out after " + (timeoutMs / 1000) + "s"));
+    }, timeoutMs);
+
     proc.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) resolve({ stdout: stdout.trim(), stderr: stderr.trim() });
-      else reject(new Error(stderr.substring(0, 800) || `Exit code ${code}`));
+      else reject(new Error(`Python exit ${code}: ${stderr.substring(0, 600)}`));
     });
 
-    proc.on("error", (err) => reject(err));
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
+}
+
+function findMp4Files(dir: string): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const results: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory() && entry.name !== "media") {
+      results.push(...findMp4Files(fullPath));
+    } else if (entry.name.endsWith(".mp4")) {
+      results.push(fullPath);
+    }
+  }
+  return results;
 }
 
 function sanitizeSceneCode(code: string): string {
   let cleaned = code
     .replace(/```python\n?/g, "")
     .replace(/```\n?/g, "")
-    .replace(/^\s*print\(.*\)\s*$/gm, "")
     .trim();
 
   if (!cleaned.includes("from manim import") && !cleaned.includes("from manim.")) {
-    cleaned = "from manim import *\n" + cleaned;
+    cleaned = "from manim import *\n\n" + cleaned;
   }
 
   return cleaned;
@@ -46,17 +74,17 @@ function extractClassName(code: string): string {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prompt, llmConfig } = body;
+    const { prompt } = body;
 
-    if (!prompt || typeof prompt !== "string" || prompt.length < 5) {
-      return NextResponse.json({ status: "error", error: "Please describe what you want to visualize (at least 5 characters)." }, { status: 400 });
+    if (!prompt || typeof prompt !== "string" || prompt.length < 10) {
+      return NextResponse.json({ status: "error", error: "Please provide valid Manim Python code (at least 10 characters)." }, { status: 400 });
     }
 
-    const cacheKey = Buffer.from(prompt.substring(0, 80)).toString("base64url");
+    const cacheKey = Buffer.from(prompt.substring(0, 100)).toString("base64url").replace(/[^a-zA-Z0-9]/g, "_");
     const cacheDir = path.join(CACHE_DIR, cacheKey);
-    const cachedVideo = path.join(cacheDir, "custom.mp4");
+    const cachedMp4 = path.join(cacheDir, "custom.mp4");
 
-    if (fs.existsSync(cachedVideo)) {
+    if (fs.existsSync(cachedMp4)) {
       return NextResponse.json({
         status: "success",
         videoPath: `/simulations/cache/custom/${cacheKey}/custom.mp4`,
@@ -64,64 +92,53 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (fs.existsSync(cacheDir)) {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
     fs.mkdirSync(cacheDir, { recursive: true });
 
     const sceneCode = sanitizeSceneCode(prompt);
     const className = extractClassName(sceneCode);
 
-    if (!className) {
-      return NextResponse.json({
-        status: "error",
-        error: "Could not find a Scene class in the generated code. Make sure your code defines a class that extends Scene.",
-      }, { status: 400 });
-    }
-
     const scenePath = path.join(cacheDir, "scene.py");
     fs.writeFileSync(scenePath, sceneCode, "utf-8");
 
-    const manimArgs = ["-m", "manim", "-p", "--format", "mp4", "-ql", scenePath, className];
+    const manimArgs = ["-m", "manim", "render", "-ql", "--format=mp4", scenePath, className];
 
     try {
-      await runPython(manimArgs, cacheDir);
+      await runPython(manimArgs, cacheDir, 120000);
     } catch (err: any) {
-      const errorLog = path.join(cacheDir, "error.txt");
-      fs.writeFileSync(errorLog, err.message, "utf-8");
-
       return NextResponse.json({
         status: "error",
-        error: "Manim failed to render the scene. Check that your code is valid Manim Python.",
-        details: err.message.substring(0, 500),
-        code: sceneCode.substring(0, 1000),
+        error: "Manim render failed: " + (err.message || "Unknown error"),
+        code: sceneCode.substring(0, 800),
       }, { status: 500 });
     }
 
-    const videoFiles = fs.readdirSync(cacheDir).filter((f) => f.endsWith(".mp4"));
-    if (videoFiles.length > 0) {
-      const srcVideo = path.join(cacheDir, videoFiles[0]);
-      const destVideo = path.join(cacheDir, "custom.mp4");
-      if (srcVideo !== destVideo) {
-        if (fs.existsSync(destVideo)) fs.unlinkSync(destVideo);
-        fs.renameSync(srcVideo, destVideo);
-      }
-
-      const cleanups = fs.readdirSync(cacheDir).filter((f) => !f.endsWith(".mp4") && !f.endsWith(".py") && f !== "error.txt");
-      for (const f of cleanups) {
-        fs.rmSync(path.join(cacheDir, f), { recursive: true, force: true });
-      }
-
+    const mp4Files = findMp4Files(cacheDir);
+    if (mp4Files.length === 0) {
       return NextResponse.json({
-        status: "success",
-        videoPath: `/simulations/cache/custom/${cacheKey}/custom.mp4`,
-        cached: false,
-      });
+        status: "error",
+        error: "Manim ran but produced no video. Check your scene code.",
+        code: sceneCode.substring(0, 500),
+      }, { status: 500 });
+    }
+
+    const largest = mp4Files.sort((a, b) => fs.statSync(b).size - fs.statSync(a).size)[0];
+    if (largest !== cachedMp4) {
+      fs.copyFileSync(largest, cachedMp4);
+    }
+
+    const mediaDir = path.join(cacheDir, "media");
+    if (fs.existsSync(mediaDir)) {
+      fs.rmSync(mediaDir, { recursive: true, force: true });
     }
 
     return NextResponse.json({
-      status: "error",
-      error: "Manim ran but produced no video. Check your scene code for errors.",
-      code: sceneCode.substring(0, 500),
-    }, { status: 500 });
-
+      status: "success",
+      videoPath: `/simulations/cache/custom/${cacheKey}/custom.mp4`,
+      cached: false,
+    });
   } catch (err: any) {
     return NextResponse.json({
       status: "error",

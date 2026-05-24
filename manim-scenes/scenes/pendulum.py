@@ -11,8 +11,8 @@ class Pendulum(Scene):
         pivot_dot = Dot(pivot, color=GREY)
         support = Line(pivot + LEFT * 0.5, pivot + RIGHT * 0.5, color=GREY)
 
-        rod = always_redraw(lambda: Line(pivot, bob.get_center(), color=GREY_A, stroke_width=3))
         bob = Dot(color=YELLOW, radius=0.2).move_to(pivot + DOWN * L)
+        rod = always_redraw(lambda: Line(pivot, bob.get_center(), color=GREY_A, stroke_width=3))
 
         time_tracker = ValueTracker(0)
 

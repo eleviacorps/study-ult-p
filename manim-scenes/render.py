@@ -11,6 +11,7 @@ import argparse
 import os
 import json
 import math
+import textwrap
 import sys
 
 SCENES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenes")
@@ -38,42 +39,65 @@ def build_graph_scene(output_dir, args):
     b = args.b
     c = args.c
 
-    a_eq = ""
-    if a == 1:
-        a_eq = ""
-    elif a == -1:
-        a_eq = "-"
-    else:
-        a_eq = str(a)
+    def format_coeff(val, show_one=True, is_first=False):
+        if val == 0:
+            return ""
+        if val == 1 and not show_one:
+            return "+" if (not is_first and val > 0) else ""
+        if val == -1 and not show_one:
+            return "-"
+        if val > 0 and not is_first:
+            return "+" + format_num(val)
+        return format_num(val)
 
-    if b == 0:
-        b_eq = ""
-    elif b > 0 and a != 0:
-        b_eq = "+" + str(b)
-    else:
-        b_eq = str(b)
+    def format_num(v):
+        s = f"{v}"
+        return s.rstrip("0").rstrip(".") if "." in s else s
 
-    if c == 0:
-        c_eq = ""
-    elif c > 0:
-        c_eq = "+" + str(c)
-    else:
-        c_eq = str(c)
+    # Build equation text
+    parts = []
+    # ax^2 term
+    if a != 0:
+        if a == 1:
+            parts.append("x^2")
+        elif a == -1:
+            parts.append("-x^2")
+        else:
+            parts.append(f"{format_num(a)}x^2")
+    # bx term
+    if b != 0:
+        if b == 1:
+            parts.append("+" if parts else "" + "x")
+        elif b == -1:
+            parts.append("-x")
+        else:
+            prefix = "+" if parts and b > 0 else ""
+            parts.append(f"{prefix}{format_num(b)}x")
+    # c term
+    if c != 0 or (a == 0 and b == 0):
+        if c > 0 and parts:
+            parts.append(f"+{format_num(c)}")
+        else:
+            parts.append(format_num(c))
+
+    eq_text = "".join(parts) if parts else "0"
 
     discriminant = b**2 - 4*a*c
-    if discriminant >= 0:
+    roots_block = ""
+    if discriminant >= 0 and a != 0:
         x1 = (-b + discriminant**0.5) / (2*a)
         x2 = (-b - discriminant**0.5) / (2*a)
-    else:
-        x1 = x2 = 0
+        roots_block = textwrap.dedent(f"""
+        x1 = {x1}
+        x2 = {x2}
+        roots = MathTex(
+            r"x_1 = {x1:.2f}, \\; x_2 = {x2:.2f}",
+            font_size=28, color=GREEN_D
+        ).next_to(equation, DOWN, aligned_edge=LEFT)
+        elems.append(Write(roots))
+        """)
 
-    code = replace(
-        template,
-        A=a, B=b, C=c,
-        A_EQ=a_eq, B_EQ=b_eq, C_EQ=c_eq,
-        XMIN=args.xMin, XMAX=args.xMax,
-        X1=f"{x1:.2f}", X2=f"{x2:.2f}",
-    )
+    code = replace(template, A=a, B=b, C=c, XMIN=args.xMin, XMAX=args.xMax, EQ_TEXT=eq_text, ROOTS_BLOCK=roots_block)
 
     out_path = os.path.join(output_dir, "scene.py")
     with open(out_path, "w") as f:
