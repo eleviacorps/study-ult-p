@@ -87,15 +87,15 @@ def build_graph_scene(output_dir, args):
     if discriminant >= 0 and a != 0:
         x1 = (-b + discriminant**0.5) / (2*a)
         x2 = (-b - discriminant**0.5) / (2*a)
-        roots_block = textwrap.dedent(f"""
-        x1 = {x1}
-        x2 = {x2}
-        roots = MathTex(
-            r"x_1 = {x1:.2f}, \\; x_2 = {x2:.2f}",
-            font_size=28, color=GREEN_D
-        ).next_to(equation, DOWN, aligned_edge=LEFT)
-        elems.append(Write(roots))
-        """)
+        roots_block = (
+            f"\n        x1 = {x1}\n"
+            f"        x2 = {x2}\n"
+            f'        roots = MathTex(\n'
+            f'            r"x_1 = {x1:.2f}, \\\\; x_2 = {x2:.2f}",\n'
+            f'            font_size=28, color=GREEN_D\n'
+            f'        ).next_to(equation, DOWN, aligned_edge=LEFT)\n'
+            f'        elems.append(Write(roots))\n'
+        )
 
     code = replace(template, A=a, B=b, C=c, XMIN=args.xMin, XMAX=args.xMax, EQ_TEXT=eq_text, ROOTS_BLOCK=roots_block)
 
@@ -134,7 +134,7 @@ def build_projectile_scene(output_dir, args):
 
 
 def build_wave_scene(output_dir, args):
-    with open(os.path.join(SCENES_DIR, "wave_scene.py"), "r") as f:
+    with open(os.path.join(SCENES_DIR, "wave.py"), "r") as f:
         template = f.read()
 
     code = replace(template, AMPLITUDE=args.amplitude, FREQUENCY=args.frequency)

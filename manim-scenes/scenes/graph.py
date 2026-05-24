@@ -27,8 +27,7 @@ class FunctionGraph(Scene):
             Write(axes_labels),
             Write(equation),
         ]
-
-        <<ROOTS_BLOCK>>
+<<ROOTS_BLOCK>>
 
         for i, e in enumerate(elems):
             run = 2.5 if isinstance(e, Create) and i == 1 else 0.5
