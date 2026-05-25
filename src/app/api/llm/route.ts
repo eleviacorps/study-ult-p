@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
           model: modelName,
           messages,
           temperature: 0.3,
-          max_tokens: provider === "openai" ? 4096 : -1,
         }),
       });
 
