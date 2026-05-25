@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
-import { addPoints, updateStudyState } from "@/lib/study-state";
+import { addPoints, updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
@@ -35,6 +35,11 @@ export default function QuizPage() {
   const [timeSpent, setTimeSpent] = useState(0);
   const [score, setScore] = useState<{ correct: number; wrong: number; unanswered: number; total: number; netScore: number; feedback: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+
+  const questionsRef = useRef(questions);
+  const answersRef = useRef(answers);
+  questionsRef.current = questions;
+  answersRef.current = answers;
 
   const generateQuiz = useCallback(() => {
     if (!vault) return;
@@ -88,15 +93,17 @@ export default function QuizPage() {
   }, [phase, timeLeft]);
 
   const finishQuiz = async () => {
+    const qs = questionsRef.current;
+    const ans = answersRef.current;
     let correct = 0;
     let wrong = 0;
     let unanswered = 0;
 
-    for (let i = 0; i < questions.length; i++) {
-      const user = answers.get(i);
+    for (let i = 0; i < qs.length; i++) {
+      const user = ans.get(i);
       if (user === undefined || user === null) {
         unanswered++;
-      } else if (user === questions[i].correctIndex) {
+      } else if (user === qs[i].correctIndex) {
         correct++;
       } else {
         wrong++;
@@ -104,38 +111,47 @@ export default function QuizPage() {
     }
 
     const netScore = correct * 4 - wrong * 1;
-    setScore({ correct, wrong, unanswered, total: questions.length, netScore, feedback: "" });
+    setScore({ correct, wrong, unanswered, total: qs.length, netScore, feedback: "" });
     setPhase("finished");
 
-    addPoints(correct * 5 + (netScore > 0 ? netScore * 2 : 0), "Quiz Completed", `${correct}/${questions.length} correct`);
+    addPoints(correct * 5 + (netScore > 0 ? netScore * 2 : 0), "Quiz Completed", `${correct}/${qs.length} correct`);
+    const today = new Date().toISOString().split("T")[0];
+    saveActivitySnapshot("quiz", correct, qs.length, "General", qs.map((q) => q.text.substring(0, 40)));
 
     updateStudyState((state) => {
       state.quizScores.push({
         date: new Date().toISOString(),
         score: correct,
-        total: questions.length,
+        total: qs.length,
         netScore,
       });
-      questions.forEach((q, i) => {
-        const userAns = answers.get(i);
+      qs.forEach((q, i) => {
+        const userAns = ans.get(i);
         const isCorrect = userAns === q.correctIndex;
         state.questionAttempts[`quiz-${q.id}`] = {
           correct: (state.questionAttempts[`quiz-${q.id}`]?.correct || 0) + (isCorrect ? 1 : 0),
           total: (state.questionAttempts[`quiz-${q.id}`]?.total || 0) + 1,
         };
+        const topicKey = `Quiz Q${i}`;
+        const t = state.topicAccuracy[topicKey] || { correct: 0, total: 0 };
+        state.topicAccuracy[topicKey] = {
+          correct: t.correct + (isCorrect ? 1 : 0),
+          total: t.total + 1,
+        };
       });
+      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + Math.round(timeSpent / 60);
     });
 
     if (config.enabled) {
       setAiLoading(true);
       try {
-        const wrongSummary = questions
-          .filter((q, i) => answers.get(i) !== q.correctIndex)
-          .map((q, i) => `Q${i + 1}: ${q.text}\nCorrect: ${q.options[q.correctIndex]}\nYour: ${answers.get(i) !== undefined ? q.options[answers.get(i) as number] : "Skipped"}`)
+        const wrongSummary = qs
+          .filter((q, i) => ans.get(i) !== q.correctIndex)
+          .map((q, i) => `Q${i + 1}: ${q.text}\nCorrect: ${q.options[q.correctIndex]}\nYour: ${ans.get(i) !== undefined ? q.options[ans.get(i) as number] : "Skipped"}`)
           .join("\n\n");
 
         if (wrongSummary) {
-          const ctx = PROMPTS.QUIZ_COACH.replace("{SCORE}", String(correct)).replace("{TOTAL}", String(questions.length)).replace("{NET_SCORE}", String(netScore));
+          const ctx = PROMPTS.QUIZ_COACH.replace("{SCORE}", String(correct)).replace("{TOTAL}", String(qs.length)).replace("{NET_SCORE}", String(netScore));
           const analysis = PROMPTS.QUIZ_WRONG_ANALYSIS.replace("{WRONG_SUMMARY}", wrongSummary);
           const { content } = await ask(ctx, analysis);
           setScore((prev) => prev ? { ...prev, feedback: content } : prev);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
@@ -25,7 +25,7 @@ interface SimNode extends SimulationNodeDatum {
   id: string;
   label: string;
   group: string;
-  type: string;
+  type: "note" | "chapter";
   val: number;
 }
 
@@ -48,15 +48,16 @@ export default function GraphPage() {
     const nodes: SimNode[] = [];
     const nodeMap = new Map<string, SimNode>();
 
-    for (const note of vault.notes.slice(0, 50)) {
+    for (const note of vault.notes) {
       if (seenTitles.has(note.title)) continue;
       seenTitles.add(note.title);
+      const isCore = note.path.endsWith("core.md");
       const node: SimNode = {
         id: note.id,
         label: note.title,
         group: note.chapter,
-        type: "note",
-        val: note.links.length + 1,
+        type: isCore ? "chapter" : "note",
+        val: note.links.length + note.backlinks.length + 1,
         x: Math.random() * 600,
         y: Math.random() * 400,
       };
@@ -65,10 +66,10 @@ export default function GraphPage() {
     }
 
     const links: SimLink[] = [];
-    for (const note of vault.notes.slice(0, 50)) {
+    for (const note of vault.notes) {
       const source = nodeMap.get(note.title.toLowerCase());
       if (!source) continue;
-      for (const link of note.links.slice(0, 3)) {
+      for (const link of note.links) {
         const target = nodeMap.get(link.target.toLowerCase());
         if (target && target.id !== source.id) {
           links.push({ source, target, type: "wiki-link" });
@@ -118,16 +119,19 @@ export default function GraphPage() {
 
     nodeGroup
       .append("circle")
-      .attr("r", (d) => Math.min(12, 4 + d.val * 2))
+      .attr("r", (d) => d.type === "chapter" ? Math.min(16, 6 + d.val * 2) : Math.min(12, 4 + d.val * 2))
       .attr("fill", (d) => {
         const colors: Record<string, string> = {
           "Electric Charges and Fields": "#1856FF",
           "Units and Measurement": "#8B5CF6",
           "Units-Dimensions-and-Error-Analysis": "#06B6D4",
+          "Physics": "#F97316",
         };
         return colors[d.group] || "#475569";
       })
-      .attr("opacity", 0.8);
+      .attr("opacity", (d) => d.type === "chapter" ? 1 : 0.8)
+      .attr("stroke", (d) => d.type === "chapter" ? "rgba(255,255,255,0.3)" : "none")
+      .attr("stroke-width", (d) => d.type === "chapter" ? 2 : 0);
 
     nodeGroup
       .append("text")
@@ -218,17 +222,23 @@ export default function GraphPage() {
               Legend
             </p>
             <div className="space-y-1.5">
-              {[
-                { name: "Electric Charges", color: "#1856FF" },
-                { name: "Units & Measurement", color: "#8B5CF6" },
-                { name: "Error Analysis", color: "#06B6D4" },
-              ].map((item) => (
-                <div key={item.name} className="flex items-center gap-2 px-2 py-1">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-[10px] text-white/40">{item.name}</span>
+              {Object.entries(
+                (vault?.graphData?.nodes || []).reduce<Record<string, string>>((acc, n) => {
+                  if (acc[n.group]) return acc;
+                  const colorMap: Record<string, string> = {
+                    "Electric Charges and Fields": "#1856FF",
+                    "Units and Measurement": "#8B5CF6",
+                    "Units-Dimensions-and-Error-Analysis": "#06B6D4",
+                    "Physics": "#F97316",
+                  };
+                  const palette = ["#1856FF","#8B5CF6","#06B6D4","#F97316","#10B981","#EF4444","#F59E0B","#EC4899"];
+                  acc[n.group] = colorMap[n.group] || palette[Object.keys(acc).length % palette.length];
+                  return acc;
+                }, {})
+              ).map(([group, color]) => (
+                <div key={group} className="flex items-center gap-2 px-2 py-1">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="text-[10px] text-white/40">{group}</span>
                 </div>
               ))}
             </div>
@@ -241,8 +251,11 @@ export default function GraphPage() {
               className="glass p-4 mt-4"
             >
               <h4 className="text-xs font-semibold mb-1">{selectedNode.label}</h4>
-              <p className="text-[10px] text-white/30 mb-2">{selectedNode.group}</p>
-              <p className="text-[10px] text-white/25">
+              <p className="text-[10px] text-white/30 mb-1">{selectedNode.group}</p>
+              <span className={cn("text-[9px] px-1.5 py-0.5 rounded", selectedNode.type === "chapter" ? "bg-[#F97316]/10 text-[#F97316]" : "bg-white/[0.04] text-white/40")}>
+                {selectedNode.type}
+              </span>
+              <p className="text-[10px] text-white/25 mt-2">
                 {selectedNode.val} connections
               </p>
             </motion.div>

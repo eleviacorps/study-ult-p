@@ -26,6 +26,7 @@ import {
   Sparkles,
   Loader2,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -260,23 +261,28 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Welcome back, <span className="text-[#1856FF]">Student</span>
-          </h1>
-          <p className="text-sm text-white/40 mt-1">
-            {totalChapters} chapters · {vault.notes.length} notes · {totalQuestions} problems
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20">
-            <Trophy className="w-4 h-4 text-[#F59E0B]" />
-            <span className="text-sm font-bold text-[#F59E0B]">{analytics.points}</span>
-            <span className="text-[10px] text-[#F59E0B]/60">pts</span>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">
+                Welcome back, <span className="text-[#1856FF]">Student</span>
+              </h1>
+              <button onClick={refresh} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]">
+                <RefreshCw className="w-3 h-3" /> Update
+              </button>
+            </div>
+            <p className="text-sm text-white/40 mt-1">
+              {totalChapters} chapters · {vault.notes.length} notes · {totalQuestions} problems
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#F59E0B]/10 border border-[#F59E0B]/20">
+              <Trophy className="w-4 h-4 text-[#F59E0B]" />
+              <span className="text-sm font-bold text-[#F59E0B]">{analytics.points}</span>
+              <span className="text-[10px] text-[#F59E0B]/60">pts</span>
+            </div>
           </div>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <WidgetCard delay={0}>

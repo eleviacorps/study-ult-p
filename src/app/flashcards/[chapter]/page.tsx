@@ -1,12 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
-import { updateStudyState, addPoints } from "@/lib/study-state";
+import { updateStudyState, addPoints, saveActivitySnapshot } from "@/lib/study-state";
 import { recordFlashcardReview, qualityFromRating, getDueFlashcards} from "@/lib/spaced-repetition";
 import type { Flashcard } from "@/types";
 import { RotateCw, ChevronLeft, ChevronRight, Star, Brain, Clock } from "lucide-react";
@@ -70,13 +70,27 @@ export default function FlashcardsPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [confidence, setConfidence] = useState<Map<number, number>>(new Map());
+  const studyStartRef = useRef(Date.now());
 
   const chapterName = decodeURIComponent(params.chapter);
 
   useEffect(() => {
     setCurrentIndex(0);
     setFlipped(false);
+    studyStartRef.current = Date.now();
   }, [chapterName]);
+
+  useEffect(() => {
+    return () => {
+      const elapsed = Math.round((Date.now() - studyStartRef.current) / 60000);
+      if (elapsed > 0) {
+        const today = new Date().toISOString().split("T")[0];
+        updateStudyState((state) => {
+          state.studyMinutes[today] = (state.studyMinutes[today] || 0) + elapsed;
+        });
+      }
+    };
+  }, []);
 
   if (!isLoaded || !vault) {
     return (
@@ -120,6 +134,12 @@ export default function FlashcardsPage() {
         setCurrentIndex((i) => i + 1);
         setFlipped(false);
       }, 200);
+    } else {
+      const today = new Date().toISOString().split("T")[0];
+      updateStudyState((state) => {
+        state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 1;
+      });
+      saveActivitySnapshot("flashcard", confidence.size + 1, cards.length, chapterName, [chapterName]);
     }
   };
 

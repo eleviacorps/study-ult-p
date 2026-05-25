@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/header";
 import { loadStudyState, computeAnalytics, updateStudyState } from "@/lib/study-state";
 import type { StudyState } from "@/lib/study-state";
 import { cn } from "@/lib/cn";
-import { BarChart3, Target, TrendingUp, Brain, Clock, AlertTriangle, Zap, Trophy, BookOpen } from "lucide-react";
+import { BarChart3, Target, TrendingUp, Brain, Clock, AlertTriangle, Zap, Trophy, BookOpen, RefreshCw } from "lucide-react";
 
 export default function AnalyticsPage() {
   const { vault, isLoaded } = useVaultStore();
@@ -17,6 +17,11 @@ export default function AnalyticsPage() {
     const state = loadStudyState();
     setData(computeAnalytics(state));
   }, []);
+
+  const refresh = () => {
+    const state = loadStudyState();
+    setData(computeAnalytics(state));
+  };
 
   if (!data) {
     return (
@@ -47,7 +52,12 @@ export default function AnalyticsPage() {
     <div className="min-h-screen">
       <Header title="Analytics" />
       <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Analytics</h1>
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-2xl font-bold">Analytics</h1>
+          <button onClick={refresh} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]">
+            <RefreshCw className="w-3 h-3" /> Update
+          </button>
+        </div>
         <p className="text-sm opacity-35 mb-8">Your study performance insights</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

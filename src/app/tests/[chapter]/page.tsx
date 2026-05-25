@@ -1,12 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
-import { updateStudyState } from "@/lib/study-state";
+import { updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
@@ -41,6 +41,11 @@ export default function TestTakePage() {
   const [timeSpent, setTimeSpent] = useState(0);
   const [score, setScore] = useState<{ correct: number; wrong: number; total: number; feedback: string } | null>(null);
   const [aiScoreLoading, setAiScoreLoading] = useState(false);
+
+  const questionsRef = useRef(questions);
+  const answersRef = useRef(answers);
+  questionsRef.current = questions;
+  answersRef.current = answers;
 
   const generateQuestions = useCallback(async () => {
     const actualCount = customQuestionCount ? parseInt(customQuestionCount) || questionCount : questionCount;
@@ -160,22 +165,24 @@ export default function TestTakePage() {
   };
 
   const finishTest = async () => {
+    const qs = questionsRef.current;
+    const ans = answersRef.current;
     let correct = 0;
-    for (let i = 0; i < questions.length; i++) {
-      const user = answers.get(i);
-      const q = questions[i];
+    for (let i = 0; i < qs.length; i++) {
+      const user = ans.get(i);
+      const q = qs[i];
       if (q.type === "mcq" && typeof user === "number" && user === q.correctIndex) correct++;
       else if (q.type === "input" && typeof user === "string" && user.trim().length > 0) correct++;
     }
 
-    setScore({ correct, wrong: questions.length - correct, total: questions.length, feedback: "" });
+    setScore({ correct, wrong: qs.length - correct, total: qs.length, feedback: "" });
     setPhase("finished");
 
     const today = new Date().toISOString().split("T")[0];
 
     updateStudyState((state) => {
-      questions.forEach((q, i) => {
-        const userAns = answers.get(i);
+      qs.forEach((q, i) => {
+        const userAns = ans.get(i);
         const isCorrect = q.type === "mcq"
           ? (typeof userAns === "number" && userAns === q.correctIndex)
           : (typeof userAns === "string" && userAns.trim().length > 0);
@@ -185,21 +192,28 @@ export default function TestTakePage() {
           correct: current.correct + (isCorrect ? 1 : 0),
           total: current.total + 1,
         };
+        const topicKey = `${chapterName} > Test Q${i}`;
+        const t = state.topicAccuracy[topicKey] || { correct: 0, total: 0 };
+        state.topicAccuracy[topicKey] = {
+          correct: t.correct + (isCorrect ? 1 : 0),
+          total: t.total + 1,
+        };
       });
       state.testScores.push({
         date: new Date().toISOString(),
         score: correct,
-        total: questions.length,
+        total: qs.length,
         chapter: chapterName,
       });
       state.studyMinutes[today] = (state.studyMinutes[today] || 0) + Math.round(timeSpent / 60);
     });
+    saveActivitySnapshot("test", correct, qs.length, chapterName, qs.map((q) => q.text.substring(0, 40)));
 
-    if (config.enabled && correct < questions.length) {
+    if (config.enabled && correct < qs.length) {
       setAiScoreLoading(true);
       try {
-        const wrongQs = questions
-          .map((q, i) => answers.get(i) !== q.correctIndex ? `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${answers.get(i) || "skipped"}` : "")
+        const wrongQs = qs
+          .map((q, i) => ans.get(i) !== q.correctIndex ? `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${ans.get(i) || "skipped"}` : "")
           .filter(Boolean).join("\n\n");
 
         const feedbackContext = PROMPTS.TEST_FEEDBACK

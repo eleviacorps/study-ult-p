@@ -21,6 +21,7 @@ export interface StudyState {
   aiConversations: { id: string; role: "user" | "assistant"; content: string; context: string; timestamp: string }[];
   quizScores: { date: string; score: number; total: number; netScore: number }[];
   subjectAccuracy: Record<string, { correct: number; total: number }>;
+  activitySnapshots: { type: string; timestamp: string; score: number; total: number; chapter: string; topics: string[] }[];
 }
 
 const STORAGE_KEY = "studyult-state";
@@ -61,6 +62,7 @@ function getDefaultState(): StudyState {
     aiConversations: [],
     quizScores: [],
     subjectAccuracy: {},
+    activitySnapshots: [],
   };
 }
 
@@ -90,6 +92,7 @@ export function updateStudyState(updater: (state: StudyState) => void) {
   state.lastStudyDate = today;
 
   syncWeakAreas(state);
+  syncTodos(state);
 
   saveStudyState(state);
 }
@@ -136,6 +139,25 @@ export function syncWeakAreas(state: StudyState) {
   state.strongAreas = entries.filter((e) => e.accuracy >= 80).slice(0, 10);
 }
 
+export function syncTodos(state: StudyState) {
+  const existingTasks = new Set(state.aiTodos.filter((t) => !t.completed).map((t) => t.task));
+  const weak = (state.weakAreas || []).slice(0, 5);
+  for (const w of weak) {
+    const task = `Review ${w.topic} (${w.accuracy}%)`;
+    if (!existingTasks.has(task)) {
+      state.aiTodos.unshift({
+        id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        task,
+        priority: w.accuracy < 40 ? "high" : "medium",
+        createdAt: new Date().toISOString(),
+        completed: false,
+        source: "Auto",
+      });
+      existingTasks.add(task);
+    }
+  }
+}
+
 export function addAiTodo(task: string, priority: "high" | "medium" | "low", source: string) {
   updateStudyState((state) => {
     const exists = state.aiTodos.find((t) => t.task === task && !t.completed);
@@ -149,6 +171,20 @@ export function addAiTodo(task: string, priority: "high" | "medium" | "low", sou
         source,
       });
     }
+  });
+}
+
+export function saveActivitySnapshot(type: string, score: number, total: number, chapter: string, topics: string[]) {
+  updateStudyState((state) => {
+    state.activitySnapshots.unshift({
+      type,
+      timestamp: new Date().toISOString(),
+      score,
+      total,
+      chapter,
+      topics,
+    });
+    if (state.activitySnapshots.length > 200) state.activitySnapshots = state.activitySnapshots.slice(0, 200);
   });
 }
 

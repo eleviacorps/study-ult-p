@@ -124,8 +124,7 @@ function parseNotes(): Note[] {
       relativePath.includes("flashcards") ||
       relativePath.includes("quizzes") ||
       relativePath.includes("revision") ||
-      relativePath.includes("concept_connection") ||
-      relativePath.endsWith("core.md")
+      relativePath.includes("concept_connection")
     )
       continue;
 
@@ -137,7 +136,7 @@ function parseNotes(): Note[] {
     const parts = relativePath.split(path.sep);
     const subject = parts[0] === "Physics" ? "Physics" : "Physics";
     const chapterIdx = parts[0] === "Physics" ? 1 : 0;
-    const chapter = parts[chapterIdx]?.replace(/[_\-]/g, " ") || "";
+    const chapter = parts.length > chapterIdx ? parts[chapterIdx]?.replace(/[_\-]/g, " ") || "General" : parts[0]?.replace(/[_\-]/g, " ") || "General";
 
     notes.push({
       id: slugify(relativePath.replace(/\.md$/, "")),
@@ -509,11 +508,12 @@ function buildGraphData(notes: Note[]): GraphData {
     if (seenTitles.has(note.title)) continue;
     seenTitles.add(note.title);
 
+    const isCore = note.path.endsWith("core.md");
     const node: GraphNode = {
       id: note.id,
       label: note.title,
       group: note.chapter,
-      type: "note",
+      type: isCore ? "chapter" : "note",
       path: note.path,
       val: note.links.length + note.backlinks.length + 1,
     };
