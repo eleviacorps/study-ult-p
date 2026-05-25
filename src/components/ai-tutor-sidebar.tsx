@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useLlm } from "@/lib/llm-context";
-import { addPoints } from "@/lib/study-state";
+import { addPoints, recordAiConversation } from "@/lib/study-state";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -44,6 +44,8 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
       const { content } = await ask(sysContext, q);
       setMessages((prev) => [...prev, { role: "assistant", content: content || "No response" }]);
       addPoints(2, "Tutor Query", q.substring(0, 50));
+      recordAiConversation("user", q, chapterName || "general");
+      recordAiConversation("assistant", content || "No response", chapterName || "general");
     } catch {}
     setLoading(false);
   };

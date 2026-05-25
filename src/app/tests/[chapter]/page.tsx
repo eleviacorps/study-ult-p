@@ -47,7 +47,8 @@ export default function TestTakePage() {
     setPhase("loading");
     
     const chapterQs = vault?.questions.filter((q) => q.chapter === chapterName) || [];
-    const questionsContent = chapterQs.map((q, i) => 
+    const shuffled = [...chapterQs].sort(() => Math.random() - 0.5);
+    const questionsContent = shuffled.map((q, i) => 
       `Q${i+1}. ${q.given || q.title}\nOptions: ${q.options?.map(o => `${o.label}) ${o.text}`).join(" | ") || "N/A"}\nAnswer: ${q.answer}\nDifficulty: ${q.difficulty}\n`
     ).join("\n").substring(0, 8000);
 
@@ -83,10 +84,11 @@ export default function TestTakePage() {
     }
 
     try {
-      const prompt = `You are a JEE physics test generator. From the question bank below, select exactly ${actualCount} questions. Output ONLY valid JSON, nothing else. No thinking, no markdown, no explanation. Just the JSON array.
+      const prompt = `You are a JEE physics test generator. From the question bank below, RANDOMLY select exactly ${actualCount} DISTINCT questions. Pick them randomly — DO NOT always pick the first ones. Vary your selection each time.
+Output ONLY valid JSON, nothing else. No thinking, no markdown, no explanation. Just the JSON array.
 Format: [{"text":"question text","options":["A) option","B) option","C) option","D) option"],"correctIndex":0,"type":"mcq"}]
 
-Question bank:
+Question bank (already shuffled randomly):
 ${questionsContent}`;
 
       const { content: response } = await ask(prompt, "");
@@ -173,6 +175,30 @@ ${questionsContent}`;
     setScore({ correct, wrong: questions.length - correct, total: questions.length, feedback: "" });
     setPhase("finished");
 
+    const today = new Date().toISOString().split("T")[0];
+
+    updateStudyState((state) => {
+      questions.forEach((q, i) => {
+        const userAns = answers.get(i);
+        const isCorrect = q.type === "mcq"
+          ? (typeof userAns === "number" && userAns === q.correctIndex)
+          : (typeof userAns === "string" && userAns.trim().length > 0);
+        const key = `test-${chapterName}-q${i}`;
+        const current = state.questionAttempts[key] || { correct: 0, total: 0 };
+        state.questionAttempts[key] = {
+          correct: current.correct + (isCorrect ? 1 : 0),
+          total: current.total + 1,
+        };
+      });
+      state.testScores.push({
+        date: new Date().toISOString(),
+        score: correct,
+        total: questions.length,
+        chapter: chapterName,
+      });
+      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + Math.round(timeSpent / 60);
+    });
+
     if (config.enabled && correct < questions.length) {
       setAiScoreLoading(true);
       try {
@@ -192,31 +218,6 @@ ${questionsContent}`;
 Here are the wrong answers:\n${wrongQs}`
         );
         setScore((prev) => prev ? { ...prev, feedback: content } : prev);
-
-        const total = questions.length;
-        questions.forEach((q, i) => {
-          const userAns = answers.get(i);
-          const isCorrect = q.type === "mcq"
-            ? (typeof userAns === "number" && userAns === q.correctIndex)
-            : (typeof userAns === "string" && userAns.trim().length > 0);
-          updateStudyState((state) => {
-            const key = `test-${chapterName}-q${i}`;
-            const current = state.questionAttempts[key] || { correct: 0, total: 0 };
-            state.questionAttempts[key] = {
-              correct: current.correct + (isCorrect ? 1 : 0),
-              total: current.total + 1,
-            };
-            state.testScores.push({
-              date: new Date().toISOString(),
-              score: correct,
-              total,
-              chapter: chapterName,
-            });
-            const today = new Date().toISOString().split("T")[0];
-            state.lastStudyDate = today;
-            state.studyMinutes[today] = (state.studyMinutes[today] || 0) + Math.round(timeSpent / 60);
-          });
-        });
       } catch {}
       setAiScoreLoading(false);
     }

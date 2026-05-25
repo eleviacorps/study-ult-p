@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
-import { addPoints } from "@/lib/study-state";
+import { addPoints, updateStudyState } from "@/lib/study-state";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -47,7 +47,7 @@ export default function QuizPage() {
           const correctMatch = q.answer?.match(/[A-D](?=\))/)?.[0];
           return {
             id: `quiz-${i}`,
-            text: q.title,
+            text: q.given || q.title,
             options: opts,
             correctIndex: correctMatch ? "ABCD".indexOf(correctMatch) : 0,
             explanation: q.solution || "",
@@ -107,6 +107,23 @@ export default function QuizPage() {
     setPhase("finished");
 
     addPoints(correct * 5 + (netScore > 0 ? netScore * 2 : 0), "Quiz Completed", `${correct}/${questions.length} correct`);
+
+    updateStudyState((state) => {
+      state.quizScores.push({
+        date: new Date().toISOString(),
+        score: correct,
+        total: questions.length,
+        netScore,
+      });
+      questions.forEach((q, i) => {
+        const userAns = answers.get(i);
+        const isCorrect = userAns === q.correctIndex;
+        state.questionAttempts[`quiz-${q.id}`] = {
+          correct: (state.questionAttempts[`quiz-${q.id}`]?.correct || 0) + (isCorrect ? 1 : 0),
+          total: (state.questionAttempts[`quiz-${q.id}`]?.total || 0) + 1,
+        };
+      });
+    });
 
     if (config.enabled) {
       setAiLoading(true);

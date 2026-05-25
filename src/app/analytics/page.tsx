@@ -35,9 +35,10 @@ export default function AnalyticsPage() {
     .filter((t) => t.total >= 2)
     .sort((a, b) => a.accuracy - b.accuracy);
 
+  const state = loadStudyState();
   const chapterBreakdown = vault?.chapters.map((ch) => {
     const cards = vault.flashcards.filter((f) => f.chapter === ch.name);
-    const reviewed = cards.filter((f) => data.reviewedCards > 0).length;
+    const reviewed = cards.filter((f) => state.reviewedFlashcards?.[f.id]).length;
     const pct = cards.length > 0 ? Math.round((reviewed / cards.length) * 100) : 0;
     return { name: ch.name, pct, total: cards.length };
   }) || [];

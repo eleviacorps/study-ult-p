@@ -190,17 +190,23 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
       }
     } catch {}
 
+    const quizScores = (studyState.quizScores || []).slice(-3).map((q) => `${q.score}/${q.total} (net: ${q.netScore})`).join("; ");
+    const conversationCount = (studyState.aiConversations || []).length;
+    const topWeaknesses = (studyState.weakAreas || []).slice(0, 5).map((w) => `${w.topic} (${w.accuracy}%)`).join(", ");
+
     const context = `You are a JEE study planner. Analyze the student's data and generate personalized tasks.
 
 STUDENT DATA:
 - Overall accuracy: ${accuracy}%
-- Weak topics (focus on these): ${weakTopics || "none yet"}
+- Weak topics (focus on these): ${topWeaknesses || weakTopics || "none yet"}
 - Strong topics: ${strongTopics || "none yet"}
 - Question type weaknesses: ${typeWeaknessStr}
 - Available chapters not yet started: ${availableChapters.join("; ") || "none — all started"}
 - Chapters studied today: ${chaptersStudiedToday.length > 0 ? chaptersStudiedToday.join(", ") : "none yet"}
 - Flashcards due for review: ${flashcardDueCount}
 - Recent test scores: ${testScores || "none yet"}
+- Quiz scores: ${quizScores || "none yet"}
+- AI conversations had: ${conversationCount}
 - Flashcard progress: ${reviewPercent}%
 
 Generate 4-6 specific, actionable study tasks. Tasks MUST:

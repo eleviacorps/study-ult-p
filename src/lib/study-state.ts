@@ -18,6 +18,9 @@ export interface StudyState {
   topicAccuracy: Record<string, { correct: number; total: number }>;
   predictedWeakness: { topic: string; prediction: string; confidence: string }[];
   lastAiAnalysis: string;
+  aiConversations: { id: string; role: "user" | "assistant"; content: string; context: string; timestamp: string }[];
+  quizScores: { date: string; score: number; total: number; netScore: number }[];
+  subjectAccuracy: Record<string, { correct: number; total: number }>;
 }
 
 const STORAGE_KEY = "studyult-state";
@@ -55,6 +58,9 @@ function getDefaultState(): StudyState {
     topicAccuracy: {},
     predictedWeakness: [],
     lastAiAnalysis: "",
+    aiConversations: [],
+    quizScores: [],
+    subjectAccuracy: {},
   };
 }
 
@@ -83,7 +89,22 @@ export function updateStudyState(updater: (state: StudyState) => void) {
   }
   state.lastStudyDate = today;
 
+  syncWeakAreas(state);
+
   saveStudyState(state);
+}
+
+export function recordAiConversation(role: "user" | "assistant", content: string, context: string) {
+  updateStudyState((state) => {
+    state.aiConversations.unshift({
+      id: `conv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      role,
+      content,
+      context: context.substring(0, 100),
+      timestamp: new Date().toISOString(),
+    });
+    if (state.aiConversations.length > 100) state.aiConversations = state.aiConversations.slice(0, 100);
+  });
 }
 
 export function addPoints(amount: number, action: string, details: string) {
@@ -97,6 +118,22 @@ export function addPoints(amount: number, action: string, details: string) {
     });
     if (state.activityLog.length > 200) state.activityLog = state.activityLog.slice(0, 200);
   });
+}
+
+export function syncWeakAreas(state: StudyState) {
+  const topicAcc = state.topicAccuracy || {};
+  const entries = Object.entries(topicAcc)
+    .filter(([, v]) => v.total > 0)
+    .map(([topic, v]) => ({
+      topic,
+      accuracy: Math.round((v.correct / v.total) * 100),
+      chapter: topic.split(" > ")[0] || "General",
+      lastSeen: new Date().toISOString(),
+    }))
+    .sort((a, b) => a.accuracy - b.accuracy);
+
+  state.weakAreas = entries.filter((e) => e.accuracy < 60).slice(0, 10);
+  state.strongAreas = entries.filter((e) => e.accuracy >= 80).slice(0, 10);
 }
 
 export function addAiTodo(task: string, priority: "high" | "medium" | "low", source: string) {
