@@ -154,7 +154,7 @@ class PeriodicTrends(Scene):
         ).shift(UP * 0.8)
 
         ie_y_label = MathTex(r"\text{Ionization Energy (kJ/mol)}", font_size=18, color=GREEN).next_to(
-            ie_chart.get_y_axis(), LEFT, direction=LEFT, buff=0.3,
+            ie_chart.get_y_axis(), LEFT, buff=0.3,
         )
         ie_note = MathTex(
             r"\text{Trend: Increases across a period (exceptions at Be/B, N/O)}",

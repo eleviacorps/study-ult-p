@@ -1,7 +1,7 @@
 from manim import *
 import numpy as np
 
-class GaussLaw(Scene):
+class GaussLaw(ThreeDScene):
     def construct(self):
         charge_val = <<CHARGE>>
         surface_type = "<<SURFACE_TYPE>>"
@@ -42,12 +42,12 @@ class GaussLaw(Scene):
             field_lines.add(arrow)
 
         formula = MathTex(
-            r"\\oint_S \\vec{E}\\cdot d\\vec{A} = \\frac{q_{enc}}{\\varepsilon_0}",
+            r"\oint_S \vec{E}\cdot d\vec{A} = \frac{q_{enc}}{\varepsilon_0}",
             font_size=30
         ).to_corner(UL)
 
         flux = MathTex(
-            r"\\Phi_E = EA = \\frac{q}{\\varepsilon_0}",
+            r"\Phi_E = EA = \frac{q}{\varepsilon_0}",
             font_size=26
         ).next_to(formula, DOWN, aligned_edge=LEFT)
 

@@ -58,11 +58,11 @@ class WaveMotion(Scene):
         )
 
         # Vertical dashed line showing dot's fixed x-position
-        dot_x_marker = axes.get_vertical_line(
-            axes.coords_to_point(dot_x, 0),
+        dot_x_marker = DashedLine(
+            axes.coords_to_point(dot_x, -ymax),
+            axes.coords_to_point(dot_x, ymax),
             color=GREY_A,
             stroke_width=1,
-            dashed=True,
         )
 
         # Equation

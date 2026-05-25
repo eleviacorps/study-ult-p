@@ -232,28 +232,28 @@ def build_unit_circle_scene(output_dir, args):
     return SCENE_CLASSES["unit-circle"]
 
 def build_limits_scene(output_dir, args):
-    with open(os.path.join(SCENES_DIR, "calculus.py"), "r") as f:
+    with open(os.path.join(SCENES_DIR, "limits_scene.py"), "r") as f:
         template = f.read()
     code = replace(template, POINT=args.point)
     write_scene(output_dir, code)
     return SCENE_CLASSES["limits"]
 
 def build_derivative_scene(output_dir, args):
-    with open(os.path.join(SCENES_DIR, "calculus.py"), "r") as f:
+    with open(os.path.join(SCENES_DIR, "derivative_scene.py"), "r") as f:
         template = f.read()
     code = replace(template, A=args.a, B=args.b, C=args.c, X0=args.x0)
     write_scene(output_dir, code)
     return SCENE_CLASSES["derivative"]
 
 def build_integration_scene(output_dir, args):
-    with open(os.path.join(SCENES_DIR, "calculus.py"), "r") as f:
+    with open(os.path.join(SCENES_DIR, "integration_scene.py"), "r") as f:
         template = f.read()
     code = replace(template, A=args.func_a, N_RECTANGLES=args.n_start, X_START=args.x_start, X_END=args.x_end)
     write_scene(output_dir, code)
     return SCENE_CLASSES["integration"]
 
 def build_vectors_3d_scene(output_dir, args):
-    with open(os.path.join(SCENES_DIR, "math.py"), "r") as f:
+    with open(os.path.join(SCENES_DIR, "vectors3d.py"), "r") as f:
         template = f.read()
     code = replace(template, AX=args.ax, AY=args.ay, AZ=args.az, BX=args.bx, BY=args.by, BZ=args.bz)
     write_scene(output_dir, code)

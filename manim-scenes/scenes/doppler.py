@@ -46,7 +46,7 @@ class DopplerEffect(Scene):
         wave_display = always_redraw(get_waves)
 
         formula = MathTex(
-            r"f' = f\\left(\\frac{v}{v \\mp v_s}\\right)", font_size=28
+            r"f' = f\left(\frac{v}{v \mp v_s}\right)", font_size=28
         ).to_corner(UL)
 
         note = MathTex(
@@ -60,11 +60,11 @@ class DopplerEffect(Scene):
         obs_right_label = MathTex(r"\text{Observer}", font_size=18, color=GREEN).next_to(obs_right, DOWN)
 
         freq_high = MathTex(
-            r"f'>f\\text{ (higher pitch)}",
+            r"f'>f\text{ (higher pitch)}",
             font_size=22, color=BLUE
         ).to_edge(DOWN).shift(LEFT * 2)
         freq_low = MathTex(
-            r"f'<f\\text{ (lower pitch)}",
+            r"f'<f\text{ (lower pitch)}",
             font_size=22, color=GREEN
         ).to_edge(DOWN).shift(RIGHT * 2)
 

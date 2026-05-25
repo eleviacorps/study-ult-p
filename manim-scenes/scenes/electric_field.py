@@ -106,14 +106,8 @@ class ElectricField(Scene):
 
         self.play(Write(equation))
 
+        stream_lines.start_animation(warm_up=False, flow_speed=1.5)
         self.add(stream_lines)
-
-        self.play(
-            stream_lines.animate_flow(
-                warm_up=False,
-                flow_speed=1.5
-            ),
-            run_time=6
-        )
+        self.wait(6)
 
         self.wait(2)

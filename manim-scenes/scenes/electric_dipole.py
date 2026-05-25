@@ -35,12 +35,12 @@ class ElectricDipole(Scene):
         e_label = MathTex(r"\vec{E}", font_size=28, color=GREY_A).to_corner(UR)
 
         torque_eq = MathTex(
-            r"\vec{\\tau} = \\vec{p} \\times \\vec{E}",
+            r"\vec{\tau} = \vec{p} \times \vec{E}",
             font_size=30
         ).to_corner(UL)
 
         torque_eq2 = MathTex(
-            r"\\tau = pE\\sin\\theta",
+            r"\tau = pE\sin\theta",
             font_size=26
         ).next_to(torque_eq, DOWN, aligned_edge=LEFT)
 
