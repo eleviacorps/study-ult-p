@@ -134,18 +134,85 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
     const accuracy = analytics.accuracy;
     const flashcardProgress = reviewPercent;
 
-    const context = `You are a JEE study planner. The student's stats:
-- Overall accuracy: ${accuracy}%
-- Weak topics: ${weakTopics || "none yet"}
-- Strong topics: ${strongTopics || "none yet"}
-- Recent test scores: ${testScores || "none yet"}
-- Flashcards reviewed: ${reviewPercent}% of total
-- Total points: ${analytics.points}
+    // Today's activity
+    const today = new Date().toISOString().split("T")[0];
+    const todayActivities = (studyState.activityLog || []).filter((a) => a.timestamp.startsWith(today));
+    const chaptersStudiedToday = [...new Set(todayActivities.map((a) => {
+      for (const ch of vault.chapters) {
+        if (a.details.includes(ch.name)) return ch.name;
+      }
+      return null;
+    }).filter(Boolean))];
 
-Based on this, generate 3-5 priority study tasks. Output ONLY valid JSON array:
+    // Available chapters not yet started
+    const startedChapterNames = new Set([
+      ...Object.keys(studyState.reviewedFlashcards || {}).map(id => vault.flashcards.find(f => f.id === id)?.chapter),
+      ...(studyState.testScores || []).map(t => t.chapter),
+      ...(studyState.activityLog || []).slice(0, 100).map(a => {
+        for (const ch of vault.chapters) if (a.details.includes(ch.name)) return ch.name;
+        return null;
+      }),
+    ].filter(Boolean));
+
+    const availableChapters = vault.chapters
+      .filter(ch => !startedChapterNames.has(ch.name))
+      .map(ch => `${ch.name} (${ch.totalTopics} topics)`)
+      .slice(0, 3);
+
+    // Question-type weaknesses from topicAccuracy
+    type QuestionTypeStats = { theoretical: number; numerical: number; mcq: number };
+    const questionTypeWeakness: QuestionTypeStats = { theoretical: 0, numerical: 0, mcq: 0 };
+    let typeCount = 0;
+    for (const [topic, stats] of Object.entries(studyState.topicAccuracy || {})) {
+      const acc = stats.total > 0 ? stats.correct / stats.total : 1;
+      if (acc < 0.7) {
+        if (topic.includes("theory") || topic.includes("concept")) questionTypeWeakness.theoretical++;
+        else if (topic.includes("num") || topic.includes("calc")) questionTypeWeakness.numerical++;
+        else questionTypeWeakness.mcq++;
+        typeCount++;
+      }
+    }
+    const typeWeaknessStr = typeCount > 0
+      ? Object.entries(questionTypeWeakness)
+        .filter(([, c]) => c > 0)
+        .map(([t, c]) => `${t}: ${c} weak topics`)
+        .join(", ")
+      : "not enough data";
+
+    // Flashcards due
+    let flashcardDueCount = 0;
+    try {
+      const sm2Data = JSON.parse(localStorage.getItem("studyult-sm2") || "{}");
+      const todayStr = new Date().toISOString().split("T")[0];
+      for (const card of vault.flashcards) {
+        const sched = sm2Data[`sm2-${card.id}`];
+        if (sched && sched.nextReview <= todayStr) flashcardDueCount++;
+      }
+    } catch {}
+
+    const context = `You are a JEE study planner. Analyze the student's data and generate personalized tasks.
+
+STUDENT DATA:
+- Overall accuracy: ${accuracy}%
+- Weak topics (focus on these): ${weakTopics || "none yet"}
+- Strong topics: ${strongTopics || "none yet"}
+- Question type weaknesses: ${typeWeaknessStr}
+- Available chapters not yet started: ${availableChapters.join("; ") || "none — all started"}
+- Chapters studied today: ${chaptersStudiedToday.length > 0 ? chaptersStudiedToday.join(", ") : "none yet"}
+- Flashcards due for review: ${flashcardDueCount}
+- Recent test scores: ${testScores || "none yet"}
+- Flashcard progress: ${reviewPercent}%
+
+Generate 4-6 specific, actionable study tasks. Tasks MUST:
+1. Reference specific topics/chapters from the available chapters above
+2. Address the WEAKEST areas first
+3. Include a mix of: learning new content, practicing weak question types, reviewing flashcards
+4. Be concrete — "Review Gauss's Law numerical problems" not "Study more"
+
+Output ONLY valid JSON array:
 [{"task": "Review Gauss's Law - focus on cylindrical symmetry", "priority": "high"}]
 
-Priorities: "high", "medium", or "low". Be specific and actionable.`;
+Priorities: "high" (weak areas), "medium" (moderate), "low" (maintenance).`;
 
     try {
       const { content } = await ask(context, "");

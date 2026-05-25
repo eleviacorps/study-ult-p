@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useLlm } from "@/lib/llm-context";
 import { addPoints } from "@/lib/study-state";
+import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface AiTutorSidebarProps {
   context: string;
   chapterName?: string;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface ChatMsg {
@@ -17,7 +19,7 @@ interface ChatMsg {
   content: string;
 }
 
-export function AiTutorSidebar({ context, chapterName }: AiTutorSidebarProps) {
+export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSidebarProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
@@ -29,26 +31,54 @@ export function AiTutorSidebar({ context, chapterName }: AiTutorSidebarProps) {
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = input;
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    setInput("");
-    setLoading(true);
+  const contextRef = useRef(context);
+  contextRef.current = context;
+  const enabledRef = useRef(config.enabled);
+  enabledRef.current = config.enabled;
 
+  const doAsk = async (q: string) => {
+    setMessages((prev) => [...prev, { role: "user", content: q }]);
+    setLoading(true);
     try {
-      const sysContext = `You are a JEE physics tutor. Context: ${context.substring(0, 3000)}`;
-      const { content } = await ask(sysContext, userMsg);
+      const sysContext = `You are a JEE physics tutor. Context: ${contextRef.current.substring(0, 3000)}`;
+      const { content } = await ask(sysContext, q);
       setMessages((prev) => [...prev, { role: "assistant", content: content || "No response" }]);
-      addPoints(2, "Tutor Query", userMsg.substring(0, 50));
+      addPoints(2, "Tutor Query", q.substring(0, 50));
     } catch {}
     setLoading(false);
   };
 
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const userMsg = input;
+    setInput("");
+    await doAsk(userMsg);
+  };
+
+  const handleQuickAsk = async (q: string) => {
+    await doAsk(q);
+  };
+
+  const toggle = (v: boolean) => {
+    setOpen(v);
+    onOpenChange?.(v);
+  };
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      if (detail && enabledRef.current) {
+        doAsk(detail);
+      }
+    };
+    window.addEventListener("tutor-ask", handler);
+    return () => window.removeEventListener("tutor-ask", handler);
+  }, []);
+
   return (
     <>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => toggle(!open)}
         className="fixed right-0 top-1/2 -translate-y-1/2 z-20 p-2 bg-[var(--bg-elevated)] border border-r-0 border-[var(--glass-border)] text-white/40 hover:text-white/70 transition-colors"
         style={{ borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }}
       >
@@ -72,7 +102,7 @@ export function AiTutorSidebar({ context, chapterName }: AiTutorSidebarProps) {
               <Bot className="w-4 h-4 text-[#8B5CF6]" />
               <span className="text-sm font-semibold">AI Tutor</span>
             </div>
-            <button onClick={() => setOpen(false)} className="p-1 text-white/30 hover:text-white/60">
+            <button onClick={() => toggle(false)} className="p-1 text-white/30 hover:text-white/60">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -88,10 +118,7 @@ export function AiTutorSidebar({ context, chapterName }: AiTutorSidebarProps) {
                   {["Explain this concept", "Give me a summary", "Key formulas", "Common mistakes"].map((q) => (
                     <button
                       key={q}
-                      onClick={() => {
-                        setMessages([{ role: "user", content: q }]);
-                        handleQuickAsk(q);
-                      }}
+                      onClick={() => handleQuickAsk(q)}
                       className="text-[10px] px-2 py-1 bg-white/[0.03] border border-white/[0.06] text-white/30 hover:text-white/50 transition-colors"
                     >
                       {q}
@@ -107,7 +134,13 @@ export function AiTutorSidebar({ context, chapterName }: AiTutorSidebarProps) {
                       ? "bg-[#1856FF]/15 border border-[#1856FF]/20"
                       : "bg-white/[0.03] border border-white/[0.06]"
                   )}>
-                    <span style={{ color: "var(--text-secondary)" }}>{msg.content}</span>
+                    {msg.role === "assistant" ? (
+                      <div className="prose-glass text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                        <MarkdownRenderer content={msg.content} />
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--text-secondary)" }}>{msg.content}</span>
+                    )}
                   </div>
                 </div>
               ))
@@ -144,8 +177,4 @@ export function AiTutorSidebar({ context, chapterName }: AiTutorSidebarProps) {
       )}
     </>
   );
-}
-
-async function handleQuickAsk(q: string) {
-  return q;
 }

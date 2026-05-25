@@ -4,8 +4,13 @@ import path from "path";
 import fs from "fs";
 
 interface ManimRequest {
-  type: "graph" | "projectile" | "wave" | "pendulum" | "electric-field";
-  params: Record<string, number>;
+  type: "graph" | "projectile" | "wave" | "pendulum" | "electric-field"
+    | "pythagorean" | "coulombs-law" | "electric-dipole" | "gauss-law"
+    | "kinematics" | "shm" | "refraction" | "doppler"
+    | "molecular-structure" | "periodic-trends" | "reaction-kinetics"
+    | "unit-circle" | "limits" | "derivative" | "integration"
+    | "vectors-3d" | "conic-sections";
+  params: Record<string, number | string>;
   quality?: "low" | "medium" | "high";
 }
 
@@ -13,7 +18,7 @@ const SCENES_DIR = path.join(process.cwd(), "manim-scenes");
 const PUBLIC_RENDER_DIR = path.join(process.cwd(), "public", "simulations");
 const CACHE_ROOT = path.join(PUBLIC_RENDER_DIR, "cache");
 
-function getCacheKey(type: string, params: Record<string, number>): string {
+function getCacheKey(type: string, params: Record<string, number | string>): string {
   const paramStr = Object.entries(params)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}_${v}`)

@@ -3,9 +3,25 @@ import math
 
 class FunctionGraph(Scene):
     def construct(self):
+        a = <<A>>
+        b = <<B>>
+        c = <<C>>
+        x_min = <<XMIN>>
+        x_max = <<XMAX>>
+
+        def f(x):
+            return a * x**2 + b * x + c
+
+        y_vals = [f(x) for x in [x_min + i * (x_max - x_min) / 100 for i in range(101)]]
+        y_min_val = min(y_vals)
+        y_max_val = max(y_vals)
+        y_padding = max(2, (y_max_val - y_min_val) * 0.2)
+        y_low = y_min_val - y_padding
+        y_high = y_max_val + y_padding
+
         axes = Axes(
-            x_range=[<<XMIN>>, <<XMAX>>, 1],
-            y_range=[-10, 10, 2],
+            x_range=[x_min, x_max, max(1, int((x_max - x_min) / 10))],
+            y_range=[y_low, y_high, max(1, int((y_high - y_low) / 10))],
             axis_config={'color': GREY_A, 'include_tip': False},
             x_length=10,
             y_length=6,
@@ -13,8 +29,8 @@ class FunctionGraph(Scene):
         axes_labels = axes.get_axis_labels(x_label="x", y_label="y")
 
         graph = axes.plot(
-            lambda x: <<A>> * x**2 + <<B>> * x + <<C>>,
-            x_range=[<<XMIN>>, <<XMAX>>],
+            f,
+            x_range=[x_min, x_max],
             color=BLUE_D,
             stroke_width=3,
         )

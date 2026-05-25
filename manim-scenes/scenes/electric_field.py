@@ -4,36 +4,29 @@ import numpy as np
 class ElectricField(Scene):
     def construct(self):
 
-        # Charge positions
-        left_charge_pos = LEFT * 3
-        right_charge_pos = RIGHT * 3
+        # Charge positions and values
+        sep = <<SEPARATION>>
+        left_charge_pos = LEFT * sep
+        right_charge_pos = RIGHT * sep
 
-        # Charge values
-        q1 = 1
-        q2 = -1
+        q1 = <<CHARGE>>
+        q2 = -<<CHARGE>>
 
-        # Electric field function
+        # Electric field function with softening to avoid singularities
         def electric_field(pos):
-
             x, y, z = pos
+            epsilon = 0.2
 
             r1 = pos - left_charge_pos
             r2 = pos - right_charge_pos
 
-            d1 = np.linalg.norm(r1)
-            d2 = np.linalg.norm(r2)
+            d1_sq = np.dot(r1, r1) + epsilon**2
+            d2_sq = np.dot(r2, r2) + epsilon**2
 
-            # Avoid singularities
-            if d1 < 0.3:
-                d1 = 0.3
+            e1 = q1 * r1 / (d1_sq ** 1.5)
+            e2 = q2 * r2 / (d2_sq ** 1.5)
 
-            if d2 < 0.3:
-                d2 = 0.3
-
-            e1 = q1 * r1 / (d1 ** 3)
-            e2 = q2 * r2 / (d2 ** 3)
-
-            return (e1 + e2) * 2
+            return e1 + e2
 
         # Stream lines
         stream_lines = StreamLines(
@@ -92,8 +85,8 @@ class ElectricField(Scene):
 
         # Equation
         equation = MathTex(
-            r"\vec{E} = \frac{q}{r^2}",
-            font_size=36
+            r"\vec{E} = \frac{1}{4\pi\varepsilon_0}\frac{q}{r^2}\hat{r}",
+            font_size=32
         ).to_corner(UL)
 
         # Add objects

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { AiTutorSidebar } from "@/components/ai-tutor-sidebar";
+import { SelectionToolbar } from "@/components/selection-toolbar";
 import { useLlm } from "@/lib/llm-context";
 import { addPoints } from "@/lib/study-state";
 import type { Note } from "@/types";
@@ -18,6 +19,39 @@ export default function ReaderPage() {
   const { ask, config } = useLlm();
   const [note, setNote] = useState<Note | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
+  const [tutorOpen, setTutorOpen] = useState(false);
+
+  const handleSelectionExplain = useCallback(async (text: string) => {
+    if (!config.enabled) return;
+    setTutorOpen(true);
+    setTimeout(() => {
+      const event = new CustomEvent("tutor-ask", { detail: `Explain this: ${text}` });
+      window.dispatchEvent(event);
+    }, 300);
+  }, [config.enabled]);
+
+  const handleSelectionSummarize = useCallback(async (text: string) => {
+    if (!config.enabled) return;
+    setTutorOpen(true);
+    setTimeout(() => {
+      const event = new CustomEvent("tutor-ask", { detail: `Summarize this concisely: ${text}` });
+      window.dispatchEvent(event);
+    }, 300);
+  }, [config.enabled]);
+
+  const handleSelectionManim = useCallback(async (text: string) => {
+    if (!config.enabled) return;
+    setTutorOpen(true);
+    setTimeout(() => {
+      const event = new CustomEvent("tutor-ask", { detail: `Write a Manim Community Edition Python animation script for: "${text}". Use from manim import *. Include a single Scene class. Keep it short and visual.` });
+      window.dispatchEvent(event);
+    }, 300);
+  }, [config.enabled]);
+
+  const handleSearchVideos = useCallback((text: string) => {
+    const query = encodeURIComponent(`${text} JEE physics`);
+    window.open(`https://www.youtube.com/results?search_query=${query}`, "_blank");
+  }, []);
 
   useEffect(() => {
     if (!isLoaded || !vault) return;
@@ -98,6 +132,12 @@ export default function ReaderPage() {
 
   return (
     <div className="min-h-screen">
+      <SelectionToolbar
+        onExplain={handleSelectionExplain}
+        onSummarize={handleSelectionSummarize}
+        onManim={handleSelectionManim}
+        onSearchVideos={handleSearchVideos}
+      />
       <Header
         breadcrumbs={[
           { label: "Reader", href: "/reader" },
@@ -108,7 +148,7 @@ export default function ReaderPage() {
           { label: note.title, href: "#" },
         ]}
       />
-      <div className="flex">
+      <div className={`flex transition-all duration-300 ${tutorOpen ? 'xl:mr-[340px]' : ''}`}>
         <aside className="hidden xl:block w-56 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto p-4 space-y-1">
           <p className="text-[10px] uppercase tracking-wider text-white/25 mb-3 px-2">
             On this page
@@ -157,6 +197,7 @@ export default function ReaderPage() {
         <AiTutorSidebar
           context={note.content}
           chapterName={decodeURIComponent(params.chapter)}
+          onOpenChange={setTutorOpen}
         />
       </div>
     </div>

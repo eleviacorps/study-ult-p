@@ -4,21 +4,27 @@ import math
 class Pendulum(Scene):
     def construct(self):
         pivot = ORIGIN + UP * 2.5
-        L = <<LENGTH>> * 0.6
-        omega = math.sqrt(<<GRAVITY>> / max(<<LENGTH>>, 0.1))
+        L = <<LENGTH>>
+        g = <<GRAVITY>>
         damping = <<DAMPING>>
+
+        omega_0 = math.sqrt(g / max(L, 0.1))
+        omega_d = math.sqrt(max(omega_0**2 - damping**2, 0))
 
         pivot_dot = Dot(pivot, color=GREY)
         support = Line(pivot + LEFT * 0.5, pivot + RIGHT * 0.5, color=GREY)
 
-        bob = Dot(color=YELLOW, radius=0.2).move_to(pivot + DOWN * L)
+        initial_angle = math.pi / 4
+        start_x = pivot[0] + L * math.sin(initial_angle)
+        start_y = pivot[1] - L * math.cos(initial_angle)
+        bob = Dot(color=YELLOW, radius=0.2).move_to([start_x, start_y, 0])
         rod = always_redraw(lambda: Line(pivot, bob.get_center(), color=GREY_A, stroke_width=3))
 
         time_tracker = ValueTracker(0)
 
         def update_bob(m):
             t = time_tracker.get_value()
-            angle = (math.pi / 4) * math.exp(-damping * t) * math.cos(omega * t)
+            angle = initial_angle * math.exp(-damping * t) * math.cos(omega_d * t)
             x = pivot[0] + L * math.sin(angle)
             y = pivot[1] - L * math.cos(angle)
             m.move_to([x, y, 0])
@@ -36,7 +42,7 @@ class Pendulum(Scene):
             ),
         ).arrange(DOWN, aligned_edge=LEFT).to_corner(UR)
 
-        title = Text("Simple Pendulum", font_size=28, color=WHITE).to_edge(UP, buff=0.3)
+        title = Text("Damped Pendulum", font_size=28, color=WHITE).to_edge(UP, buff=0.3)
 
         self.play(Write(title), run_time=0.5)
         self.play(Create(support), Create(pivot_dot), run_time=0.5)
