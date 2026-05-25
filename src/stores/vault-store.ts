@@ -43,12 +43,24 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ isLoading: true });
     try {
       const customRoots = getCustomVaultRoots();
-      let url = "/api/vault";
-      if (customRoots.length > 0) {
-        url += `?roots=${encodeURIComponent(JSON.stringify(customRoots))}`;
+      let vault: VaultContent | null = null;
+
+      if (customRoots.length === 0) {
+        const staticRes = await fetch("/vault-data.json");
+        if (staticRes.ok) {
+          vault = await staticRes.json();
+        }
       }
-      const res = await fetch(url);
-      const vault: VaultContent = await res.json();
+
+      if (!vault) {
+        let url = "/api/vault";
+        if (customRoots.length > 0) {
+          url += `?roots=${encodeURIComponent(JSON.stringify(customRoots))}`;
+        }
+        const res = await fetch(url);
+        vault = await res.json();
+      }
+
       set({ vault, isLoaded: true, isLoading: false });
     } catch (err) {
       console.error("Failed to load vault:", err);

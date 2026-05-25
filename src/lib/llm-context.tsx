@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { CapacitorHttp } from "@capacitor/core";
 
 export type AiProvider = "openai" | "anthropic" | "lmstudio" | "ollama" | "custom";
 
@@ -105,22 +106,118 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     setConfig((prev) => { const n = { ...prev, enabled: !prev.enabled }; saveConfig(n); return n; });
   }, []);
 
+  async function capFetch(url: string, opts: RequestInit): Promise<{ data: any; status: number; headers: any }> {
+    const method = (opts.method || "GET").toUpperCase();
+    const headers = (opts.headers as Record<string, string>) || {};
+    const body = opts.body ? JSON.parse(opts.body as string) : undefined;
+    const res = await CapacitorHttp.request({ url, method, headers, data: body });
+    return { data: res.data, status: res.status, headers: res.headers };
+  }
+
+  async function directLlmCompletion(
+    provider: AiProvider,
+    baseUrl: string,
+    apiKey: string,
+    model: string,
+    messages: { role: string; content: string }[]
+  ): Promise<{ content: string; reasoning: string }> {
+    const resolved = model && model !== "default" ? model : "gpt-4o-mini";
+
+    switch (provider) {
+      case "openai": {
+        const res = await capFetch(`${baseUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: resolved, messages, max_tokens: 4096 }),
+        });
+        if (res.status >= 400) return { content: `OpenAI error (${res.status})`, reasoning: "" };
+        return { content: res.data.choices?.[0]?.message?.content || "", reasoning: "" };
+      }
+
+      case "anthropic": {
+        const systemMsg = messages.find((m) => m.role === "system");
+        const userMsgs = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
+        const res = await capFetch(`${baseUrl}/v1/messages`, {
+          method: "POST",
+          headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: resolved,
+            max_tokens: 4096,
+            system: systemMsg?.content || "",
+            messages: userMsgs.length > 0 ? userMsgs : [{ role: "user", content: "Hello" }],
+          }),
+        });
+        if (res.status >= 400) return { content: `Anthropic error (${res.status})`, reasoning: "" };
+        return { content: res.data.content?.[0]?.text || "", reasoning: "" };
+      }
+
+      case "ollama": {
+        const ollamaMsgs = messages.map((m) => ({ role: m.role, content: m.content }));
+        while (ollamaMsgs.length > 0 && ollamaMsgs[0].role === "system") {
+          ollamaMsgs[0].role = "user";
+        }
+        const res = await capFetch(`${baseUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: resolved, messages: ollamaMsgs, stream: false }),
+        });
+        if (res.status >= 400) return { content: `Ollama error (${res.status})`, reasoning: "" };
+        return { content: res.data.message?.content || "", reasoning: "" };
+      }
+
+      case "lmstudio":
+      case "custom":
+      default: {
+        const res = await capFetch(`${baseUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ model: resolved, messages, max_tokens: 4096 }),
+        });
+        if (res.status >= 400) return { content: `API error (${res.status})`, reasoning: "" };
+        return { content: res.data.choices?.[0]?.message?.content || res.data.content?.[0]?.text || "", reasoning: "" };
+      }
+    }
+  }
+
+  async function directLlmModels(
+    provider: AiProvider,
+    baseUrl: string,
+    apiKey: string
+  ): Promise<string[]> {
+    switch (provider) {
+      case "openai":
+      case "lmstudio":
+      case "custom": {
+        const res = await capFetch(`${baseUrl}/v1/models`, {
+          headers: apiKey ? { "Authorization": `Bearer ${apiKey}` } : {},
+        });
+        if (res.status >= 400) return [];
+        return (res.data.data || []).map((m: any) => m.id || m.name).filter(Boolean);
+      }
+      case "ollama": {
+        const res = await capFetch(`${baseUrl}/api/tags`, {});
+        if (res.status >= 400) return [];
+        return (res.data.models || res.data.tags || []).map((m: any) => m.name).filter(Boolean);
+      }
+      case "anthropic":
+        return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-opus-4-20250514"];
+      default:
+        return [];
+    }
+  }
+
   const fetchModels = useCallback(async () => {
     try {
-      const res = await fetch("/api/llm/models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: config.provider, baseUrl: config.baseUrl, apiKey: config.apiKey }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const models = data.models || [];
-        setAvailableModels(models);
-        if (models.length > 0 && !config.model) setModel(models[0]);
-        return;
-      }
-    } catch {}
-    setAvailableModels([]);
+      const models = await directLlmModels(config.provider, config.baseUrl, config.apiKey);
+      setAvailableModels(models);
+      if (models.length > 0 && !config.model) setModel(models[0]);
+      if (models.length === 0) setAvailableModels([]);
+    } catch {
+      setAvailableModels([]);
+    }
   }, [config.provider, config.baseUrl, config.apiKey, config.model, setModel]);
 
   const ask = useCallback(
@@ -132,23 +229,14 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
           ? [{ role: "system", content: context.substring(0, 4000) }, { role: "user", content: question }]
           : [{ role: "user", content: context }];
 
-        const res = await fetch("/api/llm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            provider: config.provider,
-            baseUrl: config.baseUrl,
-            apiKey: config.apiKey,
-            model: config.model || "default",
-            messages,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return { content: data.content || "", reasoning: data.reasoning || "" };
-        }
-        const errData = await res.json().catch(() => ({}));
-        return { content: `Error: ${errData.error || `HTTP ${res.status}`}`, reasoning: "" };
+        const result = await directLlmCompletion(
+          config.provider,
+          config.baseUrl,
+          config.apiKey,
+          config.model,
+          messages
+        );
+        return result;
       } catch (err: any) {
         return { content: `Error: ${err.message}`, reasoning: "" };
       } finally {
