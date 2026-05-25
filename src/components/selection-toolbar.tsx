@@ -62,7 +62,7 @@ export function SelectionToolbar({ onExplain, onSummarize, onManim, onSearchVide
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
-          className="fixed z-50 flex items-center gap-1 px-2 py-1.5 rounded-xl glass-heavy border border-[var(--glass-border)] shadow-2xl"
+          className="fixed z-50 flex items-center gap-1 px-2 py-1.5 rounded-xl bg-[#0c0c0f]/95 backdrop-blur-xl border border-white/[0.08] shadow-2xl"
           style={{
             left: Math.max(10, position.x),
             top: Math.max(10, position.y),

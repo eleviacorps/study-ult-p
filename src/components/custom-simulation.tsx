@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLlm } from "@/lib/llm-context";
 import { Play, Pause, RotateCcw, Loader2, Video, Sparkles, Code, AlertCircle } from "lucide-react";
 
@@ -28,6 +28,7 @@ When asked, generate the scene code directly.`;
 
 export function CustomSimulation() {
   const { ask, config } = useLlm();
+  const [mounted, setMounted] = useState(false);
   const [description, setDescription] = useState("");
   const [videoPath, setVideoPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +37,8 @@ export function CustomSimulation() {
   const [cached, setCached] = useState(false);
   const [playing, setPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const handleGenerate = async () => {
     if (!description.trim() || loading) return;
@@ -176,7 +179,7 @@ export function CustomSimulation() {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <Video className="w-10 h-10 text-white/10" />
             <p className="text-xs text-white/20">Describe a simulation above</p>
-            <p className="text-[10px] text-white/10">{config.enabled ? "AI will write the Manim code" : "Paste Manim Python code directly"}</p>
+            <p className="text-[10px] text-white/10">{mounted && config.enabled ? "AI will write the Manim code" : "Paste Manim Python code directly"}</p>
           </div>
         )}
       </div>

@@ -55,10 +55,11 @@ function loadConfig(): LlmConfig {
     const raw = localStorage.getItem("studyult-llm");
     if (raw) {
       const saved = JSON.parse(raw);
+      const provider: AiProvider = Object.hasOwn(PROVIDER_DEFAULTS, saved.provider) ? saved.provider as AiProvider : "lmstudio";
       return {
-        provider: saved.provider || "lmstudio",
+        provider,
         apiKey: saved.apiKey || "",
-        baseUrl: saved.baseUrl || PROVIDER_DEFAULTS[saved.provider as AiProvider]?.baseUrl || "http://localhost:1234",
+        baseUrl: saved.baseUrl || PROVIDER_DEFAULTS[provider].baseUrl,
         model: saved.model || "",
         enabled: saved.enabled ?? false,
       };
