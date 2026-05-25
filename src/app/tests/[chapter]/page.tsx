@@ -7,6 +7,7 @@ import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState } from "@/lib/study-state";
+import { PROMPTS } from "@/lib/ai-config";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -84,12 +85,7 @@ export default function TestTakePage() {
     }
 
     try {
-      const prompt = `You are a JEE physics test generator. From the question bank below, RANDOMLY select exactly ${actualCount} DISTINCT questions. Pick them randomly — DO NOT always pick the first ones. Vary your selection each time.
-Output ONLY valid JSON, nothing else. No thinking, no markdown, no explanation. Just the JSON array.
-Format: [{"text":"question text","options":["A) option","B) option","C) option","D) option"],"correctIndex":0,"type":"mcq"}]
-
-Question bank (already shuffled randomly):
-${questionsContent}`;
+      const prompt = PROMPTS.TEST_GENERATOR.replace("{COUNT}", String(actualCount)).replace("{QUESTIONS}", questionsContent);
 
       const { content: response } = await ask(prompt, "");
 
@@ -206,17 +202,16 @@ ${questionsContent}`;
           .map((q, i) => answers.get(i) !== q.correctIndex ? `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${answers.get(i) || "skipped"}` : "")
           .filter(Boolean).join("\n\n");
 
-        const feedbackContext = `You are a JEE tutor analyzing test results. The student took a test on "${chapterName}" and got ${correct}/${questions.length} (${Math.round((correct / questions.length) * 100)}%). They spent ${Math.round(timeSpent / 60)} minutes.`;
+        const feedbackContext = PROMPTS.TEST_FEEDBACK
+          .replace("{CHAPTER}", chapterName)
+          .replace("{SCORE}", String(correct))
+          .replace("{TOTAL}", String(questions.length))
+          .replace("{PERCENT}", String(Math.round((correct / questions.length) * 100)))
+          .replace("{MINUTES}", String(Math.round(timeSpent / 60)));
 
-        const { content } = await ask(
-          feedbackContext,
-          `Analyze these wrong answers and provide structured feedback. Use markdown with headings and bullet points. Include:
-1. A summary of weak areas identified
-2. Specific mistakes with corrections (use LaTeX $$ for formulas)
-3. A study plan with 2-3 actionable items
+        const analysisPrompt = PROMPTS.TEST_WRONG_ANALYSIS.replace("{WRONG_QUESTIONS}", wrongQs);
 
-Here are the wrong answers:\n${wrongQs}`
-        );
+        const { content } = await ask(feedbackContext, analysisPrompt);
         setScore((prev) => prev ? { ...prev, feedback: content } : prev);
       } catch {}
       setAiScoreLoading(false);
@@ -434,7 +429,7 @@ Here are the wrong answers:\n${wrongQs}`
 
         <aside className="w-full lg:w-56 flex-shrink-0 glass border-l-0 border-r-0 border-t border-t-[var(--glass-border)] lg:border-t-0 lg:border-l lg:border-l-[var(--glass-border)] rounded-none p-4">
           <p className="text-[10px] uppercase tracking-wider opacity-25 mb-3">Palette</p>
-          <div className="grid grid-cols-10 lg:grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-5 sm:grid-cols-10 lg:grid-cols-5 gap-1.5">
             {questions.map((_, i) => (
               <button key={i} onClick={() => setCurrentQ(i)}
                 className={cn("w-full aspect-square rounded-md flex items-center justify-center text-[10px] font-medium transition-colors",

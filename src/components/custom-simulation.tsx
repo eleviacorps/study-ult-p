@@ -2,29 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useLlm } from "@/lib/llm-context";
+import { PROMPTS } from "@/lib/ai-config";
 import { Play, Pause, RotateCcw, Loader2, Video, Sparkles, Code, AlertCircle } from "lucide-react";
 
-const MANIM_SYSTEM_PROMPT = `You are a Manim Community Edition expert. Generate ONLY valid Python code using the Manim library. No explanations, no markdown — just raw Python code.
-
-Rules:
-- Use "from manim import *"
-- Define exactly ONE class that extends Scene
-- Use MathTex() for equations with raw strings: MathTex(r"...")
-- Use axes.plot() for functions
-- Use Dot, Circle, Arrow, VGroup, ParametricFunction as needed
-- Keep animation under 10 seconds
-- No print() statements
-
-Examples of valid output:
-
-Class FunctionPlot(Scene):
-    def construct(self):
-        axes = Axes(x_range=[-3, 3, 1], y_range=[-5, 10, 2], axis_config={"include_tip": False})
-        graph = axes.plot(lambda x: x**2, color=BLUE)
-        self.play(Create(axes), Create(graph))
-        self.wait(1)
-
-When asked, generate the scene code directly.`;
+const MANIM_SYSTEM_PROMPT = PROMPTS.MANIM_EXPERT;
 
 export function CustomSimulation() {
   const { ask, config } = useLlm();

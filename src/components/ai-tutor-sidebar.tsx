@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useLlm } from "@/lib/llm-context";
 import { addPoints, recordAiConversation } from "@/lib/study-state";
+import { PROMPTS } from "@/lib/ai-config";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -40,7 +41,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     setLoading(true);
     try {
-      const sysContext = `You are a JEE physics tutor. Context: ${contextRef.current.substring(0, 3000)}`;
+      const sysContext = PROMPTS.SIDEBAR_TUTOR.replace("{CONTEXT}", contextRef.current.substring(0, 3000));
       const { content } = await ask(sysContext, q);
       setMessages((prev) => [...prev, { role: "assistant", content: content || "No response" }]);
       addPoints(2, "Tutor Query", q.substring(0, 50));

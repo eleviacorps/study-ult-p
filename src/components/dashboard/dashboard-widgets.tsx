@@ -7,6 +7,7 @@ import type { VaultContent } from "@/types";
 import { loadStudyState, computeAnalytics, addAiTodo, addPoints, updateStudyState } from "@/lib/study-state";
 import type { StudyState } from "@/lib/study-state";
 import { useLlm } from "@/lib/llm-context";
+import { PROMPTS } from "@/lib/ai-config";
 import {
   Flame,
   Clock,
@@ -194,31 +195,18 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
     const conversationCount = (studyState.aiConversations || []).length;
     const topWeaknesses = (studyState.weakAreas || []).slice(0, 5).map((w) => `${w.topic} (${w.accuracy}%)`).join(", ");
 
-    const context = `You are a JEE study planner. Analyze the student's data and generate personalized tasks.
-
-STUDENT DATA:
-- Overall accuracy: ${accuracy}%
-- Weak topics (focus on these): ${topWeaknesses || weakTopics || "none yet"}
-- Strong topics: ${strongTopics || "none yet"}
-- Question type weaknesses: ${typeWeaknessStr}
-- Available chapters not yet started: ${availableChapters.join("; ") || "none — all started"}
-- Chapters studied today: ${chaptersStudiedToday.length > 0 ? chaptersStudiedToday.join(", ") : "none yet"}
-- Flashcards due for review: ${flashcardDueCount}
-- Recent test scores: ${testScores || "none yet"}
-- Quiz scores: ${quizScores || "none yet"}
-- AI conversations had: ${conversationCount}
-- Flashcard progress: ${reviewPercent}%
-
-Generate 4-6 specific, actionable study tasks. Tasks MUST:
-1. Reference specific topics/chapters from the available chapters above
-2. Address the WEAKEST areas first
-3. Include a mix of: learning new content, practicing weak question types, reviewing flashcards
-4. Be concrete — "Review Gauss's Law numerical problems" not "Study more"
-
-Output ONLY valid JSON array:
-[{"task": "Review Gauss's Law - focus on cylindrical symmetry", "priority": "high"}]
-
-Priorities: "high" (weak areas), "medium" (moderate), "low" (maintenance).`;
+    const context = PROMPTS.STUDY_PLANNER
+      .replace("{ACCURACY}", String(accuracy))
+      .replace("{WEAK_TOPICS}", topWeaknesses || weakTopics || "none yet")
+      .replace("{STRONG_TOPICS}", strongTopics || "none yet")
+      .replace("{TYPE_WEAKNESS}", typeWeaknessStr)
+      .replace("{AVAILABLE_CHAPTERS}", availableChapters.join("; ") || "none \u2014 all started")
+      .replace("{CHAPTERS_TODAY}", chaptersStudiedToday.length > 0 ? chaptersStudiedToday.join(", ") : "none yet")
+      .replace("{FLASHCARD_DUE}", String(flashcardDueCount))
+      .replace("{TEST_SCORES}", testScores || "none yet")
+      .replace("{QUIZ_SCORES}", quizScores || "none yet")
+      .replace("{CONVERSATIONS}", String(conversationCount))
+      .replace("{FLASHCARD_PCT}", String(reviewPercent));
 
     try {
       const { content } = await ask(context, "");

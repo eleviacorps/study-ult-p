@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { useLlm, PROVIDER_DEFAULTS, type AiProvider } from "@/lib/llm-context";
-import { Database, Bot, Bell, Shield, Palette, Sun, Moon, Check, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { Database, Bot, Bell, Shield, Palette, Sun, Moon, Check, ChevronRight, Eye, EyeOff, Trash2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const PROVIDERS: { value: AiProvider; label: string }[] = [
@@ -223,6 +223,33 @@ export default function SettingsPage() {
                 ⚠ API keys are stored in localStorage. For production, consider server-side storage.
               </p>
             )}
+          </div>
+
+          {/* Danger Zone */}
+          <div className="glass p-5 border border-[#EF4444]/20">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-2xl bg-[#EF4444]/10 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-[#EF4444]" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-[#EF4444]">Delete All Data</h3>
+                <p className="text-xs text-white/40">Clears all analytics, study state, flashcard progress, conversations, and AI config</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                if (window.confirm("Delete ALL your study data? This includes:\n• Analytics & study state\n• Flashcard progress (SM-2)\n• AI conversations\n• AI provider settings\n\nThis cannot be undone!")) {
+                  localStorage.removeItem("studyult-state");
+                  localStorage.removeItem("studyult-sm2");
+                  localStorage.removeItem("studyult-llm");
+                  localStorage.removeItem("studyult-ai-cache");
+                  window.location.reload();
+                }
+              }}
+              className="mt-3 w-full py-2.5 rounded-lg bg-[#EF4444]/10 text-[#EF4444] text-xs font-medium hover:bg-[#EF4444]/20 transition-colors border border-[#EF4444]/20 flex items-center justify-center gap-2"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" /> Delete Everything
+            </button>
           </div>
 
           {/* Navigation */}

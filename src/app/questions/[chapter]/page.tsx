@@ -9,6 +9,7 @@ import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { useLlm } from "@/lib/llm-context";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { getAiCache, setAiCache } from "@/lib/ai-cache";
+import { PROMPTS } from "@/lib/ai-config";
 import type { Question } from "@/types";
 import {
   Lightbulb,
@@ -137,7 +138,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
     setAiLoading(true);
 
     const topicContent = getTopicContent(vault, question);
-    const context = `You are a JEE physics tutor. Here is the chapter content for reference:\n\n${topicContent}`;
+    const context = PROMPTS.QUESTION_EXPLAINER.replace("{CONTENT}", topicContent);
 
     const questionText = `Question: ${question.title}
 Given: ${question.given || "N/A"}
@@ -180,24 +181,16 @@ Format the JSON exactly like this:
     setJudgeLoading(true);
 
     const topicContent = getTopicContent(vault, question);
-    const context = `You are a strict JEE physics examiner. Here is the chapter content for reference:\n\n${topicContent}`;
+    const context = PROMPTS.STRICT_EXAMINER.replace("{CONTENT}", topicContent);
 
-    const judgePrompt = `You are grading a student's answer. Be strict and precise.
-
-Question: ${question.title}
-Given: ${question.given || "N/A"}
-${question.find ? `Find: ${question.find}` : ""}
-Correct Answer: ${question.answer || "Not provided"}
-Solution: ${question.solution || "Not provided"}
-
-Student's Answer: ${userAnswer}
-
-Evaluate the student's answer strictly. Respond ONLY with a JSON object:
-{
-  "score": <number from 0 to 10>,
-  "maxScore": 10,
-  "feedback": "<brief feedback explaining what was right/wrong>"
-}`;
+    const findLine = question.find ? `Find: ${question.find}` : "";
+    const judgePrompt = PROMPTS.ANSWER_JUDGE
+      .replace("{TITLE}", question.title)
+      .replace("{GIVEN}", question.given || "N/A")
+      .replace("{FIND_LINE}", findLine)
+      .replace("{ANSWER}", question.answer || "Not provided")
+      .replace("{SOLUTION}", question.solution || "Not provided")
+      .replace("{USER_ANSWER}", userAnswer);
 
     const { content } = await ask(context, judgePrompt);
     try {

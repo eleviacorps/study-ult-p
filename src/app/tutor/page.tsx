@@ -8,6 +8,7 @@ import { useLlm } from "@/lib/llm-context";
 import { Bot, Send, Brain, BookOpen, FileQuestion, Settings2, ChevronDown, ChevronUp } from "lucide-react";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
+import { PROMPTS } from "@/lib/ai-config";
 import { cn } from "@/lib/cn";
 
 interface ChatMessage {
@@ -59,10 +60,10 @@ export default function TutorPage() {
   ];
 
   const buildContext = (): string => {
-    if (!vault) return "You are a JEE physics tutor.";
+    if (!vault) return PROMPTS.TUTOR_DEFAULT;
     const chapterNames = vault.chapters.map((c) => c.name).join(", ");
     const topics = vault.notes.slice(0, 5).map((n) => n.title).join(", ");
-    return `You are a JEE physics tutor. Available chapters: ${chapterNames}. Topics: ${topics}. Keep answers clear and concise. Use LaTeX $$ for formulas.`;
+    return PROMPTS.TUTOR_WITH_CONTEXT.replace("{CHAPTERS}", chapterNames).replace("{TOPICS}", topics);
   };
 
   const handleSend = async () => {

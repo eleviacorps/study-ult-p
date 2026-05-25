@@ -139,7 +139,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   const processed = processCallouts(content);
 
   return (
-    <div className={cn("prose-glass max-w-none", className)}>
+      <div className={cn("prose-glass max-w-full overflow-x-hidden", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
@@ -189,7 +189,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
           pre({ children }) {
             return (
-              <pre className="glass-medium p-4 rounded-xl overflow-x-auto my-4 text-sm">
+              <pre className="glass-medium p-4 rounded-xl overflow-x-auto my-4 text-sm max-w-full">
                 {children}
               </pre>
             );

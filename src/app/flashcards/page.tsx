@@ -60,7 +60,7 @@ export default function FlashcardsRootPage() {
                         {chapterCards.length} cards
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
                         { label: "New", value: stats.new, color: "#1856FF", icon: BookOpen },
                         { label: "Due", value: stats.due, color: "#F59E0B", icon: Clock },

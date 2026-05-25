@@ -6,6 +6,7 @@ import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { addPoints, updateStudyState } from "@/lib/study-state";
+import { PROMPTS } from "@/lib/ai-config";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -134,10 +135,9 @@ export default function QuizPage() {
           .join("\n\n");
 
         if (wrongSummary) {
-          const { content } = await ask(
-            `You are a JEE coach analyzing quiz results. Score: ${correct}/${questions.length} (net: ${netScore}).`,
-            `Analyze these wrong answers and give concise study guidance:\n${wrongSummary}`
-          );
+          const ctx = PROMPTS.QUIZ_COACH.replace("{SCORE}", String(correct)).replace("{TOTAL}", String(questions.length)).replace("{NET_SCORE}", String(netScore));
+          const analysis = PROMPTS.QUIZ_WRONG_ANALYSIS.replace("{WRONG_SUMMARY}", wrongSummary);
+          const { content } = await ask(ctx, analysis);
           setScore((prev) => prev ? { ...prev, feedback: content } : prev);
         }
       } catch {}
@@ -321,7 +321,7 @@ export default function QuizPage() {
 
         <aside className="w-full lg:w-56 flex-shrink-0 bg-[var(--bg-surface)] border-l-0 border-r-0 border-t border-[var(--glass-border)] lg:border-t-0 lg:border-l lg:border-[var(--glass-border)] p-4">
           <p className="text-[10px] uppercase tracking-wider opacity-25 mb-3">Palette</p>
-          <div className="grid grid-cols-10 lg:grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-5 sm:grid-cols-10 lg:grid-cols-5 gap-1.5">
             {questions.map((_, i) => (
               <button key={i} onClick={() => setCurrentQ(i)}
                 className={cn("w-full aspect-square flex items-center justify-center text-[10px] font-medium",
