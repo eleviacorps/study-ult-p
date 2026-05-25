@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { useLlm, PROVIDER_DEFAULTS, type AiProvider } from "@/lib/llm-context";
-import { Database, Bot, Bell, Shield, Palette, Sun, Moon, Check, ChevronRight, Eye, EyeOff, Trash2, AlertTriangle } from "lucide-react";
+import { getCustomVaultRoots, saveCustomVaultRoots } from "@/stores/vault-store";
+import type { VaultRoot } from "@/types";
+import { Database, Bot, Bell, Shield, Palette, Sun, Moon, Check, ChevronRight, Eye, EyeOff, Trash2, AlertTriangle, FolderOpen, Plus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const PROVIDERS: { value: AiProvider; label: string }[] = [
@@ -28,6 +30,13 @@ export default function SettingsPage() {
   const [llmOn, setLlmOn] = useState(config.enabled);
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [vaultRoots, setVaultRoots] = useState<VaultRoot[]>([]);
+  const [newRootPath, setNewRootPath] = useState("");
+  const [newRootSubject, setNewRootSubject] = useState("");
+
+  useEffect(() => {
+    setVaultRoots(getCustomVaultRoots());
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem("studyult-theme") as "dark" | "cream";
@@ -223,6 +232,68 @@ export default function SettingsPage() {
                 ⚠ API keys are stored in localStorage. For production, consider server-side storage.
               </p>
             )}
+          </div>
+
+          {/* Vault Roots */}
+          <div className="glass p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <FolderOpen className="w-5 h-5 flex-shrink-0 text-[#06B6D4]" />
+              <div>
+                <h3 className="text-sm font-medium">Vault Roots</h3>
+                <p className="text-xs opacity-50" style={{ color: "var(--text-muted)" }}>Add custom markdown directories as study subjects</p>
+              </div>
+            </div>
+            <div className="space-y-2 mb-3">
+              {vaultRoots.length === 0 ? (
+                <p className="text-xs text-white/25 py-2 text-center">No custom vaults added</p>
+              ) : vaultRoots.map((vr, i) => (
+                <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{vr.root}</p>
+                    <p className="text-[10px] opacity-30">{vr.subject}</p>
+                  </div>
+                  <button onClick={() => {
+                    const next = vaultRoots.filter((_, j) => j !== i);
+                    setVaultRoots(next);
+                    saveCustomVaultRoots(next);
+                  }} className="p-1 opacity-30 hover:opacity-70">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newRootPath}
+                onChange={(e) => setNewRootPath(e.target.value)}
+                placeholder="Directory name (e.g. ChemistryCh1)"
+                className="flex-1 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#06B6D4]/30"
+                style={{ color: "var(--text-primary)" }}
+              />
+              <input
+                type="text"
+                value={newRootSubject}
+                onChange={(e) => setNewRootSubject(e.target.value)}
+                placeholder="Subject (e.g. Chemistry)"
+                className="w-28 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#06B6D4]/30"
+                style={{ color: "var(--text-primary)" }}
+              />
+              <button onClick={() => {
+                if (!newRootPath.trim() || !newRootSubject.trim()) return;
+                const next = [...vaultRoots, { root: newRootPath.trim(), subject: newRootSubject.trim() }];
+                setVaultRoots(next);
+                saveCustomVaultRoots(next);
+                setNewRootPath("");
+                setNewRootSubject("");
+              }} disabled={!newRootPath.trim() || !newRootSubject.trim()}
+                className="px-3 py-2 rounded-lg bg-[#06B6D4]/15 text-[#06B6D4] text-xs disabled:opacity-20 hover:bg-[#06B6D4]/25 border border-[#06B6D4]/20">
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-[10px] opacity-25 mt-2">
+              Directories are relative to the app root. Reload the page after adding to see new content.
+            </p>
           </div>
 
           {/* Danger Zone */}

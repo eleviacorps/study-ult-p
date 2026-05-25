@@ -103,6 +103,11 @@ export interface GraphData {
   links: GraphLink[];
 }
 
+export interface VaultRoot {
+  root: string;
+  subject: string;
+}
+
 export interface VaultContent {
   chapters: ChapterMeta[];
   notes: Note[];

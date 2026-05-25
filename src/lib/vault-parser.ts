@@ -12,9 +12,37 @@ import type {
   GraphLink,
   WikiLink,
   VaultContent,
+  VaultRoot,
 } from "@/types";
 
-const VAULT_ROOT = path.join(process.cwd(), "PhysicsCh1");
+const DEFAULT_VAULT_ROOTS: VaultRoot[] = [
+  { root: path.join(process.cwd(), "PhysicsCh1"), subject: "Physics" },
+];
+
+function getResolvedRoots(extra?: VaultRoot[]): VaultRoot[] {
+  const merged = [...DEFAULT_VAULT_ROOTS];
+  if (extra) {
+    for (const r of extra) {
+      const resolved = path.isAbsolute(r.root) ? r.root : path.join(process.cwd(), r.root);
+      if (!merged.some((m) => m.root === resolved)) {
+        merged.push({ root: resolved, subject: r.subject });
+      }
+    }
+  }
+  return merged;
+}
+
+function resolveFileInfo(filePath: string, roots: VaultRoot[]): { relative: string; subject: string; chapter: string; root: string } {
+  for (const { root, subject } of roots) {
+    if (!filePath.startsWith(root)) continue;
+    const relative = path.relative(root, filePath);
+    const parts = relative.split(path.sep);
+    const chapterIdx = (subject === "Physics" && parts[0] === "Physics") ? 1 : 0;
+    const chapter = parts.length > chapterIdx ? parts[chapterIdx]?.replace(/[_\-]/g, " ") || "General" : "General";
+    return { relative, subject, chapter, root };
+  }
+  return { relative: filePath, subject: "General", chapter: "General", root: "" };
+}
 
 function readFile(p: string): string {
   return fs.readFileSync(p, "utf-8");
@@ -52,14 +80,14 @@ function slugify(text: string): string {
     .replace(/^-|-$/g, "");
 }
 
-function findAllMdFiles(dir: string): string[] {
+function scanDir(dir: string): string[] {
   const results: string[] = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name.startsWith(".")) continue;
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...findAllMdFiles(fullPath));
+      results.push(...scanDir(fullPath));
     } else if (entry.name.endsWith(".md")) {
       results.push(fullPath);
     }
@@ -67,33 +95,44 @@ function findAllMdFiles(dir: string): string[] {
   return results;
 }
 
-function getAllChapters(): { name: string; path: string; subject: string }[] {
-  const entries = fs.readdirSync(VAULT_ROOT, { withFileTypes: true });
+function findAllMdFiles(roots: VaultRoot[]): string[] {
+  const results: string[] = [];
+  for (const { root } of roots) {
+    if (!fs.existsSync(root)) continue;
+    results.push(...scanDir(root));
+  }
+  return results;
+}
+
+function getAllChapters(roots: VaultRoot[]): { name: string; path: string; subject: string }[] {
   const chapters: { name: string; path: string; subject: string }[] = [];
 
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    if (entry.name === "Physics") {
-      const physicsDir = path.join(VAULT_ROOT, "Physics");
-      const subEntries = fs.readdirSync(physicsDir, {
-        withFileTypes: true,
-      });
-      for (const sub of subEntries) {
-        if (!sub.isDirectory() || sub.name.startsWith(".")) continue;
+  for (const { root, subject } of roots) {
+    if (!fs.existsSync(root)) continue;
+    const entries = fs.readdirSync(root, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+      if (subject === "Physics" && entry.name === "Physics") {
+        const physicsDir = path.join(root, "Physics");
+        const subEntries = fs.readdirSync(physicsDir, { withFileTypes: true });
+        for (const sub of subEntries) {
+          if (!sub.isDirectory() || sub.name.startsWith(".")) continue;
+          chapters.push({
+            name: sub.name.replace(/_/g, " "),
+            path: path.join("Physics", sub.name),
+            subject,
+          });
+        }
+      } else {
         chapters.push({
-          name: sub.name.replace(/_/g, " "),
-          path: path.join("Physics", sub.name),
-          subject: "Physics",
+          name: entry.name.replace(/-/g, " "),
+          path: entry.name,
+          subject,
         });
       }
-    } else {
-      chapters.push({
-        name: entry.name.replace(/-/g, " "),
-        path: entry.name,
-        subject: "Physics",
-      });
     }
   }
+
   return chapters;
 }
 
@@ -113,18 +152,18 @@ function extractTitle(content: string): string {
   return h1 ? h1[1].trim() : "Untitled";
 }
 
-function parseNotes(): Note[] {
-  const allFiles = findAllMdFiles(VAULT_ROOT);
+function parseNotes(roots: VaultRoot[]): Note[] {
+  const allFiles = findAllMdFiles(roots);
   const notes: Note[] = [];
 
   for (const filePath of allFiles) {
-    const relativePath = path.relative(VAULT_ROOT, filePath);
+    const { relative, subject, chapter } = resolveFileInfo(filePath, roots);
     if (
-      relativePath.includes("questions") ||
-      relativePath.includes("flashcards") ||
-      relativePath.includes("quizzes") ||
-      relativePath.includes("revision") ||
-      relativePath.includes("concept_connection")
+      relative.includes("questions") ||
+      relative.includes("flashcards") ||
+      relative.includes("quizzes") ||
+      relative.includes("revision") ||
+      relative.includes("concept_connection")
     )
       continue;
 
@@ -133,15 +172,10 @@ function parseNotes(): Note[] {
     const tags = parseTags(content);
     const links = parseWikiLinks(content);
 
-    const parts = relativePath.split(path.sep);
-    const subject = parts[0] === "Physics" ? "Physics" : "Physics";
-    const chapterIdx = parts[0] === "Physics" ? 1 : 0;
-    const chapter = parts.length > chapterIdx ? parts[chapterIdx]?.replace(/[_\-]/g, " ") || "General" : parts[0]?.replace(/[_\-]/g, " ") || "General";
-
     notes.push({
-      id: slugify(relativePath.replace(/\.md$/, "")),
+      id: slugify(relative.replace(/\.md$/, "")),
       title,
-      path: relativePath,
+      path: relative,
       chapter,
       subject,
       tags,
@@ -167,19 +201,15 @@ function parseNotes(): Note[] {
   return notes;
 }
 
-function parseQuestions(): Question[] {
-  const allFiles = findAllMdFiles(VAULT_ROOT);
+function parseQuestions(roots: VaultRoot[]): Question[] {
+  const allFiles = findAllMdFiles(roots);
   const questions: Question[] = [];
 
   for (const filePath of allFiles) {
-    const relativePath = path.relative(VAULT_ROOT, filePath);
-    if (!relativePath.includes("questions")) continue;
+    const { relative, subject, chapter } = resolveFileInfo(filePath, roots);
+    if (!relative.includes("questions")) continue;
 
     const content = readFile(filePath);
-    const parts = relativePath.split(path.sep);
-    const chapterIdx = parts[0] === "Physics" ? 1 : 0;
-    const chapter = parts[chapterIdx]?.replace(/[_\-]/g, " ") || "";
-    const subject = "Physics";
 
     const questionBlocks = content
       .split(/^##\s+Q\d+/m);
@@ -315,19 +345,15 @@ function parseBlockByHeadings(block: string): ParsedBlock {
   return result;
 }
 
-export function parseFlashcards(): Flashcard[] {
-  const allFiles = findAllMdFiles(VAULT_ROOT);
+export function parseFlashcards(roots: VaultRoot[]): Flashcard[] {
+  const allFiles = findAllMdFiles(roots);
   const flashcards: Flashcard[] = [];
 
   for (const filePath of allFiles) {
-    const relativePath = path.relative(VAULT_ROOT, filePath);
-    if (!relativePath.includes("flashcards")) continue;
+    const { relative, subject, chapter } = resolveFileInfo(filePath, roots);
+    if (!relative.includes("flashcards")) continue;
 
     const content = readFile(filePath);
-    const parts = relativePath.split(path.sep);
-    const chapterIdx = parts[0] === "Physics" ? 1 : 0;
-    const chapter = parts[chapterIdx]?.replace(/[_\-]/g, " ") || "";
-    const subject = "Physics";
     const tags = parseTags(content);
 
     const fcBlocks = content.split(/^##\s+FC\d+/m);
@@ -381,18 +407,15 @@ export function parseFlashcards(): Flashcard[] {
   return flashcards;
 }
 
-function parseQuizzes(): QuizQuestion[] {
-  const allFiles = findAllMdFiles(VAULT_ROOT);
+function parseQuizzes(roots: VaultRoot[]): QuizQuestion[] {
+  const allFiles = findAllMdFiles(roots);
   const quizzes: QuizQuestion[] = [];
 
   for (const filePath of allFiles) {
-    const relativePath = path.relative(VAULT_ROOT, filePath);
-    if (!relativePath.includes("quizzes")) continue;
+    const { relative, chapter } = resolveFileInfo(filePath, roots);
+    if (!relative.includes("quizzes")) continue;
 
     const content = readFile(filePath);
-    const parts = relativePath.split(path.sep);
-    const chapterIdx = parts[0] === "Physics" ? 1 : 0;
-    const chapter = parts[chapterIdx]?.replace(/[_\-]/g, " ") || "";
 
     const quizBlocks = content
       .split(/^###\s+Q\d+/m)
@@ -423,18 +446,15 @@ function parseQuizzes(): QuizQuestion[] {
   return quizzes;
 }
 
-function parseConceptConnections(): ConceptConnection[] {
-  const allFiles = findAllMdFiles(VAULT_ROOT);
+function parseConceptConnections(roots: VaultRoot[]): ConceptConnection[] {
+  const allFiles = findAllMdFiles(roots);
   const connections: ConceptConnection[] = [];
 
   for (const filePath of allFiles) {
-    const relativePath = path.relative(VAULT_ROOT, filePath);
-    if (!relativePath.includes("concept_connection")) continue;
+    const { relative, chapter } = resolveFileInfo(filePath, roots);
+    if (!relative.includes("concept_connection")) continue;
 
     const content = readFile(filePath);
-    const parts = relativePath.split(path.sep);
-    const chapterIdx = parts[0] === "Physics" ? 1 : 0;
-    const chapter = parts[chapterIdx]?.replace(/[_\-]/g, " ") || "";
 
     const chainSection = content.match(
       /## Prerequisite Chain\s*\n([\s\S]*?)(?=##|$)/
@@ -476,9 +496,9 @@ function parseConceptConnections(): ConceptConnection[] {
   return connections;
 }
 
-function parseChapters(): ChapterMeta[] {
-  const chapters = getAllChapters();
-  const notes = parseNotes();
+function parseChapters(roots: VaultRoot[]): ChapterMeta[] {
+  const chapters = getAllChapters(roots);
+  const notes = parseNotes(roots);
 
   return chapters.map((ch) => {
     const chapterNotes = notes.filter((n) => n.chapter === ch.name);
@@ -549,15 +569,16 @@ function buildGraphData(notes: Note[]): GraphData {
 
 let cachedVault: VaultContent | null = null;
 
-export function getVault(): VaultContent {
+export function getVault(extraRoots?: VaultRoot[]): VaultContent {
   cachedVault = null;
+  const roots = getResolvedRoots(extraRoots);
 
-  const chapters = parseChapters();
-  const notes = parseNotes();
-  const questions = parseQuestions();
-  const flashcards = parseFlashcards();
-  const quizzes = parseQuizzes();
-  const conceptConnections = parseConceptConnections();
+  const chapters = parseChapters(roots);
+  const notes = parseNotes(roots);
+  const questions = parseQuestions(roots);
+  const flashcards = parseFlashcards(roots);
+  const quizzes = parseQuizzes(roots);
+  const conceptConnections = parseConceptConnections(roots);
   const graphData = buildGraphData(notes);
 
   cachedVault = {

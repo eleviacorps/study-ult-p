@@ -62,6 +62,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
   const [newTodo, setNewTodo] = useState("");
   const [newTodoPriority, setNewTodoPriority] = useState<"high" | "medium" | "low">("medium");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -69,8 +70,21 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
   }, []);
 
   const refresh = useCallback(() => {
+    setUpdating(true);
     setStudyState(loadStudyState());
+    setTimeout(() => setUpdating(false), 400);
   }, []);
+
+  const handleUpdate = async () => {
+    setUpdating(true);
+    const freshState = loadStudyState();
+    setStudyState(freshState);
+    if (config.enabled && !aiGenerating) {
+      await generateAiTodos(freshState);
+    }
+    setStudyState(loadStudyState());
+    setUpdating(false);
+  };
 
   const analytics = computeAnalytics(studyState);
 
@@ -126,19 +140,21 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
     refresh();
   };
 
-  const generateAiTodos = async () => {
+  const generateAiTodos = async (freshState?: StudyState) => {
     if (!config.enabled || aiGenerating) return;
+    const s = freshState || studyState;
+    const a = freshState ? computeAnalytics(s) : analytics;
     setAiGenerating(true);
 
-    const weakTopics = (studyState.weakAreas || []).slice(0, 3).map((w) => w.topic).join(", ");
-    const strongTopics = (studyState.strongAreas || []).slice(0, 2).map((w) => w.topic).join(", ");
-    const testScores = (studyState.testScores || []).slice(-3).map((t) => `${t.chapter}: ${t.score}/${t.total}`).join("; ");
-    const accuracy = analytics.accuracy;
-    const flashcardProgress = reviewPercent;
+    const weakTopics = (s.weakAreas || []).slice(0, 3).map((w) => w.topic).join(", ");
+    const strongTopics = (s.strongAreas || []).slice(0, 2).map((w) => w.topic).join(", ");
+    const testScores = (s.testScores || []).slice(-3).map((t) => `${t.chapter}: ${t.score}/${t.total}`).join("; ");
+    const accuracy = a.accuracy;
+    const flashcardProgress = a.reviewedCards > 0 ? Math.round((a.reviewedCards / vault.flashcards.length) * 100) : 0;
 
     // Today's activity
     const today = new Date().toISOString().split("T")[0];
-    const todayActivities = (studyState.activityLog || []).filter((a) => a.timestamp.startsWith(today));
+    const todayActivities = (s.activityLog || []).filter((a) => a.timestamp.startsWith(today));
     const chaptersStudiedToday = [...new Set(todayActivities.map((a) => {
       for (const ch of vault.chapters) {
         if (a.details.includes(ch.name)) return ch.name;
@@ -148,9 +164,9 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
 
     // Available chapters not yet started
     const startedChapterNames = new Set([
-      ...Object.keys(studyState.reviewedFlashcards || {}).map(id => vault.flashcards.find(f => f.id === id)?.chapter),
-      ...(studyState.testScores || []).map(t => t.chapter),
-      ...(studyState.activityLog || []).slice(0, 100).map(a => {
+      ...Object.keys(s.reviewedFlashcards || {}).map(id => vault.flashcards.find(f => f.id === id)?.chapter),
+      ...(s.testScores || []).map(t => t.chapter),
+      ...(s.activityLog || []).slice(0, 100).map(a => {
         for (const ch of vault.chapters) if (a.details.includes(ch.name)) return ch.name;
         return null;
       }),
@@ -165,7 +181,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
     type QuestionTypeStats = { theoretical: number; numerical: number; mcq: number };
     const questionTypeWeakness: QuestionTypeStats = { theoretical: 0, numerical: 0, mcq: 0 };
     let typeCount = 0;
-    for (const [topic, stats] of Object.entries(studyState.topicAccuracy || {})) {
+    for (const [topic, stats] of Object.entries(s.topicAccuracy || {})) {
       const acc = stats.total > 0 ? stats.correct / stats.total : 1;
       if (acc < 0.7) {
         if (topic.includes("theory") || topic.includes("concept")) questionTypeWeakness.theoretical++;
@@ -192,9 +208,9 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
       }
     } catch {}
 
-    const quizScores = (studyState.quizScores || []).slice(-3).map((q) => `${q.score}/${q.total} (net: ${q.netScore})`).join("; ");
-    const conversationCount = (studyState.aiConversations || []).length;
-    const topWeaknesses = (studyState.weakAreas || []).slice(0, 5).map((w) => `${w.topic} (${w.accuracy}%)`).join(", ");
+    const quizScores = (s.quizScores || []).slice(-3).map((q) => `${q.score}/${q.total} (net: ${q.netScore})`).join("; ");
+    const conversationCount = (s.aiConversations || []).length;
+    const topWeaknesses = (s.weakAreas || []).slice(0, 5).map((w) => `${w.topic} (${w.accuracy}%)`).join(", ");
 
     const context = PROMPTS.STUDY_PLANNER
       .replace("{ACCURACY}", String(accuracy))
@@ -207,7 +223,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
       .replace("{TEST_SCORES}", testScores || "none yet")
       .replace("{QUIZ_SCORES}", quizScores || "none yet")
       .replace("{CONVERSATIONS}", String(conversationCount))
-      .replace("{FLASHCARD_PCT}", String(reviewPercent));
+      .replace("{FLASHCARD_PCT}", String(flashcardProgress));
 
     try {
       const { content } = await ask(context, "");
@@ -267,8 +283,8 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <h1 className="text-2xl font-bold tracking-tight">
                 Welcome back, <span className="text-[#1856FF]">Student</span>
               </h1>
-              <button onClick={refresh} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]">
-                <RefreshCw className="w-3 h-3" /> Update
+              <button onClick={() => handleUpdate()} disabled={updating || aiGenerating} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] disabled:opacity-40">
+                <RefreshCw className={cn("w-3 h-3", updating && "animate-spin")} /> {updating || aiGenerating ? "Updating..." : "Update"}
               </button>
             </div>
             <p className="text-sm text-white/40 mt-1">
@@ -487,7 +503,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
             </h3>
             <div className="flex items-center gap-2">
               <button
-                onClick={generateAiTodos}
+                onClick={() => generateAiTodos()}
                 disabled={aiGenerating || !config.enabled}
                 className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-[#8B5CF6]/10 text-[#8B5CF6] hover:bg-[#8B5CF6]/20 disabled:opacity-30 disabled:cursor-not-allowed"
               >

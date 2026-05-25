@@ -12,6 +12,7 @@ import { BarChart3, Target, TrendingUp, Brain, Clock, AlertTriangle, Zap, Trophy
 export default function AnalyticsPage() {
   const { vault, isLoaded } = useVaultStore();
   const [data, setData] = useState<ReturnType<typeof computeAnalytics>>();
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     const state = loadStudyState();
@@ -19,8 +20,10 @@ export default function AnalyticsPage() {
   }, []);
 
   const refresh = () => {
+    setUpdating(true);
     const state = loadStudyState();
     setData(computeAnalytics(state));
+    setTimeout(() => setUpdating(false), 400);
   };
 
   if (!data) {
@@ -54,8 +57,8 @@ export default function AnalyticsPage() {
       <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold">Analytics</h1>
-          <button onClick={refresh} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06]">
-            <RefreshCw className="w-3 h-3" /> Update
+          <button onClick={refresh} disabled={updating} className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] disabled:opacity-40">
+            <RefreshCw className={cn("w-3 h-3", updating && "animate-spin")} /> {updating ? "Updating..." : "Update"}
           </button>
         </div>
         <p className="text-sm opacity-35 mb-8">Your study performance insights</p>
