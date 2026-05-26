@@ -13,7 +13,8 @@
   --glass-heavy: rgba(255, 255, 255, 0.08);
   --glass-border: rgba(255, 255, 255, 0.06);
   --glass-border-strong: rgba(255, 255, 255, 0.10);
-  --glass-overlay: rgba(0, 0, 0, 0.65);
+  --glass-panel: rgba(15, 17, 23, 0.8);
+  --glass-dropdown: #0F1117;
 
   --accent-primary: #1856FF;
   --accent-cyan: #06B6D4;
@@ -47,7 +48,8 @@
   --glass-heavy: rgba(17, 17, 17, 0.10);
   --glass-border: rgba(17, 17, 17, 0.08);
   --glass-border-strong: rgba(17, 17, 17, 0.12);
-  --glass-overlay: rgba(255, 255, 255, 0.85);
+  --glass-panel: rgba(245, 240, 232, 0.85);
+  --glass-dropdown: #F5F0E8;
 
   --accent-primary: #2563EB;
   --accent-cyan: #0891B2;

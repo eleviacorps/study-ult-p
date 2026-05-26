@@ -48,7 +48,7 @@ export function Sidebar() {
   const panel = (
     <div className={cn(
       "flex flex-col h-full",
-      "bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)]",
+      "bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)]",
       "shadow-[0_0_40px_rgba(24,86,255,0.06)]",
       isMobile ? "rounded-r-3xl" : "rounded-3xl"
     )}>
@@ -145,7 +145,7 @@ export function Sidebar() {
 
       {isMobile && !mobileOpen && (
         <button onClick={() => setMobileOpen(true)}
-          className="fixed top-2.5 left-2.5 z-30 lg:hidden p-2.5 rounded-2xl bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-lg text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] transition-all">
+          className="fixed top-2.5 left-2.5 z-30 lg:hidden p-2.5 rounded-2xl bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-lg text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] transition-all">
           <Menu className="w-5 h-5" />
         </button>
       )}

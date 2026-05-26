@@ -49,7 +49,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-2 z-20 mx-2 sm:mx-4 rounded-2xl bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-[0_0_30px_rgba(24,86,255,0.04)] h-14 flex items-center justify-between px-3 sm:px-5">
+    <header className="sticky top-2 z-20 mx-2 sm:mx-4 rounded-2xl bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-[0_0_30px_rgba(24,86,255,0.04)] h-14 flex items-center justify-between px-3 sm:px-5">
       <div className="flex items-center gap-3 min-w-0 overflow-hidden">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <div className="flex items-center gap-1.5 text-sm truncate min-w-0">
@@ -62,8 +62,6 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
               </span>
             ))}
           </div>
-        ) : title ? (
-          <h1 className="text-sm font-medium text-[var(--text-primary)]/70 truncate">{title}</h1>
         ) : null}
       </div>
 
@@ -100,7 +98,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -4 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="absolute right-0 top-full mt-2 w-48 bg-[var(--glass-overlay)] backdrop-blur-2xl border border-[var(--glass-border-strong)] rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] overflow-hidden z-50"
+                className="absolute right-0 top-full mt-2 w-48 bg-[var(--glass-dropdown)] border border-[var(--glass-border-strong)] rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] overflow-hidden z-50"
               >
                 {profile?.name && (
                   <div className="px-3 py-2.5 border-b border-[var(--glass-border)]">

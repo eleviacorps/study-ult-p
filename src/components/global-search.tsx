@@ -122,7 +122,7 @@ export function GlobalSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-white/[0.03] border border-white/[0.06] text-xs text-white/25 hover:text-white/40 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-white/25 hover:text-white/40 transition-colors"
       >
         <Search className="w-3.5 h-3.5" />
         <span className="hidden sm:inline">Search...</span>
@@ -134,7 +134,7 @@ export function GlobalSearch() {
       {open && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
           <div className="fixed inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-lg bg-[var(--bg-elevated)] border border-[var(--glass-border)] shadow-2xl mx-4">
+          <div className="relative w-full max-w-lg bg-[var(--bg-elevated)] border border-[var(--glass-border)] rounded-2xl shadow-2xl mx-4">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--glass-border)]">
               <Search className="w-4 h-4 text-white/20" />
               <input

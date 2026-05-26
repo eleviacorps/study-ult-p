@@ -50,7 +50,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)] rounded-3xl p-8 sm:p-10 max-w-sm w-full text-center shadow-[0_0_40px_rgba(24,86,255,0.06)]">
+      <div className="bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)] rounded-3xl p-8 sm:p-10 max-w-sm w-full text-center shadow-[0_0_40px_rgba(24,86,255,0.06)]">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center mx-auto mb-5 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
           <Atom className="w-6 h-6 text-white" />
         </div>
