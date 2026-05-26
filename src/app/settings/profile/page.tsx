@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
-import { User, AtSign, Info, Camera, Globe, Link, Camera as Video, Check, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
+import { User, AtSign, Info, Camera, Globe, Link, Check, AlertTriangle, Loader2, ExternalLink, Upload } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
@@ -16,10 +17,35 @@ export default function ProfileSettingsPage() {
   const [github, setGithub] = useState("");
   const [website, setWebsite] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarFile, setAvatarFile] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const handleAvatarPick = () => fileRef.current?.click();
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Image must be under 2MB");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAvatarFile(reader.result as string);
+      setUploading(false);
+    };
+    reader.onerror = () => {
+      setError("Failed to read image");
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     fetch("/api/profile")
@@ -47,16 +73,19 @@ export default function ProfileSettingsPage() {
     setSaving(true);
     setError("");
     try {
+      const finalAvatar = avatarFile || avatarUrl;
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, username, bio, instagram, twitter, github, website, avatar_url: avatarUrl }),
+        body: JSON.stringify({ name, username, bio, instagram, twitter, github, website, avatar_url: finalAvatar }),
       });
       if (res.status === 409) {
         setError("Username is already taken. Please choose another.");
         return;
       }
       if (!res.ok) throw new Error("save_failed");
+      setAvatarUrl(finalAvatar);
+      setAvatarFile(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
@@ -64,7 +93,7 @@ export default function ProfileSettingsPage() {
     } finally {
       setSaving(false);
     }
-  }, [name, username, bio, instagram, twitter, github, website, avatarUrl]);
+  }, [name, username, bio, instagram, twitter, github, website, avatarUrl, avatarFile]);
 
   const avatarInitial = (name || "S").charAt(0).toUpperCase();
 
@@ -88,29 +117,44 @@ export default function ProfileSettingsPage() {
         <div className="space-y-4">
           {/* Avatar */}
           <div className="glass p-5 flex items-center gap-5">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-xl font-bold">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="" className="w-full h-full object-cover rounded-2xl" />
+            <div className="relative group cursor-pointer" onClick={handleAvatarPick}>
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-2xl font-bold overflow-hidden">
+                {(avatarFile || avatarUrl) ? (
+                  <img src={avatarFile || avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   avatarInitial
                 )}
               </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#1856FF]/20 flex items-center justify-center cursor-pointer border border-white/10">
-                <Camera className="w-3 h-3 text-[#1856FF]" />
+              <div className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                {uploading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <Camera className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#1856FF] flex items-center justify-center border-2 border-[var(--bg-surface)] shadow-lg">
+                <Upload className="w-3.5 h-3.5 text-white" />
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <input
-                type="text"
-                value={avatarUrl}
-                onChange={(e) => setAvatarUrl(e.target.value)}
-                placeholder="Avatar URL (optional)"
-                className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs outline-none focus:border-[#1856FF]/30"
-                style={{ color: "var(--text-primary)" }}
-              />
-              <p className="text-[10px] opacity-25 mt-1">Paste an image URL or leave blank for initials</p>
+              <p className="text-sm font-medium mb-0.5">Profile Photo</p>
+              <p className="text-[10px] opacity-30">Click the image to upload from gallery (max 2MB)</p>
+              {(avatarFile || avatarUrl) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setAvatarFile(null); setAvatarUrl(""); }}
+                  className="text-[10px] text-[#EF4444]/70 hover:text-[#EF4444] mt-1.5 transition-colors"
+                >
+                  Remove photo
+                </button>
+              )}
             </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
           </div>
 
           {/* Name & Username */}
