@@ -351,3 +351,25 @@ body::before {
   transform: translateY(0);
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
+
+.glass-floating {
+  background: var(--glass-medium);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: 0 0 40px rgba(24, 86, 255, 0.06);
+}
+
+.glass-nav-item {
+  transition: all 0.2s ease;
+  border-radius: var(--radius-lg);
+}
+
+.glass-nav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.glass-nav-item.active {
+  background: rgba(24, 86, 255, 0.15);
+  box-shadow: 0 0 20px rgba(24, 86, 255, 0.1);
+}
