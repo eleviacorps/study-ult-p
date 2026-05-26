@@ -85,7 +85,7 @@ export default function NoteAgentPage() {
     try {
       const c = JSON.parse(raw);
       if (!c.enabled) return null;
-      return { baseUrl: c.baseUrl, apiKey: c.apiKey || "", model: c.model || "deepseek-v4-flash" };
+      return { provider: c.provider || "custom", baseUrl: c.baseUrl, apiKey: c.apiKey || "", model: c.model || "gpt-4o-mini" };
     } catch {
       return null;
     }

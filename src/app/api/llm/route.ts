@@ -13,8 +13,10 @@ export async function POST(request: Request) {
     const requestBody: Record<string, unknown> = {
       model: model || "gpt-4o-mini",
       messages: messages && messages.length > 0 ? messages : [{ role: "user", content: "Hello" }],
-      max_tokens: max_tokens || 32768,
+      max_tokens: max_tokens || 65536,
     };
+    if (body.tools) requestBody.tools = body.tools;
+    if (body.tool_choice) requestBody.tool_choice = body.tool_choice;
 
     let url: string;
     switch (provider) {
