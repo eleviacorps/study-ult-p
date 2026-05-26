@@ -50,6 +50,11 @@ export default function TestTakePage() {
   const generateQuestions = useCallback(async () => {
     const actualCount = customQuestionCount ? parseInt(customQuestionCount) || questionCount : questionCount;
 
+    if (!config.enabled) {
+      setPhase("config");
+      return;
+    }
+
     setPhase("loading");
     
     const chapterQs = vault?.questions.filter((q) => q.chapter === chapterName) || [];
@@ -59,33 +64,7 @@ export default function TestTakePage() {
     ).join("\n").substring(0, 8000);
 
     if (questionsContent.length < 100) {
-      setQuestions([{ text: "No questions available for this chapter.", options: ["OK"], correctIndex: 0, type: "mcq" }]);
-      setPhase("started");
-      setTimeLeft(timeMinutes * 60);
-      setTimeSpent(0);
-      return;
-    }
-
-    if (!config.enabled) {
-      const fallback = chapterQs.slice(0, actualCount).map((q) => {
-        const opts = q.options && q.options.length >= 2
-          ? q.options.map(o => o.text)
-          : ["A", "B", "C", "D"];
-        const correct = q.answer?.match(/[A-D](?=\))/)?.[0];
-        return {
-          text: q.given || q.title,
-          options: opts,
-          correctIndex: correct ? "ABCD".indexOf(correct) : 0,
-          type: (q.options && q.options.length >= 2 ? "mcq" : "input") as "mcq" | "input",
-        };
-      });
-      setQuestions(fallback as TestQuestion[]);
-      setTimeLeft(timeMinutes * 60);
-      setTimeSpent(0);
-      setCurrentQ(0);
-      setAnswers(new Map());
-      setMarked(new Set());
-      setPhase("started");
+      setPhase("config");
       return;
     }
 
@@ -119,33 +98,11 @@ export default function TestTakePage() {
         }
       }
 
-      setQuestions([{
-        text: `AI generated questions but the response couldn't be parsed. Raw response: ${response.substring(0, 300)}`,
-        options: ["Retry", "Use offline questions"],
-        correctIndex: 0,
-        type: "mcq",
-      }]);
-      setTimeLeft(timeMinutes * 60);
-      setTimeSpent(0);
-      setCurrentQ(0);
-      setAnswers(new Map());
-      setMarked(new Set());
-      setPhase("started");
-    } catch {
-      const fallback = chapterQs.slice(0, actualCount).map((q) => ({
-        text: q.given || q.title,
-        options: q.options?.map(o => o.text) || [],
-        correctIndex: 0,
-        type: "mcq" as const,
-      }));
-      setQuestions(fallback as TestQuestion[]);
-      setTimeLeft(timeMinutes * 60);
-      setTimeSpent(0);
-      setCurrentQ(0);
-      setAnswers(new Map());
-      setMarked(new Set());
-      setPhase("started");
-    }
+      setPhase("config");
+      return;
+      } catch {
+        setPhase("config");
+      }
   }, [vault, chapterName, questionCount, timeMinutes, customQuestionCount, ask, config.enabled]);
 
   useEffect(() => {
@@ -172,7 +129,6 @@ export default function TestTakePage() {
       const user = ans.get(i);
       const q = qs[i];
       if (q.type === "mcq" && typeof user === "number" && user === q.correctIndex) correct++;
-      else if (q.type === "input" && typeof user === "string" && user.trim().length > 0) correct++;
     }
 
     setScore({ correct, wrong: qs.length - correct, total: qs.length, feedback: "" });

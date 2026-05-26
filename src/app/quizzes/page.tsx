@@ -41,46 +41,31 @@ export default function QuizPage() {
   questionsRef.current = questions;
   answersRef.current = answers;
 
-  const generateQuiz = useCallback(() => {
+  const generateQuiz = useCallback(async () => {
     if (!vault) return;
+    if (!config.enabled) return;
+
     const allQuizzes = vault.quizzes || [];
-    if (allQuizzes.length === 0) {
-      const qs = vault.questions
-        .sort(() => Math.random() - 0.5)
-        .slice(0, questionCount)
-        .map((q, i) => {
-          const opts = q.options?.length ? q.options.map((o) => o.text) : ["A", "B", "C", "D"];
-          const correctMatch = q.answer?.match(/[A-D](?=\))/)?.[0];
-          return {
-            id: `quiz-${i}`,
-            text: q.given || q.title,
-            options: opts,
-            correctIndex: correctMatch ? "ABCD".indexOf(correctMatch) : 0,
-            explanation: q.solution || "",
-            type: "single" as const,
-          };
-        });
-      setQuestions(qs.slice(0, questionCount));
-    } else {
-      const shuffled = [...allQuizzes].sort(() => Math.random() - 0.5).slice(0, questionCount);
-      setQuestions(
-        shuffled.map((q, i) => ({
-          id: q.id || `q-${i}`,
-          text: q.question,
-          options: q.options?.map((o) => o.text) || ["A", "B", "C", "D"],
-          correctIndex: q.options?.findIndex((o) => o.correct) ?? 0,
-          explanation: q.explanation || "",
-          type: "single" as const,
-        }))
-      );
-    }
+    if (allQuizzes.length === 0) return;
+
+    const shuffled = [...allQuizzes].sort(() => Math.random() - 0.5).slice(0, questionCount);
+    setQuestions(
+      shuffled.map((q, i) => ({
+        id: q.id || `q-${i}`,
+        text: q.question,
+        options: q.options?.map((o) => o.text) || ["A", "B", "C", "D"],
+        correctIndex: q.options?.findIndex((o) => o.correct) ?? 0,
+        explanation: q.explanation || "",
+        type: "single" as const,
+      }))
+    );
     setTimeLeft(timeMinutes * 60);
     setTimeSpent(0);
     setCurrentQ(0);
     setAnswers(new Map());
     setMarked(new Set());
     setPhase("started");
-  }, [vault, questionCount, timeMinutes]);
+  }, [vault, questionCount, timeMinutes, config.enabled]);
 
   useEffect(() => {
     if (phase !== "started" || timeLeft <= 0) return;
@@ -202,10 +187,14 @@ export default function QuizPage() {
               </div>
             </div>
 
-            <button onClick={generateQuiz}
-              className="w-full mt-6 py-3 bg-[#1856FF] hover:bg-[#1856FF]/90 text-white text-sm font-medium flex items-center justify-center gap-2">
+            <button onClick={generateQuiz} disabled={!config.enabled}
+              className="w-full mt-6 py-3 bg-[#1856FF] hover:bg-[#1856FF]/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium flex items-center justify-center gap-2">
               <Timer className="w-4 h-4" /> Start Quiz
             </button>
+
+            {!config.enabled && (
+              <p className="text-[10px] text-[#F59E0B]/70 text-center mt-2">Enable AI in Settings to start quizzes</p>
+            )}
 
             <div className="mt-4 p-3 bg-[#F59E0B]/5 border border-[#F59E0B]/10">
               <p className="text-[10px] text-[#F59E0B] font-semibold mb-1">Marking Scheme</p>

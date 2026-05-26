@@ -220,24 +220,14 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     baseUrl: string,
     apiKey: string
   ): Promise<string[]> {
-    // Try proxy first
     try {
-      const proxyRes = await fetch("/api/llm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, baseUrl, apiKey, model: "", messages: [{ role: "user", content: "" }], max_tokens: 1 }),
-      });
-      if (proxyRes.ok) {
-        // Proxy works — use it for models too
-        const modelRes = await fetch(`/api/llm/models?provider=${provider}&baseUrl=${encodeURIComponent(baseUrl)}&apiKey=${encodeURIComponent(apiKey || "")}`);
-        if (modelRes.ok) {
-          const data = await modelRes.json();
-          return data.models || [];
-        }
+      const modelRes = await fetch(`/api/llm/models?provider=${provider}&baseUrl=${encodeURIComponent(baseUrl)}&apiKey=${encodeURIComponent(apiKey || "")}`);
+      if (modelRes.ok) {
+        const data = await modelRes.json();
+        if (data.models && data.models.length > 0) return data.models;
       }
     } catch {}
 
-    // Fall back to direct
     const bUrl = normalizeBaseUrl(baseUrl);
     switch (provider) {
       case "openai":
