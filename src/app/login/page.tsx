@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 import { createClient } from "@/lib/supabase/client";
 import { Atom, Loader2 } from "lucide-react";
 
-declare const Capacitor: any | undefined;
-
 function isNative(): boolean {
-  try { return typeof Capacitor !== "undefined"; } catch { return false; }
+  try { return Capacitor.isNativePlatform(); } catch { return false; }
 }
 
 export default function LoginPage() {
@@ -42,13 +41,8 @@ export default function LoginPage() {
 
       if (error) { setError(error.message); setLoading(false); return; }
 
-      if (isNative() && data?.url) {
-        try {
-          const { Browser } = await import("@capacitor/browser");
-          await Browser.open({ url: data.url });
-        } catch {
-          window.location.href = data.url;
-        }
+      if (data?.url) {
+        window.location.href = data.url;
       }
     } catch (e: any) {
       setError(e?.message || "Sign in failed");
