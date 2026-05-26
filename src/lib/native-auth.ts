@@ -12,7 +12,7 @@ export async function signInWithGoogle(): Promise<{ error?: string }> {
     const { GoogleSignIn } = await import("@capawesome/capacitor-google-sign-in");
 
     if (!initialized) {
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+      const clientId = (process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || "").trim();
       if (!clientId) return { error: "Google Sign-In is not configured" };
       await GoogleSignIn.initialize({ clientId, scopes: ["openid", "email", "profile"] });
       initialized = true;
@@ -30,7 +30,7 @@ export async function signInWithGoogle(): Promise<{ error?: string }> {
     if (error) return { error: error.message };
     return {};
   } catch (e: any) {
-    if (e?.message === "USER_CANCELLED") return {};
+    if (e?.message === "USER_CANCELLED" || e?.code === "SIGN_IN_CANCELED") return {};
     return { error: e?.message || "Sign in failed" };
   }
 }
