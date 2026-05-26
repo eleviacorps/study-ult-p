@@ -48,25 +48,25 @@ export function Sidebar() {
   const panel = (
     <div className={cn(
       "flex flex-col h-full",
-      "bg-black/30 backdrop-blur-xl border border-white/10",
+      "bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)]",
       "shadow-[0_0_40px_rgba(24,86,255,0.06)]",
       isMobile ? "rounded-r-3xl" : "rounded-3xl"
     )}>
-      <div className="flex items-center h-14 px-4 border-b border-white/[0.06] flex-shrink-0 justify-between">
+      <div className="flex items-center h-14 px-4 border-b border-[var(--glass-border)] flex-shrink-0 justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
             <Atom className="w-4 h-4 text-white" />
           </div>
           {(!collapsed || isMobile) && (
-            <span className="font-semibold text-sm">StudyUlt</span>
+            <span className="font-semibold text-sm text-[var(--text-primary)]">StudyUlt</span>
           )}
         </div>
         {isMobile ? (
-          <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-xl hover:bg-white/5 opacity-40 hover:opacity-70 transition-all">
+          <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-xl hover:bg-[var(--glass-light)] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 transition-all">
             <X className="w-4 h-4" />
           </button>
         ) : (
-          <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-xl hover:bg-white/5 opacity-40 hover:opacity-70 transition-all hidden lg:flex">
+          <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-xl hover:bg-[var(--glass-light)] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 transition-all hidden lg:flex">
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         )}
@@ -81,10 +81,10 @@ export function Sidebar() {
                 "flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-2xl transition-all duration-200 group",
                 isActive
                   ? "bg-[#1856FF]/15 text-[#1856FF] shadow-[0_0_20px_rgba(24,86,255,0.1)]"
-                  : "text-white/40 hover:text-white/80 hover:bg-white/[0.04]"
+                  : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/80 hover:bg-[var(--glass-light)]"
               )}>
               <item.icon className={cn("w-4 h-4 flex-shrink-0 transition-all duration-200",
-                isActive ? "text-[#1856FF]" : "opacity-50 group-hover:opacity-80"
+                isActive ? "text-[#1856FF]" : "text-[var(--text-primary)]/40 group-hover:text-[var(--text-primary)]/80"
               )} />
               {(!collapsed || isMobile) && <span className="truncate">{item.label}</span>}
             </Link>
@@ -93,12 +93,12 @@ export function Sidebar() {
       </nav>
 
       {vault?.chapters && (!collapsed || isMobile) && (
-        <div className="border-t border-white/[0.06] p-3 max-h-40 overflow-y-auto flex-shrink-0">
-          <p className="text-[10px] uppercase tracking-widest opacity-30 mb-2 px-3 font-medium">Chapters</p>
+        <div className="border-t border-[var(--glass-border)] p-3 max-h-40 overflow-y-auto flex-shrink-0">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--text-primary)]/30 mb-2 px-3 font-medium">Chapters</p>
           <div className="space-y-0.5">
             {vault.chapters.slice(0, 6).map((ch) => (
               <Link key={ch.name} href={`/reader/${encodeURIComponent(ch.name)}`}
-                className="block px-3 py-1.5 text-xs opacity-40 hover:opacity-70 hover:bg-white/[0.03] transition-all rounded-xl truncate">
+                className="block px-3 py-1.5 text-xs text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 hover:bg-[var(--glass-light)] transition-all rounded-xl truncate">
                 {ch.name}
               </Link>
             ))}
@@ -145,7 +145,7 @@ export function Sidebar() {
 
       {isMobile && !mobileOpen && (
         <button onClick={() => setMobileOpen(true)}
-          className="fixed top-2.5 left-2.5 z-30 lg:hidden p-2.5 rounded-2xl bg-black/30 backdrop-blur-xl border border-white/10 shadow-lg opacity-70 hover:opacity-100 transition-all">
+          className="fixed top-2.5 left-2.5 z-30 lg:hidden p-2.5 rounded-2xl bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-lg text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] transition-all">
           <Menu className="w-5 h-5" />
         </button>
       )}

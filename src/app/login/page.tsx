@@ -50,7 +50,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-3xl p-8 sm:p-10 max-w-sm w-full text-center shadow-[0_0_40px_rgba(24,86,255,0.06)]">
+      <div className="bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)] rounded-3xl p-8 sm:p-10 max-w-sm w-full text-center shadow-[0_0_40px_rgba(24,86,255,0.06)]">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center mx-auto mb-5 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
           <Atom className="w-6 h-6 text-white" />
         </div>
@@ -66,7 +66,7 @@ export default function LoginPage() {
         <button
           onClick={signIn}
           disabled={loading}
-          className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/10 text-white text-sm font-medium flex items-center justify-center gap-3 transition-all disabled:opacity-30"
+          className="w-full py-3 rounded-2xl bg-[var(--glass-light)] hover:bg-[var(--glass-medium)] backdrop-blur-sm border border-[var(--glass-border-strong)] text-[var(--text-primary)] text-sm font-medium flex items-center justify-center gap-3 transition-all disabled:opacity-30"
         >
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />

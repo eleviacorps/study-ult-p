@@ -49,30 +49,30 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-2 z-20 mx-2 sm:mx-4 rounded-2xl bg-black/30 backdrop-blur-xl border border-white/10 shadow-[0_0_30px_rgba(24,86,255,0.04)] h-14 flex items-center justify-between px-3 sm:px-5">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="sticky top-2 z-20 mx-2 sm:mx-4 rounded-2xl bg-[var(--glass-heavy)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-[0_0_30px_rgba(24,86,255,0.04)] h-14 flex items-center justify-between px-3 sm:px-5">
+      <div className="flex items-center gap-3 min-w-0 overflow-hidden">
         {breadcrumbs && breadcrumbs.length > 0 ? (
-          <div className="flex items-center gap-1.5 text-sm truncate">
+          <div className="flex items-center gap-1.5 text-sm truncate min-w-0">
             {breadcrumbs.map((crumb, i) => (
-              <span key={crumb.href} className="flex items-center gap-1.5 truncate">
-                {i > 0 && <span className="opacity-15 shrink-0">/</span>}
-                <span className={cn("truncate", i === breadcrumbs.length - 1 ? "opacity-80" : "opacity-35")}>
+              <span key={crumb.href} className="flex items-center gap-1.5 truncate min-w-0">
+                {i > 0 && <span className="text-[var(--text-primary)]/15 shrink-0">/</span>}
+                <span className={cn("truncate", i === breadcrumbs.length - 1 ? "text-[var(--text-primary)]/80" : "text-[var(--text-primary)]/35")}>
                   {crumb.label}
                 </span>
               </span>
             ))}
           </div>
         ) : title ? (
-          <h1 className="text-sm font-medium opacity-70 truncate">{title}</h1>
+          <h1 className="text-sm font-medium text-[var(--text-primary)]/70 truncate">{title}</h1>
         ) : null}
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <GlobalSearch />
 
         <button
           onClick={toggle}
-          className="p-2 rounded-xl hover:bg-white/[0.06] transition-all opacity-60 hover:opacity-100"
+          className="p-2 rounded-xl hover:bg-[var(--glass-light)] transition-all text-[var(--text-primary)]/60 hover:text-[var(--text-primary)]"
           title={`Switch to ${theme === "dark" ? "cream" : "dark"} theme`}
         >
           {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -81,7 +81,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-1 p-1 rounded-xl hover:bg-white/[0.06] transition-all"
+            className="flex items-center gap-1 p-1 rounded-xl hover:bg-[var(--glass-light)] transition-all"
           >
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-[10px] font-medium text-white overflow-hidden shadow-[0_0_12px_rgba(24,86,255,0.2)]">
               {profile?.avatar_url ? (
@@ -90,7 +90,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
                 initial
               )}
             </div>
-            <ChevronDown className={cn("w-3 h-3 opacity-40 transition-transform", menuOpen && "rotate-180")} />
+            <ChevronDown className={cn("w-3 h-3 text-[var(--text-primary)]/40 transition-transform", menuOpen && "rotate-180")} />
           </button>
 
           <AnimatePresence>
@@ -100,34 +100,34 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -4 }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="absolute right-0 top-full mt-2 w-48 bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] overflow-hidden z-50"
+                className="absolute right-0 top-full mt-2 w-48 bg-[var(--glass-overlay)] backdrop-blur-2xl border border-[var(--glass-border-strong)] rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] overflow-hidden z-50"
               >
                 {profile?.name && (
-                  <div className="px-3 py-2.5 border-b border-white/[0.06]">
-                    <p className="text-xs font-medium truncate">{profile.name}</p>
+                  <div className="px-3 py-2.5 border-b border-[var(--glass-border)]">
+                    <p className="text-xs font-medium text-[var(--text-primary)] truncate">{profile.name}</p>
                     {profile.username && (
-                      <p className="text-[10px] opacity-40 truncate">@{profile.username}</p>
+                      <p className="text-[10px] text-[var(--text-primary)]/40 truncate">@{profile.username}</p>
                     )}
                   </div>
                 )}
                 <div className="p-1.5">
                   <button
                     onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-white/[0.06] transition-all text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] hover:bg-[var(--glass-light)] transition-all text-left"
                   >
-                    <User className="w-3.5 h-3.5 opacity-40" />
+                    <User className="w-3.5 h-3.5 text-[var(--text-primary)]/40" />
                     Edit Profile
                   </button>
                   <button
                     onClick={() => { setMenuOpen(false); router.push("/settings"); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-white/[0.06] transition-all text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] hover:bg-[var(--glass-light)] transition-all text-left"
                   >
-                    <Settings className="w-3.5 h-3.5 opacity-40" />
+                    <Settings className="w-3.5 h-3.5 text-[var(--text-primary)]/40" />
                     Settings
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs hover:bg-[#EF4444]/15 text-[#EF4444] transition-all text-left mt-0.5 border-t border-white/[0.06] pt-2.5"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[#EF4444]/80 hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-left mt-0.5 border-t border-[var(--glass-border)] pt-2.5"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     Sign Out
