@@ -45,24 +45,19 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     });
   }, [pathname, router]);
 
-  // Android deep link handler — captures OAuth callback from system browser
+  // Android deep link handler — uses native bridge directly (bypasses @capacitor/app proxy)
   useEffect(() => {
     if (!isNative()) return;
 
-    let terminated = false;
     let handle: { remove: () => void } | null = null;
 
     async function init() {
       try {
         await new Promise((r) => setTimeout(r, 300));
 
-        if (terminated) return;
+        if (typeof Capacitor === "undefined" || typeof Capacitor.addListener !== "function") return;
 
-        const { App } = await import("@capacitor/app");
-
-        if (terminated) return;
-
-        const listener = await App.addListener("appUrlOpen", async (event) => {
+        const listener = Capacitor.addListener("App", "appUrlOpen", async (event: any) => {
           try {
             const url = new URL(event.url);
             if (url.pathname === "/auth/callback" || url.host === "auth") {
@@ -79,13 +74,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         });
         handle = { remove: () => listener.remove() };
       } catch (err) {
-        console.error("Capacitor App plugin init failed:", err);
+        console.error("Capacitor native bridge init failed:", err);
       }
     }
 
     init();
     return () => {
-      terminated = true;
       handle?.remove();
     };
   }, []);
