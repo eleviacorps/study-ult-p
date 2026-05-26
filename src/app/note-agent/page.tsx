@@ -12,6 +12,7 @@ import {
   type AgentStep,
   type AgentConfig,
 } from "@/lib/llm-agent";
+import { loadSkill } from "@/lib/load-skill";
 import {
   Upload,
   FileText,
@@ -189,6 +190,16 @@ export default function NoteAgentPage() {
     setError("");
     setAllToolCalls([]);
     workspaceRef.current = new Map();
+
+    // Load skill files at runtime (like Claude Code loads skill.md + references)
+    let skillContext = "";
+    try {
+      const skill = await loadSkill();
+      skillContext = skill.combined;
+    } catch {
+      // fall back to built-in prompt if skill files can't be loaded
+    }
+
     // Seed existing vault data into workspace for AI to read
     if (vault) {
       for (const note of vault.notes) {
@@ -200,7 +211,7 @@ export default function NoteAgentPage() {
     const messages: any[] = [
       {
         role: "system",
-        content: `${AGENT_SYSTEM_PROMPT}\n\nThe chapter being processed is: "${chapterName}". Use paths like "${chapterName}/notes/topic.md", "${chapterName}/questions/100_questions.md", etc.`,
+        content: `${AGENT_SYSTEM_PROMPT}\n\n${skillContext ? `=== SKILL INSTRUCTIONS ===\n${skillContext}\n========================\n` : ""}The chapter being processed is: "${chapterName}". Use paths like "${chapterName}/notes/topic.md", "${chapterName}/questions/100_questions.md", etc.`,
       },
       {
         role: "user",

@@ -65,6 +65,15 @@ Full native auth via `@capawesome/capacitor-google-sign-in` (uses Android Creden
 
 ---
 
+## Platform Evolution
+
+### Phase 5 — General Education Pivot
+- [ ] **User Profile Survey**: Onboarding flow with exam type (JEE/NEET/UPSC/CUET/SAT/TOEFL/etc.), grade/class, subjects, goals, strengths/weaknesses → AI generates personalized system prompt stored in profile
+- [ ] **AI Prompt Adaptation Module**: Separate service that reads user profile and prepends exam-appropriate context to all AI calls. Decoupled from note agent — works with tutor, quiz generator, and all other AI features. Dynamically swaps terminology ("JEE-level" → "exam-level", "JEE insight" → "exam insight") based on profile.
+- [ ] **Remove JEE References**: Rename to "Ev Study" across layout.tsx, sidebar, capacitor config, AI config prompts, login page, settings page, reader, quizzes, tutor. Update ALL system prompts in ai-config.ts to be exam-agnostic.
+
+---
+
 ## Known Issues
 
 - Android OAuth callback URL `com.studyult.app://auth/callback` must be added to Supabase Auth — URL Configuration before deep-link flow works
