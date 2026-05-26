@@ -25,8 +25,10 @@ export default function LoginPage() {
 
     if (isNative()) {
       const { error } = await signInWithGoogle();
-      if (error) setError(error);
-      setLoading(false);
+      if (error) { setError(error); setLoading(false); return; }
+      await new Promise(r => setTimeout(r, 500));
+      router.replace("/dashboard");
+      router.refresh();
       return;
     }
 
