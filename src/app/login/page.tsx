@@ -2,13 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Capacitor } from "@capacitor/core";
 import { createClient } from "@/lib/supabase/client";
 import { Atom, Loader2 } from "lucide-react";
-
-function isNative(): boolean {
-  try { return Capacitor.isNativePlatform(); } catch { return false; }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,9 +28,7 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: isNative()
-            ? "com.studyult.app://auth/callback"
-            : `${location.origin}/auth/callback`,
+          redirectTo: `${location.origin}/auth/callback`,
         },
       });
 
