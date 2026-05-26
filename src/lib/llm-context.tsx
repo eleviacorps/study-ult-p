@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { CapacitorHttp } from "@capacitor/core";
+
+declare const Capacitor: any | undefined;
+
+function isNative(): boolean {
+  try { return typeof Capacitor !== "undefined"; } catch { return false; }
+}
 
 export type AiProvider = "openai" | "anthropic" | "lmstudio" | "ollama" | "custom";
 
@@ -111,6 +116,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function capFetch(url: string, opts: RequestInit): Promise<{ data: any; status: number; headers: any }> {
+    const { CapacitorHttp } = await import("@capacitor/core");
     const method = (opts.method || "GET").toUpperCase();
     const headers = (opts.headers as Record<string, string>) || {};
     const body = opts.body ? JSON.parse(opts.body as string) : undefined;
@@ -131,12 +137,15 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, baseUrl, apiKey, model, messages, max_tokens: 32768 }),
       });
-      if (!res.ok) return null;
       const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data?.error?.message || data?.error || `API error (${res.status})`;
+        return { content: `Proxy error: ${errMsg}`, reasoning: "" };
+      }
       const msg = data.choices?.[0]?.message;
       return { content: msg?.content || msg?.reasoning_content || data.content?.[0]?.text || "", reasoning: "" };
-    } catch {
-      return null;
+    } catch (e: any) {
+      return { content: `Proxy error: ${e?.message || "Request failed"}`, reasoning: "" };
     }
   }
 
@@ -147,13 +156,24 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     model: string,
     messages: { role: string; content: string }[]
   ): Promise<{ content: string; reasoning: string }> {
-    // Try proxy first (works on Vercel/deployed), fall back to direct calls (static/Android)
-    const proxyResult = await tryProxy(provider, baseUrl, apiKey, model, messages);
-    if (proxyResult) return proxyResult;
+    if (isNative()) {
+      const proxyResult = await tryProxy(provider, baseUrl, apiKey, model, messages);
+      if (proxyResult) return proxyResult;
+      return nativeDirectCall(provider, normalizeBaseUrl(baseUrl), apiKey, model, messages);
+    }
+    const result = await tryProxy(provider, baseUrl, apiKey, model, messages);
+    if (result) return result;
+    return { content: "AI request failed — check your API key and model name in Settings", reasoning: "" };
+  }
 
-    const bUrl = normalizeBaseUrl(baseUrl);
+  async function nativeDirectCall(
+    provider: AiProvider,
+    bUrl: string,
+    apiKey: string,
+    model: string,
+    messages: { role: string; content: string }[]
+  ): Promise<{ content: string; reasoning: string }> {
     const resolved = model && model !== "default" ? model : "gpt-4o-mini";
-
     switch (provider) {
       case "openai": {
         const res = await capFetch(`${bUrl}/v1/chat/completions`, {
@@ -165,29 +185,20 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
         const msg = res.data.choices?.[0]?.message;
         return { content: msg?.content || msg?.reasoning_content || "", reasoning: "" };
       }
-
       case "anthropic": {
         const systemMsg = messages.find((m) => m.role === "system");
         const userMsgs = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
         const res = await capFetch(`${bUrl}/v1/messages`, {
           method: "POST",
           headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: resolved,
-            max_tokens: 32768,
-            system: systemMsg?.content || "",
-            messages: userMsgs.length > 0 ? userMsgs : [{ role: "user", content: "Hello" }],
-          }),
+          body: JSON.stringify({ model: resolved, max_tokens: 32768, system: systemMsg?.content || "", messages: userMsgs.length > 0 ? userMsgs : [{ role: "user", content: "Hello" }] }),
         });
         if (res.status >= 400) return { content: `Anthropic error (${res.status})`, reasoning: "" };
         return { content: res.data.content?.[0]?.text || "", reasoning: "" };
       }
-
       case "ollama": {
         const ollamaMsgs = messages.map((m) => ({ role: m.role, content: m.content }));
-        while (ollamaMsgs.length > 0 && ollamaMsgs[0].role === "system") {
-          ollamaMsgs[0].role = "user";
-        }
+        while (ollamaMsgs.length > 0 && ollamaMsgs[0].role === "system") ollamaMsgs[0].role = "user";
         const res = await capFetch(`${bUrl}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -196,16 +207,12 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
         if (res.status >= 400) return { content: `Ollama error (${res.status})`, reasoning: "" };
         return { content: res.data.message?.content || "", reasoning: "" };
       }
-
       case "lmstudio":
       case "custom":
       default: {
         const res = await capFetch(`${bUrl}/v1/chat/completions`, {
           method: "POST",
-          headers: {
-            ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}),
-            "Content-Type": "application/json",
-          },
+          headers: { ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}), "Content-Type": "application/json" },
           body: JSON.stringify({ model: resolved, messages, max_tokens: 32768 }),
         });
         if (res.status >= 400) return { content: `API error (${res.status})`, reasoning: "" };
@@ -227,6 +234,8 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
         if (data.models && data.models.length > 0) return data.models;
       }
     } catch {}
+
+    if (!isNative()) return [];
 
     const bUrl = normalizeBaseUrl(baseUrl);
     switch (provider) {
