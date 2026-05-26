@@ -1,7 +1,23 @@
 "use client";
 
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+let _syncVersion = 0;
+
+export interface ChapterProgressItem {
+  chapter: string;
+  subject: string;
+  completedTopics: number;
+  totalTopics: number;
+  questionsAttempted: number;
+  questionsCorrect: number;
+  flashcardsReviewed: number;
+  flashcardsMastered: number;
+  lastStudiedAt: string;
+}
+
 export interface StudyState {
   streak: number;
+  longestStreak: number;
   lastStudyDate: string;
   studyMinutes: Record<string, number>;
   reviewedFlashcards: Record<string, number>;
@@ -22,6 +38,7 @@ export interface StudyState {
   quizScores: { date: string; score: number; total: number; netScore: number }[];
   subjectAccuracy: Record<string, { correct: number; total: number }>;
   activitySnapshots: { type: string; timestamp: string; score: number; total: number; chapter: string; topics: string[] }[];
+  chapterProgress: ChapterProgressItem[];
 }
 
 const STORAGE_KEY = "studyult-state";
@@ -43,6 +60,7 @@ export function loadStudyState(): StudyState {
 function getDefaultState(): StudyState {
   return {
     streak: 0,
+    longestStreak: 0,
     lastStudyDate: "",
     studyMinutes: {},
     reviewedFlashcards: {},
@@ -63,6 +81,7 @@ function getDefaultState(): StudyState {
     quizScores: [],
     subjectAccuracy: {},
     activitySnapshots: [],
+    chapterProgress: [],
   };
 }
 
@@ -96,10 +115,9 @@ export function updateStudyState(updater: (state: StudyState) => void) {
 
   saveStudyState(state);
 
-  // Fire-and-forget sync to Supabase
   if (typeof window !== "undefined") {
-    import("./sync").then(({ shouldSync, syncState }) => {
-      if (shouldSync()) syncState(state).catch(() => {});
+    import("./sync").then(({ scheduleSync }) => {
+      scheduleSync(state);
     });
   }
 }

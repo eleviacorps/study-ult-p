@@ -1,25 +1,29 @@
 import { createClient } from "@/lib/supabase/client";
 import type { StudyState } from "@/lib/study-state";
 
-const SYNC_KEY = "studyult-last-synced";
-const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let _pendingState: StudyState | null = null;
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function shouldSync(): boolean {
-  const last = localStorage.getItem(SYNC_KEY);
-  if (!last) return true;
-  return Date.now() - parseInt(last, 10) > SYNC_INTERVAL;
+export function scheduleSync(state: StudyState) {
+  _pendingState = state;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(async () => {
+    if (_pendingState) {
+      await syncState(_pendingState);
+      _pendingState = null;
+    }
+  }, 2000);
 }
 
-export function markSynced() {
-  localStorage.setItem(SYNC_KEY, String(Date.now()));
+export function cancelPendingSync() {
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _pendingState = null;
 }
 
 export async function syncState(state: StudyState): Promise<boolean> {
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
     const res = await fetch("/api/sync", {
@@ -32,11 +36,16 @@ export async function syncState(state: StudyState): Promise<boolean> {
         activitySnapshots: state.activitySnapshots,
         topicAccuracy: state.topicAccuracy,
         weakAreas: state.weakAreas,
+        points: state.points,
+        streak: state.streak,
+        longestStreak: state.longestStreak,
+        lastStudyDate: state.lastStudyDate,
+        chapterProgress: state.chapterProgress,
       }),
     });
 
     if (!res.ok) return false;
-    markSynced();
+    localStorage.setItem("studyult-last-synced", String(Date.now()));
     return true;
   } catch {
     return false;
@@ -46,9 +55,7 @@ export async function syncState(state: StudyState): Promise<boolean> {
 export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
   try {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
     const res = await fetch("/api/sync");
@@ -62,20 +69,20 @@ export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
       activitySnapshots: data.activitySnapshots || [],
       topicAccuracy: data.topicAccuracy || {},
       weakAreas: data.weakAreas || [],
+      points: data.points ?? 0,
+      streak: data.streak ?? 0,
+      longestStreak: data.longestStreak ?? 0,
+      lastStudyDate: data.lastStudyDate ?? "",
+      chapterProgress: data.chapterProgress || [],
     };
   } catch {
     return null;
   }
 }
 
-export function mergeStates(
-  local: StudyState,
-  remote: Partial<StudyState>
-): StudyState {
-  // Merge study minutes (local wins for same day - it's more recent)
+export function mergeStates(local: StudyState, remote: Partial<StudyState>): StudyState {
   const mergedMinutes = { ...remote.studyMinutes, ...local.studyMinutes };
 
-  // Merge arrays (deduplicate by timestamp/date)
   const quizDates = new Set(local.quizScores.map((q) => q.date));
   const mergedQuizzes = [
     ...local.quizScores,
@@ -85,23 +92,22 @@ export function mergeStates(
   const testKeys = new Set(local.testScores.map((t) => `${t.date}-${t.chapter}`));
   const mergedTests = [
     ...local.testScores,
-    ...(remote.testScores || []).filter(
-      (t: any) => !testKeys.has(`${t.date}-${t.chapter}`)
-    ),
+    ...(remote.testScores || []).filter((t: any) => !testKeys.has(`${t.date}-${t.chapter}`)),
   ];
 
-  const activityKeys = new Set(
-    local.activitySnapshots.map((a: any) => a.timestamp)
-  );
+  const activityKeys = new Set(local.activitySnapshots.map((a: any) => a.timestamp));
   const mergedActivities = [
     ...local.activitySnapshots,
-    ...(remote.activitySnapshots || []).filter(
-      (a: any) => !activityKeys.has(a.timestamp)
-    ),
+    ...(remote.activitySnapshots || []).filter((a: any) => !activityKeys.has(a.timestamp)),
   ];
 
-  // Merge topic accuracy (local wins - more recent practice)
   const mergedTopics = { ...remote.topicAccuracy, ...local.topicAccuracy };
+
+  const cpKeys = new Set(local.chapterProgress.map((c) => `${c.chapter}-${c.subject}`));
+  const mergedCP = [
+    ...local.chapterProgress,
+    ...(remote.chapterProgress || []).filter((c: any) => !cpKeys.has(`${c.chapter}-${c.subject}`)),
+  ];
 
   return {
     ...local,
@@ -111,5 +117,10 @@ export function mergeStates(
     activitySnapshots: mergedActivities,
     topicAccuracy: mergedTopics,
     weakAreas: local.weakAreas.length > 0 ? local.weakAreas : remote.weakAreas || [],
+    chapterProgress: mergedCP,
+    points: remote.points ?? local.points,
+    streak: remote.streak ?? local.streak,
+    longestStreak: remote.longestStreak ?? local.longestStreak,
+    lastStudyDate: remote.lastStudyDate ?? local.lastStudyDate,
   };
 }

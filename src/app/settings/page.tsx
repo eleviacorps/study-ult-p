@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/header";
 import { useLlm, PROVIDER_DEFAULTS, type AiProvider } from "@/lib/llm-context";
 import { getCustomVaultRoots, saveCustomVaultRoots } from "@/stores/vault-store";
 import type { VaultRoot } from "@/types";
-import { Database, Bot, Bell, Shield, Palette, Sun, Moon, Check, ChevronRight, Eye, EyeOff, Trash2, AlertTriangle, FolderOpen, Plus, X } from "lucide-react";
+import { Database, Bot, Bell, Shield, Palette, Sun, Moon, Check, ChevronRight, Eye, EyeOff, Trash2, AlertTriangle, FolderOpen, Plus, X, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const PROVIDERS: { value: AiProvider; label: string }[] = [
@@ -98,6 +98,19 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          {/* Profile */}
+          <button onClick={() => router.push("/settings/profile")}
+            className="w-full glass glass-interactive p-5 flex items-center gap-4 text-left">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#1856FF]/20 to-[#8B5CF6]/20 flex items-center justify-center flex-shrink-0">
+              <User className="w-5 h-5 text-[#1856FF]" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium">Profile</h3>
+              <p className="text-xs opacity-50" style={{ color: "var(--text-muted)" }}>Edit name, username, bio, social links, avatar</p>
+            </div>
+            <ChevronRight className="w-4 h-4 opacity-30" />
+          </button>
 
           {/* AI Provider Configuration */}
           <div className="glass p-5 space-y-3">
