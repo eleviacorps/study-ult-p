@@ -66,7 +66,7 @@ create table if not exists activity_snapshots (
   label text,
   items jsonb default '[]',
   created_at timestamptz default now(),
-  unique (user_id, timestamp, type, coalesce(label,''))
+  unique (user_id, timestamp, type)
 );
 create index if not exists idx_activity_user on activity_snapshots(user_id);
 

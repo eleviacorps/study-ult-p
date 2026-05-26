@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Activity snapshots — upsert by (user_id, timestamp, type, label)
+  // Activity snapshots — upsert by (user_id, timestamp, type)
   if (body.activitySnapshots) {
     for (const a of body.activitySnapshots) {
       const { error } = await supabase.from("activity_snapshots").upsert(
@@ -62,10 +62,9 @@ export async function POST(request: Request) {
           label: a.label || "",
           items: a.items || [],
         },
-        { onConflict: "user_id,timestamp,type,label" }
+        { onConflict: "user_id,timestamp,type" }
       );
-      if (error && !error.message.includes("null value in column"))
-        errors.push(`activity: ${error.message}`);
+      if (error) errors.push(`activity: ${error.message}`);
     }
   }
 
