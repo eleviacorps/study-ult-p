@@ -43,8 +43,12 @@ export default function LoginPage() {
       if (error) { setError(error.message); setLoading(false); return; }
 
       if (isNative() && data?.url) {
-        const { Browser } = await import("@capacitor/browser");
-        await Browser.open({ url: data.url });
+        try {
+          const { Browser } = await import("@capacitor/browser");
+          await Browser.open({ url: data.url });
+        } catch {
+          window.location.href = data.url;
+        }
       }
     } catch (e: any) {
       setError(e?.message || "Sign in failed");

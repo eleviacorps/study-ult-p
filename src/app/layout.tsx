@@ -4,6 +4,7 @@ import "./globals.css";
 import { VaultLoader } from "@/components/layout/vault-loader";
 import { LlmProvider } from "@/lib/llm-context";
 import { AuthGate } from "@/components/auth-gate";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,12 +34,14 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex relative">
-        <LlmProvider>
-          <VaultLoader />
-          <AuthGate>
-            {children}
-          </AuthGate>
-        </LlmProvider>
+        <ErrorBoundary>
+          <LlmProvider>
+            <VaultLoader />
+            <AuthGate>
+              {children}
+            </AuthGate>
+          </LlmProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
