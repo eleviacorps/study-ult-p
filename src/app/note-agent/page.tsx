@@ -439,9 +439,8 @@ export default function NoteAgentPage() {
         };
       });
 
-    const existing = JSON.parse(localStorage.getItem("studyult-agent-notes") || "[]");
-    existing.push(...notes);
-    localStorage.setItem("studyult-agent-notes", JSON.stringify(existing));
+    // Persist + merge into vault store so reader shows them immediately
+    useVaultStore.getState().addAgentNotes(notes);
     setVaultSaved(true);
     setTimeout(() => setVaultSaved(false), 3000);
   };
