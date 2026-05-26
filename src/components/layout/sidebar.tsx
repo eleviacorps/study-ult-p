@@ -7,7 +7,7 @@ import { useVaultStore } from "@/stores/vault-store";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Layers, ClipboardList,
   BarChart3, Share2, Bot, Settings, ChevronLeft, ChevronRight,
-  Atom, Menu, X, FileCheck, Play,
+  Atom, Menu, X, FileCheck, Play, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -22,6 +22,7 @@ const navItems = [
   { href: "/graph", label: "Graph View", icon: Share2 },
   { href: "/simulations", label: "Simulations", icon: Play },
   { href: "/tutor", label: "AI Tutor", icon: Bot },
+  { href: "/note-agent", label: "Note Agent", icon: Wand2 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

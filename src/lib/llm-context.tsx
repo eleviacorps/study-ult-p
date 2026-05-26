@@ -106,12 +106,38 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     setConfig((prev) => { const n = { ...prev, enabled: !prev.enabled }; saveConfig(n); return n; });
   }, []);
 
+  function normalizeBaseUrl(url: string): string {
+    return url.replace(/\/+$/, "");
+  }
+
   async function capFetch(url: string, opts: RequestInit): Promise<{ data: any; status: number; headers: any }> {
     const method = (opts.method || "GET").toUpperCase();
     const headers = (opts.headers as Record<string, string>) || {};
     const body = opts.body ? JSON.parse(opts.body as string) : undefined;
     const res = await CapacitorHttp.request({ url, method, headers, data: body });
     return { data: res.data, status: res.status, headers: res.headers };
+  }
+
+  async function tryProxy(
+    provider: AiProvider,
+    baseUrl: string,
+    apiKey: string,
+    model: string,
+    messages: { role: string; content: string }[]
+  ): Promise<{ content: string; reasoning: string } | null> {
+    try {
+      const res = await fetch("/api/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, baseUrl, apiKey, model, messages, max_tokens: 32768 }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message;
+      return { content: msg?.content || msg?.reasoning_content || data.content?.[0]?.text || "", reasoning: "" };
+    } catch {
+      return null;
+    }
   }
 
   async function directLlmCompletion(
@@ -121,28 +147,34 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     model: string,
     messages: { role: string; content: string }[]
   ): Promise<{ content: string; reasoning: string }> {
+    // Try proxy first (works on Vercel/deployed), fall back to direct calls (static/Android)
+    const proxyResult = await tryProxy(provider, baseUrl, apiKey, model, messages);
+    if (proxyResult) return proxyResult;
+
+    const bUrl = normalizeBaseUrl(baseUrl);
     const resolved = model && model !== "default" ? model : "gpt-4o-mini";
 
     switch (provider) {
       case "openai": {
-        const res = await capFetch(`${baseUrl}/v1/chat/completions`, {
+        const res = await capFetch(`${bUrl}/v1/chat/completions`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: resolved, messages, max_tokens: 4096 }),
+          body: JSON.stringify({ model: resolved, messages, max_tokens: 32768 }),
         });
         if (res.status >= 400) return { content: `OpenAI error (${res.status})`, reasoning: "" };
-        return { content: res.data.choices?.[0]?.message?.content || "", reasoning: "" };
+        const msg = res.data.choices?.[0]?.message;
+        return { content: msg?.content || msg?.reasoning_content || "", reasoning: "" };
       }
 
       case "anthropic": {
         const systemMsg = messages.find((m) => m.role === "system");
         const userMsgs = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.content }));
-        const res = await capFetch(`${baseUrl}/v1/messages`, {
+        const res = await capFetch(`${bUrl}/v1/messages`, {
           method: "POST",
           headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
           body: JSON.stringify({
             model: resolved,
-            max_tokens: 4096,
+            max_tokens: 32768,
             system: systemMsg?.content || "",
             messages: userMsgs.length > 0 ? userMsgs : [{ role: "user", content: "Hello" }],
           }),
@@ -156,7 +188,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
         while (ollamaMsgs.length > 0 && ollamaMsgs[0].role === "system") {
           ollamaMsgs[0].role = "user";
         }
-        const res = await capFetch(`${baseUrl}/api/chat`, {
+        const res = await capFetch(`${bUrl}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: resolved, messages: ollamaMsgs, stream: false }),
@@ -168,16 +200,17 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       case "lmstudio":
       case "custom":
       default: {
-        const res = await capFetch(`${baseUrl}/v1/chat/completions`, {
+        const res = await capFetch(`${bUrl}/v1/chat/completions`, {
           method: "POST",
           headers: {
             ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ model: resolved, messages, max_tokens: 4096 }),
+          body: JSON.stringify({ model: resolved, messages, max_tokens: 32768 }),
         });
         if (res.status >= 400) return { content: `API error (${res.status})`, reasoning: "" };
-        return { content: res.data.choices?.[0]?.message?.content || res.data.content?.[0]?.text || "", reasoning: "" };
+        const msg = res.data.choices?.[0]?.message;
+        return { content: msg?.content || msg?.reasoning_content || "", reasoning: "" };
       }
     }
   }
@@ -187,18 +220,37 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     baseUrl: string,
     apiKey: string
   ): Promise<string[]> {
+    // Try proxy first
+    try {
+      const proxyRes = await fetch("/api/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, baseUrl, apiKey, model: "", messages: [{ role: "user", content: "" }], max_tokens: 1 }),
+      });
+      if (proxyRes.ok) {
+        // Proxy works — use it for models too
+        const modelRes = await fetch(`/api/llm/models?provider=${provider}&baseUrl=${encodeURIComponent(baseUrl)}&apiKey=${encodeURIComponent(apiKey || "")}`);
+        if (modelRes.ok) {
+          const data = await modelRes.json();
+          return data.models || [];
+        }
+      }
+    } catch {}
+
+    // Fall back to direct
+    const bUrl = normalizeBaseUrl(baseUrl);
     switch (provider) {
       case "openai":
       case "lmstudio":
       case "custom": {
-        const res = await capFetch(`${baseUrl}/v1/models`, {
+        const res = await capFetch(`${bUrl}/v1/models`, {
           headers: apiKey ? { "Authorization": `Bearer ${apiKey}` } : {},
         });
         if (res.status >= 400) return [];
         return (res.data.data || []).map((m: any) => m.id || m.name).filter(Boolean);
       }
       case "ollama": {
-        const res = await capFetch(`${baseUrl}/api/tags`, {});
+        const res = await capFetch(`${bUrl}/api/tags`, {});
         if (res.status >= 400) return [];
         return (res.data.models || res.data.tags || []).map((m: any) => m.name).filter(Boolean);
       }

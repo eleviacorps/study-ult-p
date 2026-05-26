@@ -95,6 +95,13 @@ export function updateStudyState(updater: (state: StudyState) => void) {
   syncTodos(state);
 
   saveStudyState(state);
+
+  // Fire-and-forget sync to Supabase
+  if (typeof window !== "undefined") {
+    import("./sync").then(({ shouldSync, syncState }) => {
+      if (shouldSync()) syncState(state).catch(() => {});
+    });
+  }
 }
 
 export function recordAiConversation(role: "user" | "assistant", content: string, context: string) {
