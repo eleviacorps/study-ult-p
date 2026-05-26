@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   server: {
     url: "https://study-ult-p.vercel.app",
     cleartext: true,
-    allowNavigation: ["study-ult-p.vercel.app", "*.vercel.app", "accounts.google.com", "google.com", "*.google.com", "ysfmppybkccqkieielej.supabase.co", "*.supabase.co"],
+    allowNavigation: ["study-ult-p.vercel.app", "*.vercel.app"],
   },
 } as any;
 

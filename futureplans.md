@@ -7,28 +7,19 @@
 - Verify `window.location.href` redirect works for both web and Android
 - Test Google OAuth end-to-end on real device
 
-### Phase 2 — In-WebView OAuth (DONE)
-OAuth flow now stays entirely in the WebView (no system browser hand-off):
-- Added `ysfmppybkccqkieielej.supabase.co` and `*.supabase.co` to `allowNavigation` in `capacitor.config.ts`
-- Changed native `redirectTo` from `com.studyult.app://auth/callback` to `${location.origin}/auth/callback`
-- Removed deep-link listener from `auth-gate.tsx` (no longer needed)
-- Server-side `/auth/callback` Route Handler exchanges the auth code and sets session cookies
-- The entire OAuth flow happens in the WebView — PKCE verifier cookie persists across origin navigations in cookie jar, server reads it from the request when the callback fires
+### Phase 2 — Native Google Sign-In (DONE)
+Full native auth via `@capawesome/capacitor-google-sign-in` (uses Android Credential Manager):
+- Returns Google `idToken` directly — no browser, no redirects, no deep links
+- Authenticate with Supabase via `supabase.auth.signInWithIdToken({ provider: 'google', token: idToken })`
+- Web continues using `supabase.auth.signInWithOAuth()` unchanged
+- Uses the Google **WEB** client ID (`NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID`) as required by both the plugin and Supabase
+- No Chrome Custom Tab, no system browser, no Brave issue
 
-### Phase 3 — Embedded Auth Session (SHORT TERM)
-If in-WebView OAuth still has issues (cookie blocking, etc.), switch to plugin-based auth:
-- **`@byteowls/capacitor-oauth2`** already installed
-- Configure it with Supabase OAuth endpoint + `additionalParameters` for Google provider
-- Plugin uses AppAuth's `startActivityForResult` — preserves JS context, no cross-domain cookie issues
-- Requires Android Google Client ID from Google Cloud Console
-
-### Phase 4 — Native Google Sign-In (MEDIUM TERM)
-Full native auth via Credential Manager API:
-- Custom Capacitor plugin wrapping Android `CredentialManager.getCredential()`
-- Returns Google `idToken` directly — no browser opens, no redirects, no deep links
-- Authenticate with Supabase via `supabase.auth.signInWithIdToken()`
-- Web continues using browser OAuth unchanged
-- iOS: `AuthenticationServices` framework + Apple/Google Sign-In SDKs
+### Phase 3 — iOS Native Auth (SHORT TERM)
+- `@capawesome/capacitor-google-sign-in` supports iOS via Google Sign-In SDK
+- Add `GIDClientID` to iOS Info.plist
+- Add URL scheme for iOS client ID
+- Same code path — `Capacitor.isNativePlatform()` already handles it
 
 ### Phase 4 — Platform Expansion (LONG TERM)
 - iOS native auth via `@capacitor-community/apple-sign-in` or custom plugin

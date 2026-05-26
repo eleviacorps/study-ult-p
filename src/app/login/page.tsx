@@ -3,27 +3,34 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { signInWithGoogle, isNative } from "@/lib/native-auth";
 import { Atom, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) router.replace("/dashboard");
-      else setChecking(false);
-    });
+    }).finally(() => setLoading(false));
   }, [router]);
 
-  const signInWithGoogle = async () => {
+  const signIn = async () => {
     setLoading(true);
     setError("");
-    const supabase = createClient();
 
+    if (isNative()) {
+      const { error } = await signInWithGoogle();
+      if (error) setError(error);
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -31,25 +38,13 @@ export default function LoginPage() {
           redirectTo: `${location.origin}/auth/callback`,
         },
       });
-
       if (error) { setError(error.message); setLoading(false); return; }
-
-      if (data?.url) {
-        window.location.href = data.url;
-      }
+      if (data?.url) window.location.href = data.url;
     } catch (e: any) {
       setError(e?.message || "Sign in failed");
       setLoading(false);
     }
   };
-
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-[#8B5CF6]" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -67,7 +62,7 @@ export default function LoginPage() {
         )}
 
         <button
-          onClick={signInWithGoogle}
+          onClick={signIn}
           disabled={loading}
           className="w-full py-3 bg-white hover:bg-white/90 text-black text-sm font-medium flex items-center justify-center gap-3 transition-all disabled:opacity-50"
         >
