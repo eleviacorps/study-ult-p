@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { createClient } from "@/lib/supabase/client";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -15,40 +15,35 @@ function isNative(): boolean {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [status, setStatus] = useState<"loading" | "authed" | "public" | "unauthed">("loading");
-  const done = useRef(false);
+  const [status, setStatus] = useState<"loading" | "authed" | "public">("loading");
 
   useEffect(() => {
-    if (done.current) return;
     const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       setStatus("authed");
-      done.current = true;
       return;
     }
 
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    async function check() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
       if (user) {
         setStatus(isPublic ? "public" : "authed");
+      } else if (isPublic) {
+        setStatus("public");
       } else {
-        if (isPublic) {
-          setStatus("public");
-        } else {
-          setStatus("unauthed");
-          router.replace("/login");
-        }
+        window.location.replace("/login");
       }
-      done.current = true;
-    }).catch(() => {
-      setStatus(isPublic ? "public" : "authed");
-      done.current = true;
-    });
-  }, [pathname, router]);
+    }
 
-  // Android deep link handler — captures OAuth callback from system browser
+    check().catch(() => {
+      setStatus(isPublic ? "public" : "authed");
+    });
+  }, [pathname]);
+
+  // Android deep link handler
   useEffect(() => {
     if (!isNative()) return;
 
@@ -95,14 +90,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
         <Loader2 className="w-6 h-6 animate-spin opacity-30" />
-      </div>
-    );
-  }
-
-  if (status === "unauthed") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
-        <p className="opacity-50 text-sm">Redirecting to login...</p>
       </div>
     );
   }
