@@ -36,12 +36,12 @@ export interface AgentConfig {
 }
 
 export async function runAgentTurn(
-  messages: { role: string; content: string; tool_calls?: ToolCall[]; tool_call_id?: string }[],
+  messages: Record<string, unknown>[],
   tools: ToolDef[],
   handler: ToolHandler,
   config: AgentConfig
 ): Promise<{
-  newMessages: { role: string; content: string; tool_calls?: ToolCall[]; tool_call_id?: string }[];
+  newMessages: Record<string, unknown>[];
   steps: AgentStep[];
   finished: boolean;
   content: string;
@@ -70,35 +70,41 @@ export async function runAgentTurn(
   const choice = data.choices?.[0];
   if (!choice) throw new Error("No response from API");
 
-  const msgContent =
-    choice.message?.content || choice.message?.reasoning_content || "";
-  const toolCalls: ToolCall[] = choice.message?.tool_calls || [];
+  const msg = choice.message || {};
+  const msgContent = msg.content || "";
+  const reasoningContent: string | undefined = msg.reasoning_content;
+  const toolCalls: ToolCall[] = msg.tool_calls || [];
 
   const step: AgentStep = {
     turn: 0,
     toolCalls: [],
-    response: msgContent,
+    response: msgContent || reasoningContent || "",
     phase: "processing",
   };
 
+  const assistantMsg: Record<string, unknown> = { role: "assistant" };
+  assistantMsg.content = msgContent || null;
+  if (reasoningContent) assistantMsg.reasoning_content = reasoningContent;
+  if (toolCalls.length > 0) assistantMsg.tool_calls = toolCalls;
+
   if (toolCalls.length > 0) {
-    const newMsgs = [...messages, { role: "assistant", content: msgContent || null, tool_calls: toolCalls } as any];
+    const newMsgs = [...messages, assistantMsg];
 
     for (const tc of toolCalls) {
       const args = JSON.parse(tc.function.arguments);
       const result = await handler(tc.function.name, args);
-      newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result } as any);
+      newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
 
-    return { newMessages: newMsgs, steps: [step], finished: false, content: msgContent };
+    return { newMessages: newMsgs, steps: [step], finished: false, content: step.response };
   }
 
   return {
-    newMessages: [...messages, { role: "assistant", content: msgContent }],
+    newMessages: [...messages, assistantMsg],
     steps: [step],
     finished: true,
-    content: msgContent,
+    content: step.response,
   };
 }
 
