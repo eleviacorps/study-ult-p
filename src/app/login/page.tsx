@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Atom, Loader2 } from "lucide-react";
 
+declare const Capacitor: any | undefined;
+
+function isNative(): boolean {
+  try { return typeof Capacitor !== "undefined"; } catch { return false; }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -23,12 +29,25 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${location.origin}/auth/callback` },
-    });
-    if (error) {
-      setError(error.message);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: isNative()
+            ? "com.studyult.app://auth/callback"
+            : `${location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) { setError(error.message); setLoading(false); return; }
+
+      if (isNative() && data?.url) {
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url });
+      }
+    } catch (e: any) {
+      setError(e?.message || "Sign in failed");
       setLoading(false);
     }
   };

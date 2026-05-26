@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/layout/sidebar";
 import { VaultLoader } from "@/components/layout/vault-loader";
 import { LlmProvider } from "@/lib/llm-context";
+import { AuthGate } from "@/components/auth-gate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,10 +35,9 @@ export default function RootLayout({
       <body className="min-h-full flex relative">
         <LlmProvider>
           <VaultLoader />
-          <Sidebar />
-          <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">
+          <AuthGate>
             {children}
-          </main>
+          </AuthGate>
         </LlmProvider>
       </body>
     </html>
