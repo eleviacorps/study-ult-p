@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
+import type { Note } from "@/types";
 import {
   runAgentTurn,
   NOTE_AGENT_TOOLS,
@@ -34,15 +35,6 @@ interface WorkspaceFile {
   content: string;
 }
 
-const PLACEHOLDER_PATTERNS = [
-  /coming\s+soon/i,
-  /add\s+more/i,
-  /todo/i,
-  /placeholder/i,
-  /\(\+?\d+\s*questions?\s*more?\)/i,
-  /more\s+questions?/i,
-];
-
 export default function NoteAgentPage() {
   const { vault } = useVaultStore();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -56,6 +48,7 @@ export default function NoteAgentPage() {
   const [error, setError] = useState("");
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [vaultSaved, setVaultSaved] = useState(false);
   const [allToolCalls, setAllToolCalls] = useState<{ name: string; status: "running" | "done" | "error"; desc: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,43 +114,150 @@ export default function NoteAgentPage() {
           return JSON.stringify({ entries });
         }
 
-        case "check_completeness": {
-          const chapterPath = (args.chapterPath as string) || chapterName;
-          const required = [
-            { path: `${chapterPath}/notes`, type: "dir", label: "Topic notes" },
-            { path: `${chapterPath}/questions`, type: "dir", label: "Questions" },
-            { path: `${chapterPath}/flashcards`, type: "dir", label: "Flashcards" },
-            { path: `${chapterPath}/quizzes`, type: "dir", label: "Quizzes" },
-            { path: `${chapterPath}/revision`, type: "dir", label: "Revision materials" },
-            { path: `${chapterPath}/core.md`, type: "file", label: "Chapter core.md" },
-            { path: `${chapterPath}/concept_connection_map.md`, type: "file", label: "Concept map" },
-          ];
-          const results = required.map((r) => {
-            if (r.type === "dir") {
-              const files = Array.from(workspaceRef.current.keys()).filter((p) => p.startsWith(r.path + "/") && p.endsWith(".md"));
-              return { ...r, status: files.length > 0 ? "ok" : "missing", files: files.length };
-            }
-            const exists = workspaceRef.current.has(r.path);
-            return { ...r, status: exists ? "ok" : "missing" };
-          });
-          return JSON.stringify({ chapter: chapterPath, results });
-        }
+        case "assess_quality": {
+          const chapterPath = (args.chapterPath as string) || sanitizePath(chapterName);
+          const results: Record<string, any> = {};
 
-        case "find_placeholders": {
-          const found: { file: string; line: number; text: string }[] = [];
-          for (const [path, content] of workspaceRef.current.entries()) {
-            if (!path.endsWith(".md")) continue;
+          // 1. Read core.md and extract topic list
+          const coreMd = workspaceRef.current.get(`${chapterPath}/core.md`);
+          if (coreMd) {
+            // Extract all [[wikilinks]] from core.md that point to notes
+            const topicLinks = [...coreMd.matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1]);
+            results.topicsInCore = topicLinks.length;
+            results.topicsList = topicLinks;
+          } else {
+            results.topicsInCore = 0;
+            results.topicsList = [];
+            results.missingCore = true;
+          }
+
+          // 2. Get all files in workspace
+          const allFiles = Array.from(workspaceRef.current.keys()).filter((p) => p.endsWith(".md"));
+          const chapterFiles = allFiles.filter((p) => p.startsWith(chapterPath));
+
+          // 3. Check note files
+          const noteFiles = chapterFiles.filter((p) => p.includes("/notes/"));
+          results.noteCount = noteFiles.length;
+          results.notesShort = [];
+          for (const nf of noteFiles) {
+            const content = workspaceRef.current.get(nf) || "";
+            const lines = content.split("\n").length;
+            if (lines < 400) {
+              results.notesShort.push({ path: nf, lines });
+            }
+          }
+
+          // 4. Check placeholder text in ALL chapter files
+          const placeholders: { file: string; line: number; text: string }[] = [];
+          const PLACEHOLDER_PATTERNS = [
+            /coming\s+soon/i,
+            /add\s+more/i,
+            /todo/i,
+            /placeholder/i,
+            /\(\+?\d+\s*questions?\s*more?\)/i,
+            /more\s+questions?/i,
+          ];
+          for (const f of chapterFiles) {
+            const content = workspaceRef.current.get(f) || "";
             const lines = content.split("\n");
             for (let i = 0; i < lines.length; i++) {
               for (const pat of PLACEHOLDER_PATTERNS) {
                 if (pat.test(lines[i]) && lines[i].trim()) {
-                  found.push({ file: path, line: i + 1, text: lines[i].trim().substring(0, 80) });
+                  placeholders.push({ file: f, line: i + 1, text: lines[i].trim().substring(0, 80) });
                   break;
                 }
               }
             }
           }
-          return JSON.stringify({ placeholders: found, count: found.length });
+          results.placeholders = placeholders;
+
+          // 5. Count questions in 100_questions.md
+          const qFile = workspaceRef.current.get(`${chapterPath}/questions/100_questions.md`);
+          if (qFile) {
+            const qCount = (qFile.match(/## Q\d+\./g) || []).length;
+            results.questionCount = qCount;
+            results.questionCountOk = qCount >= 100;
+          } else {
+            results.questionCount = 0;
+            results.questionCountOk = false;
+          }
+
+          // 6. Count MCQs
+          const mcqFile = workspaceRef.current.get(`${chapterPath}/questions/100_mcqs.md`);
+          if (mcqFile) {
+            const mcqCount = (mcqFile.match(/### Q\d+\./g) || []).length;
+            results.mcqCount = mcqCount;
+            results.mcqCountOk = mcqCount >= 100;
+          } else {
+            results.mcqCount = 0;
+            results.mcqCountOk = false;
+          }
+
+          // 7. Count flashcards
+          const flashFile = workspaceRef.current.get(`${chapterPath}/flashcards/100_flashcards.md`);
+          if (flashFile) {
+            const flashCount = (flashFile.match(/## FC\d+\./g) || []).length;
+            results.flashcardCount = flashCount;
+            results.flashcardCountOk = flashCount >= 100;
+          } else {
+            results.flashcardCount = 0;
+            results.flashcardCountOk = false;
+          }
+
+          // 8. Count quizzes
+          const quizFile = workspaceRef.current.get(`${chapterPath}/quizzes/100_quizzes.md`);
+          if (quizFile) {
+            const quizCount = (quizFile.match(/### Q\d+\./g) || []).length;
+            results.quizCount = quizCount;
+            results.quizCountOk = quizCount >= 100;
+          } else {
+            results.quizCount = 0;
+            results.quizCountOk = false;
+          }
+
+          // 9. Check broken wikilinks
+          const brokenLinks: string[] = [];
+          const existingPaths = new Set(chapterFiles);
+          for (const f of chapterFiles) {
+            const content = workspaceRef.current.get(f) || "";
+            const links = [...content.matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1]);
+            for (const link of links) {
+              // If it's a path link (contains /), verify the target file exists
+              if (link.includes("/") && !link.endsWith(".md")) {
+                const targetMd = `${link}.md`;
+                if (!existingPaths.has(targetMd) && !existingPaths.has(link)) {
+                  brokenLinks.push(`${f} → [[${link}]]`);
+                }
+              }
+            }
+          }
+          results.brokenWikilinks = brokenLinks;
+
+          // 10. Check formatting (callouts, LaTeX, tables presence)
+          let hasCallouts = false;
+          let hasLatex = false;
+          let hasTables = false;
+          for (const f of chapterFiles) {
+            const content = workspaceRef.current.get(f) || "";
+            if (/\[![\w-]+\]/.test(content)) hasCallouts = true;
+            if (/\$\$/.test(content)) hasLatex = true;
+            if (/\|.*\|.*\|/.test(content)) hasTables = true;
+          }
+          results.formatting = { callouts: hasCallouts, latex: hasLatex, tables: hasTables };
+
+          // Compute overall grade
+          const issues: string[] = [];
+          if (results.notesShort.length > 0) issues.push(`${results.notesShort.length} notes under 400 lines`);
+          if (placeholders.length > 0) issues.push(`${placeholders.length} placeholder texts found`);
+          if (!results.questionCountOk) issues.push(`Questions: ${results.questionCount}/100`);
+          if (!results.mcqCountOk) issues.push(`MCQs: ${results.mcqCount}/100`);
+          if (!results.flashcardCountOk) issues.push(`Flashcards: ${results.flashcardCount}/100`);
+          if (!results.quizCountOk) issues.push(`Quizzes: ${results.quizCount}/100`);
+          if (brokenLinks.length > 0) issues.push(`${brokenLinks.length} broken wikilinks`);
+          results.issues = issues;
+          results.passed = issues.length === 0;
+
+          return JSON.stringify({ chapter: chapterPath, ...results });
         }
 
         case "final_report": {
@@ -182,6 +282,9 @@ export default function NoteAgentPage() {
       return;
     }
 
+    // Derive a safe filesystem path from chapter name
+    const chapterPath = sanitizePath(chapterName);
+
     abortRef.current = false;
     setPhase("running");
     setSteps([]);
@@ -203,7 +306,7 @@ export default function NoteAgentPage() {
     // Seed existing vault data into workspace for AI to read
     if (vault) {
       for (const note of vault.notes) {
-        const key = note.path || `${note.chapter || chapterName}/notes/${note.id}.md`;
+        const key = note.path || `${note.chapter || chapterPath}/notes/${note.id}.md`;
         if (note.content) workspaceRef.current.set(key, note.content);
       }
     }
@@ -211,7 +314,7 @@ export default function NoteAgentPage() {
     const messages: any[] = [
       {
         role: "system",
-        content: `${AGENT_SYSTEM_PROMPT}\n\n${skillContext ? `=== SKILL INSTRUCTIONS ===\n${skillContext}\n========================\n` : ""}The chapter being processed is: "${chapterName}". Use paths like "${chapterName}/notes/topic.md", "${chapterName}/questions/100_questions.md", etc.`,
+        content: `${AGENT_SYSTEM_PROMPT}\n\n${skillContext ? `=== SKILL INSTRUCTIONS ===\n${skillContext}\n========================\n` : ""}The chapter being processed is: "${chapterName}". Use "${chapterPath}" as the path prefix for all files (e.g., "${chapterPath}/notes/topic.md", "${chapterPath}/questions/100_questions.md").`,
       },
       {
         role: "user",
@@ -254,7 +357,7 @@ export default function NoteAgentPage() {
           // Collect files from workspace
           const fileList: WorkspaceFile[] = [];
           for (const [path, content] of workspaceRef.current.entries()) {
-            if (path.startsWith(chapterName) && path.endsWith(".md")) {
+            if (path.startsWith(chapterPath) && path.endsWith(".md")) {
               fileList.push({ path, content });
             }
           }
@@ -288,7 +391,7 @@ export default function NoteAgentPage() {
     if (stoppedEarly) {
       const fileList: WorkspaceFile[] = [];
       for (const [path, content] of workspaceRef.current.entries()) {
-        if (path.startsWith(chapterName) && path.endsWith(".md")) fileList.push({ path, content });
+        if (path.startsWith(chapterPath) && path.endsWith(".md")) fileList.push({ path, content });
       }
       setFiles(fileList);
       setPhase("done");
@@ -305,7 +408,7 @@ export default function NoteAgentPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${chapterName}-generated-notes.md`;
+    a.download = `${sanitizePath(chapterName)}-generated-notes.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -314,6 +417,33 @@ export default function NoteAgentPage() {
     if (files.length === 0) return;
     // Simple concatenated download (can be upgraded to real JSZip later)
     downloadAll();
+  };
+
+  const saveToVault = () => {
+    const notes: Note[] = files
+      .filter((f) => f.path.includes("/notes/"))
+      .map((f) => {
+        const parts = f.path.split("/");
+        const filename = parts[parts.length - 1].replace(".md", "");
+        const title = filename.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        return {
+          id: filename,
+          title,
+          path: f.path,
+          chapter: chapterName,
+          subject: parts[0] || "",
+          tags: [chapterName, parts[0]].filter(Boolean),
+          content: f.content,
+          links: [],
+          backlinks: [],
+        };
+      });
+
+    const existing = JSON.parse(localStorage.getItem("studyult-agent-notes") || "[]");
+    existing.push(...notes);
+    localStorage.setItem("studyult-agent-notes", JSON.stringify(existing));
+    setVaultSaved(true);
+    setTimeout(() => setVaultSaved(false), 3000);
   };
 
   const copyAll = async () => {
@@ -586,6 +716,12 @@ export default function NoteAgentPage() {
                 </h2>
                 <div className="flex gap-2">
                   <button
+                    onClick={saveToVault}
+                    className="px-3 py-1.5 text-[10px] bg-[#10B981]/15 text-[#10B981] hover:bg-[#10B981]/25 border border-[#10B981]/20 transition-all"
+                  >
+                    {vaultSaved ? "Saved!" : "Save to Vault"}
+                  </button>
+                  <button
                     onClick={copyAll}
                     className="px-3 py-1.5 text-[10px] bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
                   >
@@ -652,13 +788,16 @@ export default function NoteAgentPage() {
   );
 }
 
+function sanitizePath(name: string): string {
+  return name.replace(/[\s]+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+}
+
 function toolLabel(name: string): string {
   const labels: Record<string, string> = {
     write_file: "Write",
     read_file: "Read",
     list_workspace: "List",
-    check_completeness: "Check",
-    find_placeholders: "Scan",
+    assess_quality: "Assess",
     final_report: "Report",
   };
   return labels[name] || name;

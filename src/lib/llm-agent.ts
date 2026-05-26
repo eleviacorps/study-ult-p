@@ -152,12 +152,12 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
-      name: "check_completeness",
-      description: "Check if a chapter has all required directories and files (notes/, questions/, flashcards/, quizzes/, revision/, core.md, concept_connection_map.md)",
+      name: "assess_quality",
+      description: "FINAL ASSESSMENT: Read core.md for topic list, then verify ALL notes exist, check note length (400+ lines), count questions (exactly 100), MCQs (exactly 100), flashcards (100+), quizzes (100+), detect placeholders, broken wikilinks, and formatting issues across the ENTIRE chapter.",
       parameters: {
         type: "object",
         properties: {
-          chapterPath: { type: "string", description: "Chapter directory path" },
+          chapterPath: { type: "string", description: "Chapter directory path (e.g. 'Electrostatics')" },
         },
         required: ["chapterPath"],
       },
@@ -166,19 +166,8 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
-      name: "find_placeholders",
-      description: "Search for placeholder text patterns like 'Coming soon', 'TODO', 'Add more' in workspace files",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "final_report",
-      description: "Call this when ALL work is complete. Provide a summary of everything generated and fixed.",
+      description: "Call this when ALL work is complete AND all assessment issues are fixed. Provide a summary of everything generated and fixed.",
       parameters: {
         type: "object",
         properties: {
@@ -210,9 +199,18 @@ export const AGENT_SYSTEM_PROMPT = `You are an expert study material generator b
 6. Generate FLASHCARDS (100+ across all types)
 7. Generate QUIZZES (100+ items with answers)
 8. Generate REVISION files (formula sheet, one-shot, common mistakes, derivations)
-9. VERIFY completeness via check_completeness
-10. SCAN for placeholders via find_placeholders — fix any found
-11. REPORT via final_report with full summary
+9. FINAL ASSESSMENT — call assess_quality. It will verify ALL of:
+   - Every topic from core.md has a note file
+   - Every note is 400+ lines
+   - Exactly 100 questions in questions files
+   - Exactly 100 MCQs in mcq file
+   - 100+ flashcards
+   - 100+ quizzes
+   - No placeholder text anywhere
+   - No broken wikilinks
+   - Proper formatting (callouts, LaTeX, tables)
+   If ANY issue is found, fix it immediately, then reassess.
+10. REPORT via final_report with full summary
 
 === RULES ===
 - Every file must have REAL content. No placeholders, "Coming soon", or "(+X more)".
