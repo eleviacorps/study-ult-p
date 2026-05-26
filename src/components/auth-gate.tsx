@@ -99,7 +99,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (status === "unauthed") return null;
+  if (status === "unauthed") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+        <p className="opacity-50 text-sm">Redirecting to login...</p>
+      </div>
+    );
+  }
 
   if (status === "public") {
     return <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">{children}</main>;
