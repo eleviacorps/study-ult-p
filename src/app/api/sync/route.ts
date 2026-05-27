@@ -116,6 +116,37 @@ export async function POST(request: Request) {
     if (error) errors.push(`study_streaks: ${error.message}`);
   }
 
+  if (body.studentLearningState) {
+    const cognitiveState = body.studentLearningState;
+    const { error } = await supabase.from("student_learning_state").upsert(
+      {
+        user_id: userId,
+        mastery_map: cognitiveState.mastery_map || {},
+        weak_topics: cognitiveState.weak_topics || [],
+        confidence_levels: cognitiveState.confidence_levels || {},
+        misconception_patterns: cognitiveState.misconception_patterns || [],
+        recent_failures: cognitiveState.recent_failures || [],
+        learning_velocity: cognitiveState.learning_velocity || {},
+        focus_topics: cognitiveState.focus_topics || [],
+        recovery_queue: cognitiveState.recovery_queue || [],
+        forgetting_curve_state: cognitiveState.forgetting_curve_state || {},
+        solved_question_embeddings: cognitiveState.solved_question_embeddings || [],
+        concept_relationships: cognitiveState.concept_relationships || [],
+        exam_goals: cognitiveState.exam_goals || [],
+        preferred_difficulty: cognitiveState.preferred_difficulty || "adaptive",
+        tutor_personality_prompt: cognitiveState.tutor_personality_prompt || "",
+        generated_learning_profile: cognitiveState.generated_learning_profile || "",
+        adaptive_recommendations: cognitiveState.adaptive_recommendations || [],
+        streak_data: cognitiveState.streak_data || {},
+        study_patterns: cognitiveState.study_patterns || {},
+        performance_trends: cognitiveState.performance_trends || {},
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
+    if (error) errors.push(`student_learning_state: ${error.message}`);
+  }
+
   // Chapter progress — upsert per chapter
   if (body.chapterProgress) {
     for (const cp of body.chapterProgress) {
@@ -158,7 +189,7 @@ export async function GET(request: Request) {
 
   const userId = user.id;
 
-  const [sessions, quizzes, tests, activities, topics, weak, points, streak, chapters] = await Promise.all([
+  const [sessions, quizzes, tests, activities, topics, weak, points, streak, chapters, cognitiveState] = await Promise.all([
     supabase.from("study_sessions").select("date,minutes").eq("user_id", userId),
     supabase.from("quiz_scores").select("*").eq("user_id", userId).order("date", { ascending: false }),
     supabase.from("test_scores").select("*").eq("user_id", userId).order("date", { ascending: false }),
@@ -168,6 +199,7 @@ export async function GET(request: Request) {
     supabase.from("user_points").select("points").eq("user_id", userId).single(),
     supabase.from("study_streaks").select("*").eq("user_id", userId).single(),
     supabase.from("chapter_progress").select("*").eq("user_id", userId),
+    supabase.from("student_learning_state").select("*").eq("user_id", userId).single(),
   ]);
 
   const studyMinutes: Record<string, number> = {};
@@ -187,5 +219,6 @@ export async function GET(request: Request) {
     longestStreak: (streak.data as any)?.longest_streak ?? 0,
     lastStudyDate: (streak.data as any)?.last_study_date ?? null,
     chapterProgress: chapters.data || [],
+    studentLearningState: cognitiveState.data || null,
   });
 }

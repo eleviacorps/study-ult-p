@@ -2,6 +2,7 @@
 
 import type { Flashcard, Note, Question, VaultContent } from "@/types";
 import { loadStudyState } from "@/lib/study-state";
+import type { StudyState } from "@/lib/study-state";
 
 type RetrievalChunk = {
   id: string;
@@ -169,8 +170,7 @@ function indexIsEarly(id: string): boolean {
   return match ? Number(match[1]) <= 2 : false;
 }
 
-function buildStudentState() {
-  const state = loadStudyState();
+export function buildStudentStateSnapshot(state: StudyState = loadStudyState()) {
   const masteryMap = Object.fromEntries(
     Object.entries(state.topicAccuracy || {})
       .filter(([, value]) => value.total > 0)
@@ -201,6 +201,8 @@ function buildStudentState() {
       reviewed_flashcards: Object.keys(state.reviewedFlashcards || {}).length,
       mastered_flashcards: Object.keys(state.masteredFlashcards || {}).length,
     },
+    solved_question_embeddings: [],
+    concept_relationships: [],
     exam_goals: [],
     preferred_difficulty: "adaptive",
     tutor_personality_prompt: "",
@@ -261,7 +263,7 @@ export function buildStructuredTutorContext(
       current_question: question,
       scope: { chapter: options.chapter || null, subject: options.subject || null },
     },
-    student_state: buildStudentState(),
+    student_state: buildStudentStateSnapshot(),
     retrievals,
     concept_relationships: relatedConcepts(vault, rankedRetrievals, options.chapter),
     expected_output_schema: {

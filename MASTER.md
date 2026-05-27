@@ -483,3 +483,31 @@ Known follow-up:
 
 - Move retrieval to server-side Supabase-backed `vault_chunks` and embedding search once the SQL is applied.
 - Persist generated student state updates into `student_learning_state` instead of relying only on local compressed state.
+
+### 2026-05-27 - Step 9 - Persistent Cognitive State Sync
+
+Intent: Persist the compressed student state snapshot so AI operations can evolve toward stateful memory instead of local-only runtime context.
+
+Files changed:
+
+- `supabase-schema.sql`
+- `src/lib/ai-retrieval.ts`
+- `src/lib/sync.ts`
+- `src/app/api/sync/route.ts`
+
+Implementation:
+
+- Expanded `student_learning_state` to include missing required state fields: misconception patterns, solved-question embeddings, concept relationships, exam goals, preferred difficulty, tutor personality prompt, and generated learning profile.
+- Exported the compressed student-state snapshot builder for reuse outside Tutor payload construction.
+- Updated client sync to send the compressed cognitive state alongside study minutes, weak areas, quiz scores, test scores, points, streaks, and chapter progress.
+- Updated `/api/sync` to upsert the cognitive state into `student_learning_state` by `user_id`.
+- Updated `/api/sync` GET to return the persisted `studentLearningState` row when present.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Hydrate local tutoring context from remote `studentLearningState` on login/session start.
+- Add evaluation-result writers that update mastery, misconceptions, and recovery tasks immediately after question grading.

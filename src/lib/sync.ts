@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import type { StudyState } from "@/lib/study-state";
+import { buildStudentStateSnapshot } from "@/lib/ai-retrieval";
 
 let _pendingState: StudyState | null = null;
 let _syncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -41,6 +42,7 @@ export async function syncState(state: StudyState): Promise<boolean> {
         longestStreak: state.longestStreak,
         lastStudyDate: state.lastStudyDate,
         chapterProgress: state.chapterProgress,
+        studentLearningState: buildStudentStateSnapshot(state),
       }),
     });
 
