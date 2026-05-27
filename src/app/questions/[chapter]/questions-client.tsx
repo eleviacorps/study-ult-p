@@ -111,7 +111,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
 
   const showAnswer = revealed.has("solution");
   const isMcq = question.options && question.options.length >= 2;
-  const correctLabel = question.answer?.match(/[A-D](?=\))/)?.[0] || "";
+  const correctLabel = question.answer?.trim().match(/^[A-D]/i)?.[0]?.toUpperCase() || "";
 
   const handleMcqSelect = (label: string) => {
     if (selectedOption) return;
