@@ -1,27 +1,27 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
-import { Bot, Send, Brain, BookOpen, FileQuestion, Settings2, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp } from "lucide-react";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { cn } from "@/lib/cn";
-import { loadChat, saveChat, syncChatToDB, getTutorKey, clearChat } from "@/lib/chat-store";
+import { loadChat, saveChat, syncChatToDB, getTutorKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 export default function TutorPage() {
   const { vault } = useVaultStore();
-  const { ask, config, setProvider, setBaseUrl, setApiKey, setModel, toggleEnabled, isAsking, availableModels, fetchModels } = useLlm();
+  const { ask, isAsking } = useLlm();
 
   const chatKey = getTutorKey();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = loadChat(chatKey);
     return saved.length > 0 ? saved : [
-      { role: "assistant" as const, content: "Hi! Ask me anything about physics. Configure an AI provider in Settings for smarter responses." },
+      { role: "assistant" as const, content: "Hi! Ask me anything about physics." },
     ];
   });
   const [mounted, setMounted] = useState(false);
@@ -30,15 +30,6 @@ export default function TutorPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (mounted && config.enabled && messages.length === 1 && messages[0].content.includes("Hi!")) {
-      setMessages([{
-        role: "assistant",
-        content: `Connected to ${config.provider.toUpperCase()} at ${config.baseUrl}. Ask me anything about physics!`,
-      }]);
-    }
-  }, [mounted, config.enabled]);
 
   // Persist chat to localStorage + DB on every change
   useEffect(() => {
@@ -51,11 +42,6 @@ export default function TutorPage() {
       });
     }
   }, [messages, mounted]);
-  const [showSettings, setShowSettings] = useState(false);
-  const [localProvider, setLocalProvider] = useState(config.provider);
-  const [localBaseUrl, setLocalBaseUrl] = useState(config.baseUrl);
-  const [localModel, setLocalModel] = useState(config.model);
-  const [localApiKey, setLocalApiKey] = useState(config.apiKey);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -173,69 +159,8 @@ export default function TutorPage() {
           )}
         </div>
 
-        {showSettings && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass p-4 mb-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold flex items-center gap-2"><Settings2 className="w-3.5 h-3.5" /> Quick LLM Settings</h3>
-              <button onClick={() => setShowSettings(false)} className="text-[10px] opacity-30 hover:opacity-60">Close</button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-1 block">Provider</label>
-                <select
-                  value={localProvider}
-                  onChange={(e) => setLocalProvider(e.target.value as any)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="lmstudio">LM Studio</option>
-                  <option value="ollama">Ollama</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-1 block">Base URL</label>
-                <input type="text" value={localBaseUrl} onChange={(e) => setLocalBaseUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30"
-                  style={{ color: "var(--text-primary)" }} placeholder="http://localhost:1234" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-1 block">Model</label>
-                <div className="flex gap-2">
-                  <input type="text" value={localModel} onChange={(e) => setLocalModel(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30"
-                    style={{ color: "var(--text-primary)" }} />
-                  <button onClick={fetchModels} className="px-2 py-2 rounded-lg bg-[#8B5CF6]/10 text-[#8B5CF6] text-[10px] whitespace-nowrap">Detect</button>
-                </div>
-                {availableModels.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {availableModels.map((m) => (
-                      <button key={m} onClick={() => setLocalModel(m)}
-                        className={cn("text-[10px] px-2 py-1 rounded-md", localModel === m ? "bg-[#8B5CF6]/20 text-[#8B5CF6]" : "bg-white/[0.03] opacity-50")}>
-                        {m}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: "var(--text-secondary)" }}>
-                <input type="checkbox" checked={config.enabled} onChange={toggleEnabled} className="rounded" /> Enable LLM
-              </label>
-              <button onClick={() => { setProvider(localProvider); setBaseUrl(localBaseUrl); setModel(localModel); setShowSettings(false); }}
-                className="px-3 py-1.5 rounded-lg bg-[#8B5CF6]/15 text-[#8B5CF6] text-xs border border-[#8B5CF6]/20 hover:bg-[#8B5CF6]/25">Apply</button>
-            </div>
-          </motion.div>
-        )}
-
         <div className="sticky bottom-0 py-3 sm:py-4" style={{ background: "linear-gradient(to top, var(--bg-base), var(--bg-base) 80%, transparent)" }}>
           <div className="flex items-center gap-2 glass p-2">
-            <button onClick={() => setShowSettings(!showSettings)} className="p-2 rounded-xl glass-interactive flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-              <Settings2 className="w-4 h-4" />
-            </button>
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask anything about physics..."
               className="flex-1 bg-transparent text-sm outline-none px-2 min-w-0"

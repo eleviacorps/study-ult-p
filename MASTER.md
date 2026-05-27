@@ -427,3 +427,29 @@ Known follow-up:
 
 - Remove visible provider/API/model controls from Settings and Tutor quick settings.
 - Remove old `studyult-llm` cleanup text from Settings danger-zone copy.
+
+### 2026-05-27 - Step 7 - Exposed AI Configuration UI Removal
+
+Intent: Complete the server-side model boundary by removing browser-visible AI provider, model, base URL, and API key controls from user-facing screens.
+
+Files changed:
+
+- `src/app/settings/page.tsx`
+- `src/app/tutor/page.tsx`
+
+Implementation:
+
+- Rebuilt Settings around profile, theme, vault roots, local data cleanup, Tutor, Analytics, and About sections only.
+- Removed Settings controls for provider selection, model detection, base URL entry, API key entry, and AI enable toggles.
+- Removed the Tutor quick LLM settings drawer and its provider/model/base URL controls.
+- Updated Tutor's default greeting so it no longer asks users to configure a provider.
+- Kept all real AI model configuration inside server-owned `/api/llm` environment variables from Step 5.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Remove the remaining compatibility-only LLM config shape from `llm-context` once all consumers stop reading placeholder fields.
+- Build the retrieval payload layer so Tutor and reader chat stop relying on broad vault summaries.
