@@ -97,15 +97,7 @@ export default function NoteAgentPage() {
   }, []);
 
   const getProviderConfig = (): AgentConfig | null => {
-    const raw = localStorage.getItem("studyult-llm");
-    if (!raw) return null;
-    try {
-      const c = JSON.parse(raw);
-      if (!c.enabled) return null;
-      return { provider: c.provider || "custom", baseUrl: c.baseUrl, apiKey: c.apiKey || "", model: c.model || "gpt-4o-mini" };
-    } catch {
-      return null;
-    }
+    return { provider: "custom", baseUrl: "server-configured", apiKey: "", model: "server-configured" };
   };
 
   const handleFile = useCallback((file: File | null) => {
@@ -134,7 +126,7 @@ export default function NoteAgentPage() {
     }
     const config = getProviderConfig();
     if (!config) {
-      setError("AI provider not configured. Enable AI in Settings first.");
+      setError("AI service is not available.");
       return;
     }
 
@@ -189,7 +181,7 @@ export default function NoteAgentPage() {
     if (resumeData.phase === "running") {
       const config = getProviderConfig();
       if (!config) {
-        setError("AI provider not configured.");
+        setError("AI service is not available.");
         return;
       }
       const chapterPath = sanitizePath(resumeData.chapterName || chapterName);

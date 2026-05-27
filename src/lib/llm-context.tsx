@@ -52,32 +52,15 @@ function normalizeProvider(raw: any): AiProvider {
 }
 
 function getDefaultConfig(): LlmConfig {
-  return { provider: "lmstudio", apiKey: "", baseUrl: "http://localhost:1234", model: "", enabled: false };
+  return { provider: "custom", apiKey: "", baseUrl: "server-configured", model: "server-configured", enabled: true };
 }
 
 function loadConfig(): LlmConfig {
-  if (typeof window === "undefined") return getDefaultConfig();
-  try {
-    const raw = localStorage.getItem("studyult-llm");
-    if (raw) {
-      const saved = JSON.parse(raw);
-      const provider: AiProvider = Object.hasOwn(PROVIDER_DEFAULTS, saved.provider) ? saved.provider as AiProvider : "lmstudio";
-      return {
-        provider,
-        apiKey: saved.apiKey || "",
-        baseUrl: saved.baseUrl || PROVIDER_DEFAULTS[provider].baseUrl,
-        model: saved.model || "",
-        enabled: saved.enabled ?? false,
-      };
-    }
-  } catch {}
   return getDefaultConfig();
 }
 
 function saveConfig(c: LlmConfig) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("studyult-llm", JSON.stringify(c));
-  }
+  void c;
 }
 
 export function LlmProvider({ children }: { children: React.ReactNode }) {
@@ -89,7 +72,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
 
   const setProvider = useCallback((provider: AiProvider) => {
     setConfig((prev) => {
-      const next = { ...prev, provider, baseUrl: PROVIDER_DEFAULTS[provider].baseUrl, model: "" };
+      const next = { ...prev, provider };
       saveConfig(next);
       return next;
     });
@@ -108,7 +91,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleEnabled = useCallback(() => {
-    setConfig((prev) => { const n = { ...prev, enabled: !prev.enabled }; saveConfig(n); return n; });
+    setConfig((prev) => { const n = { ...prev, enabled: true }; saveConfig(n); return n; });
   }, []);
 
   function normalizeBaseUrl(url: string): string {
@@ -135,7 +118,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, baseUrl, apiKey, model, messages, max_tokens: 32768 }),
+        body: JSON.stringify({ messages, max_tokens: 32768 }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -273,7 +256,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
 
   const ask = useCallback(
     async (context: string, question: string): Promise<LlmResponse> => {
-      if (!config.enabled) return { content: "LLM is not enabled.", reasoning: "" };
+      if (!config.enabled) return { content: "AI is not available.", reasoning: "" };
       setIsAsking(true);
       try {
         const messages = question

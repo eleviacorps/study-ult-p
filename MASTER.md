@@ -402,3 +402,28 @@ Known follow-up:
 - Remove provider/API/model controls from Settings and Tutor UI.
 - Update browser AI context so it no longer stores provider config in localStorage.
 - Update note-agent bootstrap so it does not depend on local `studyult-llm` settings.
+
+### 2026-05-27 - Step 6 - Browser AI Config Dependency Removal
+
+Intent: Stop core browser AI calls and the Note Agent bootstrap from depending on localStorage provider configuration.
+
+Files changed:
+
+- `src/lib/llm-context.tsx`
+- `src/app/note-agent/page.tsx`
+
+Implementation:
+
+- Made the client LLM config server-configured by default and enabled without requiring local Settings state.
+- Stopped persisting LLM provider/base URL/model/API key values to localStorage from the shared LLM context.
+- Updated client AI calls to send only `messages` and token limits to `/api/llm`; provider, model, base URL, and API key request fields are no longer sent by this path.
+- Updated Note Agent bootstrap to use a server-configured placeholder because `/api/llm` now owns the real model configuration server-side.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Remove visible provider/API/model controls from Settings and Tutor quick settings.
+- Remove old `studyult-llm` cleanup text from Settings danger-zone copy.
