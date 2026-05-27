@@ -735,3 +735,30 @@ Known follow-up:
 
 - Continue mobile passes for Reader, Questions, Tutor, and Note Agent.
 - Run browser/mobile screenshots once the dev server is started for visual verification.
+
+### 2026-05-27 - Step 18 - Mobile Reader Tutor Drawer
+
+Intent: Make contextual reader tutoring usable in the Android app without a cramped desktop side panel.
+
+Files changed:
+
+- `src/components/ai-tutor-sidebar.tsx`
+- `src/app/reader/[chapter]/reader-note-client.tsx`
+
+Implementation:
+
+- Reader tutor now detects mobile width and opens as a full-width drawer on phones.
+- Desktop behavior remains a right-side panel.
+- Added safe-area top and bottom padding to the drawer header/input area.
+- Increased mobile input and send-button tap targets.
+- Raised drawer z-index above the mobile app shell.
+- Tightened reader note page padding on phones.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add reader-sidebar session history controls.
+- Verify drawer behavior in Android WebView/mobile browser screenshots.

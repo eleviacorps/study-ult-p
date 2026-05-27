@@ -165,7 +165,7 @@ export default function ReaderPage() {
           ))}
         </aside>
 
-        <main className="flex-1 min-w-0 max-w-4xl mx-auto px-4 sm:px-6 py-8">
+        <main className="flex-1 min-w-0 max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
           <AnimatePresence mode="wait">
             <motion.article
               key={note.id}
@@ -174,7 +174,7 @@ export default function ReaderPage() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="glass p-4 sm:p-6 md:p-10 overflow-x-hidden">
+              <div className="glass p-4 sm:p-6 md:p-10 overflow-x-hidden rounded-2xl">
                 <MarkdownRenderer content={note.content} />
               </div>
 
