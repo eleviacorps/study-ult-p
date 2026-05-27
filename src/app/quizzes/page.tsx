@@ -306,7 +306,7 @@ export default function QuizPage() {
             </button>
 
             {!config.enabled && (
-              <p className="text-[10px] text-[#F59E0B]/70 text-center mt-2">Enable AI in Settings to start quizzes</p>
+              <p className="text-[10px] text-[#F59E0B]/70 text-center mt-2">AI service is unavailable</p>
             )}
 
             <div className="mt-4 p-3 bg-[#F59E0B]/5 border border-[#F59E0B]/10">

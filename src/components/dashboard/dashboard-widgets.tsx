@@ -515,7 +515,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
           <div className="space-y-1.5 mt-1 max-h-[280px] overflow-y-auto">
             {analytics.aiTodos.filter((t) => !t.completed).length === 0 && analytics.aiTodos.filter((t) => t.completed).length === 0 ? (
               <p className="text-xs text-white/25 py-4 text-center">
-                {config.enabled ? "Click AI Suggest to get personalized tasks" : "Enable AI in Settings for suggestions"}
+                {config.enabled ? "Click AI Suggest to get personalized tasks" : "AI service is unavailable"}
               </p>
             ) : (
               <>

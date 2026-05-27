@@ -567,3 +567,33 @@ Known follow-up:
 
 - Add session delete/rename and summary previews.
 - Add the same session switching UX to reader sidebar chats with chapter scoping.
+
+### 2026-05-27 - Step 12 - Browser LLM Compatibility Cleanup
+
+Intent: Remove the remaining browser-side provider/model/API configuration plumbing now that `/api/llm` is fully server-configured.
+
+Files changed:
+
+- `src/lib/llm-context.tsx`
+- `src/lib/llm-agent.ts`
+- `src/lib/note-agent/agent-worker.ts`
+- `src/app/note-agent/page.tsx`
+- `src/app/quizzes/page.tsx`
+- `src/app/tests/[chapter]/tests-client.tsx`
+- `src/components/dashboard/dashboard-widgets.tsx`
+
+Implementation:
+
+- Rebuilt `llm-context` as a minimal server-proxy client with only `enabled`, `ask`, and `isAsking`.
+- Removed browser-side direct provider calls, model detection, API key handling, base URL handling, and native direct-call branches from the shared LLM context.
+- Stopped the note-agent runner and worker from sending provider, base URL, API key, or model fields to `/api/llm`.
+- Replaced stale UI copy that told users to enable AI or LM Studio in Settings.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Move Note Agent's `AgentConfig` parameter out entirely in a later cleanup once worker message compatibility is no longer needed.
+- Add server-side health/status reporting for unavailable AI service states.

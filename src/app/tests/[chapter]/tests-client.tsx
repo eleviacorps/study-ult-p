@@ -314,7 +314,7 @@ export default function TestTakePage() {
           <div className="max-w-md w-full glass p-8">
             <h1 className="text-xl font-bold mb-1">{chapterName}</h1>
             <p className="text-xs opacity-40 mb-6" style={{ color: "var(--text-muted)" }}>
-              {config.enabled ? "AI will generate questions from your vault" : "Enable LM Studio in Settings for AI-generated questions"}
+              {config.enabled ? "AI will generate questions from your vault" : "AI service is unavailable"}
             </p>
 
             <div className="space-y-4">

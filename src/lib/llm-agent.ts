@@ -28,12 +28,7 @@ export interface AgentStep {
   phase: string;
 }
 
-export interface AgentConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  provider: string;
-}
+export type AgentConfig = Record<string, never>;
 
 export async function runAgentTurn(
   messages: Record<string, unknown>[],
@@ -46,14 +41,11 @@ export async function runAgentTurn(
   finished: boolean;
   content: string;
 }> {
+  void config;
   const res = await fetch("/api/llm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      provider: config.provider || "custom",
-      baseUrl: config.baseUrl,
-      apiKey: config.apiKey,
-      model: config.model || "gpt-4o-mini",
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,

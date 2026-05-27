@@ -97,7 +97,7 @@ export default function NoteAgentPage() {
   }, []);
 
   const getProviderConfig = (): AgentConfig | null => {
-    return { provider: "custom", baseUrl: "server-configured", apiKey: "", model: "server-configured" };
+    return {};
   };
 
   const handleFile = useCallback((file: File | null) => {

@@ -18,12 +18,7 @@ interface AgentStep {
   phase: string;
 }
 
-interface AgentConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  provider: string;
-}
+type AgentConfig = Record<string, never>;
 
 interface StartMessage {
   type: "start";
@@ -77,14 +72,11 @@ async function runAgentTurn(
   handler: (name: string, args: Record<string, unknown>) => Promise<string>,
   config: AgentConfig,
 ): Promise<{ newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string }> {
+  void config;
   const res = await fetch("/api/llm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      provider: config.provider || "custom",
-      baseUrl: config.baseUrl,
-      apiKey: config.apiKey,
-      model: config.model || "gpt-4o-mini",
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
