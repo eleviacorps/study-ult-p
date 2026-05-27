@@ -71,7 +71,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">{children}</main>
+      <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0 pb-24 lg:pb-0">{children}</main>
     </>
   );
 }

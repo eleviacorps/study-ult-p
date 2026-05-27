@@ -654,3 +654,30 @@ Known follow-up:
 
 - Add embedding generation and vector similarity ranking on top of the stored `vault_chunks`.
 - Wire Tutor payload generation to merge `/api/retrieval` results with local fallback retrieval.
+
+### 2026-05-27 - Step 15 - Android Mobile App Shell
+
+Intent: Improve the Next.js/Android WebView experience with phone-first navigation and touch behavior.
+
+Files changed:
+
+- `src/components/layout/sidebar.tsx`
+- `src/components/auth-gate.tsx`
+- `src/app/globals.css`
+
+Implementation:
+
+- Added a persistent mobile bottom navigation for Home, Reader, Practice, Tutor, and Settings.
+- Kept the mobile side drawer as the full tool menu for less frequent surfaces.
+- Added safe-area positioning for the top menu button and bottom navigation.
+- Added bottom padding to authenticated app content on mobile so primary content does not sit under the Android nav.
+- Disabled tap highlight and set touch manipulation behavior for buttons, links, and form controls.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Run visual checks on mobile widths after the broader UI pass.
+- Audit each major page for bottom-nav overlap and thumb reach.

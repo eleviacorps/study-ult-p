@@ -84,6 +84,16 @@ body {
   font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  touch-action: manipulation;
 }
 
 [data-theme="cream"] .glass {
