@@ -8,7 +8,7 @@ import { useLlm } from "@/lib/llm-context";
 import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp } from "lucide-react";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
-import { PROMPTS } from "@/lib/ai-config";
+import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { cn } from "@/lib/cn";
 import { loadChat, saveChat, syncChatToDB, getTutorKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
@@ -55,11 +55,11 @@ export default function TutorPage() {
     { icon: FileQuestion, label: "Generate questions", query: "Generate 3 JEE-level practice questions based on the chapter content." },
   ];
 
-  const buildContext = (): string => {
-    if (!vault) return PROMPTS.TUTOR_DEFAULT;
-    const chapterNames = vault.chapters.map((c) => c.name).join(", ");
-    const topics = vault.notes.slice(0, 5).map((n) => n.title).join(", ");
-    return PROMPTS.TUTOR_WITH_CONTEXT.replace("{CHAPTERS}", chapterNames).replace("{TOPICS}", topics);
+  const buildContext = (question: string): string => {
+    return buildStructuredTutorContext(vault, question, {
+      surface: "main_tutor",
+      subject: "Physics",
+    });
   };
 
   const handleSend = async () => {
@@ -68,7 +68,7 @@ export default function TutorPage() {
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setInput("");
 
-    const context = buildContext();
+    const context = buildContext(userMsg);
     const { content, reasoning } = await ask(context, userMsg);
     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
 
@@ -141,7 +141,7 @@ export default function TutorPage() {
               {quickActions.map((action) => (
                 <button key={action.label} onClick={() => {
                   setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  ask(buildContext(), action.query).then(({ content, reasoning }) => {
+                  ask(buildContext(action.query), action.query).then(({ content, reasoning }) => {
                     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
                     updateStudyState((state) => {
                       const today = new Date().toISOString().split("T")[0];

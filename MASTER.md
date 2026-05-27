@@ -453,3 +453,33 @@ Known follow-up:
 
 - Remove the remaining compatibility-only LLM config shape from `llm-context` once all consumers stop reading placeholder fields.
 - Build the retrieval payload layer so Tutor and reader chat stop relying on broad vault summaries.
+
+### 2026-05-27 - Step 8 - Structured Tutor Retrieval Payloads
+
+Intent: Replace broad tutor context strings with a compact state-plus-retrieval payload that matches the stateful AI architecture.
+
+Files changed:
+
+- `src/lib/ai-retrieval.ts`
+- `src/app/tutor/page.tsx`
+- `src/components/ai-tutor-sidebar.tsx`
+- `src/lib/llm-context.tsx`
+
+Implementation:
+
+- Added a client-side structured tutor payload builder that compresses local student state into mastery, weak topics, failures, recovery queue, study patterns, streak, and performance trend fields.
+- Added lightweight lexical retrieval over vault notes, questions, flashcards, and current reader context.
+- Ranked and limited retrieval chunks before sending them to AI so Tutor no longer lists broad chapter/topic summaries as its primary context.
+- Included related concept-chain data from the vault graph when it matches the interaction scope.
+- Updated the main Tutor to send the structured payload for each user query and quick action.
+- Updated the reader sidebar Tutor to send ranked page-context chunks instead of a raw 3000-character page dump.
+- Increased the shared LLM system-context cap from 4000 to 8000 characters to avoid clipping compact structured payloads mid-JSON.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Move retrieval to server-side Supabase-backed `vault_chunks` and embedding search once the SQL is applied.
+- Persist generated student state updates into `student_learning_state` instead of relying only on local compressed state.

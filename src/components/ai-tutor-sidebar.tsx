@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useLlm } from "@/lib/llm-context";
 import { addPoints, recordAiConversation } from "@/lib/study-state";
-import { PROMPTS } from "@/lib/ai-config";
+import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -23,7 +23,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadChat(sidebarKey));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const { ask, config } = useLlm();
+  const { ask } = useLlm();
   const messagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,14 +45,16 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
 
   const contextRef = useRef(context);
   contextRef.current = context;
-  const enabledRef = useRef(config.enabled);
-  enabledRef.current = config.enabled;
 
   const doAsk = async (q: string) => {
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     setLoading(true);
     try {
-      const sysContext = PROMPTS.SIDEBAR_TUTOR.replace("{CONTEXT}", contextRef.current.substring(0, 3000));
+      const sysContext = buildStructuredTutorContext(null, q, {
+        surface: "reader_sidebar",
+        chapter: chapterName,
+        readerContext: contextRef.current,
+      });
       const { content } = await ask(sysContext, q);
       setMessages((prev) => [...prev, { role: "assistant", content: content || "No response" }]);
       addPoints(2, "Tutor Query", q.substring(0, 50));
@@ -81,7 +83,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as string;
-      if (detail && enabledRef.current) {
+      if (detail) {
         doAsk(detail);
       }
     };

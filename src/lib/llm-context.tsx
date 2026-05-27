@@ -260,7 +260,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       setIsAsking(true);
       try {
         const messages = question
-          ? [{ role: "system", content: context.substring(0, 4000) }, { role: "user", content: question }]
+          ? [{ role: "system", content: context.substring(0, 8000) }, { role: "user", content: question }]
           : [{ role: "user", content: context }];
 
         const result = await directLlmCompletion(
