@@ -97,8 +97,13 @@ export async function POST(request: Request) {
       },
       { onConflict: "user_id,path" }
     );
-    if (error) errors.push(`${note.path}: ${error.message}`);
-    else upserted++;
+    if (error) {
+      errors.push(`${note.path}: ${error.message}`);
+    } else {
+      const ingestionError = await ingestVaultDocument(supabase, user.id, note, contentHash);
+      if (ingestionError) errors.push(`${note.path}: ${ingestionError}`);
+      upserted++;
+    }
   }
 
   if (errors.length > 0) {
@@ -155,4 +160,102 @@ function getUnknownPath(note: unknown): string {
   if (!note || typeof note !== "object") return "unknown";
   const path = (note as { path?: unknown }).path;
   return typeof path === "string" && path.trim() ? path : "unknown";
+}
+
+async function ingestVaultDocument(supabase: any, userId: string, note: IncomingNote, contentHash: string): Promise<string | null> {
+  const slug = canonicalSlug(note.path || note.title);
+  const now = new Date().toISOString();
+  const { data: document, error: documentError } = await supabase
+    .from("vault_documents")
+    .upsert(
+      {
+        user_id: userId,
+        source_path: note.path,
+        subject: note.subject || "",
+        chapter: note.chapter,
+        title: note.title,
+        content_hash: contentHash,
+        canonical_slug: slug,
+        metadata: { source: "user_notes", tags: note.tags || [] },
+        updated_at: now,
+      },
+      { onConflict: "content_hash" }
+    )
+    .select("id")
+    .single();
+
+  if (documentError) return documentError.message;
+  if (!document?.id) return "vault_document_missing";
+
+  const chunks = await buildChunks(note.content, contentHash);
+  await supabase.from("vault_chunks").delete().eq("document_id", document.id);
+
+  if (chunks.length === 0) return null;
+
+  const { error: chunkError } = await supabase.from("vault_chunks").insert(
+    chunks.map((chunk, index) => ({
+      document_id: document.id,
+      user_id: userId,
+      chunk_index: index,
+      content: chunk.content,
+      content_hash: chunk.hash,
+      token_estimate: Math.ceil(chunk.content.length / 4),
+      metadata: {
+        title: note.title,
+        chapter: note.chapter,
+        subject: note.subject || "",
+        source_path: note.path,
+      },
+    }))
+  );
+
+  if (chunkError) return chunkError.message;
+
+  await supabase.from("vault_ingestion_logs").insert({
+    user_id: userId,
+    source: note.path,
+    content_hash: contentHash,
+    status: "indexed",
+    message: `Indexed ${chunks.length} retrieval chunks`,
+    metadata: { document_id: document.id, canonical_slug: slug },
+  });
+
+  return null;
+}
+
+async function buildChunks(content: string, documentHash: string): Promise<{ content: string; hash: string }[]> {
+  const normalized = content.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return [];
+
+  const sections = normalized
+    .split(/\n(?=#{1,3}\s+)/g)
+    .map((section) => section.trim())
+    .filter(Boolean);
+  const sourceBlocks = sections.length > 0 ? sections : [normalized];
+  const chunks: string[] = [];
+
+  for (const block of sourceBlocks) {
+    if (block.length <= 1400) {
+      chunks.push(block);
+      continue;
+    }
+    const paragraphs = block.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
+    let current = "";
+    for (const paragraph of paragraphs) {
+      if (`${current}\n\n${paragraph}`.length > 1400 && current) {
+        chunks.push(current);
+        current = paragraph;
+      } else {
+        current = current ? `${current}\n\n${paragraph}` : paragraph;
+      }
+    }
+    if (current) chunks.push(current);
+  }
+
+  return Promise.all(
+    chunks.slice(0, 80).map(async (chunk, index) => ({
+      content: chunk.slice(0, 1800),
+      hash: await sha256Hex(`${documentHash}:${index}:${chunk}`),
+    }))
+  );
 }

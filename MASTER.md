@@ -628,3 +628,29 @@ Known follow-up:
 
 - Add profile hydration into Tutor payloads from `student_ai_profiles` and `student_goal_profiles`.
 - Add username availability feedback before submit.
+
+### 2026-05-27 - Step 14 - Server Retrieval Chunk Foundations
+
+Intent: Move retrieval toward the database-backed vault pipeline by indexing user notes into canonical documents and chunks during ingestion.
+
+Files changed:
+
+- `src/app/api/notes/route.ts`
+- `src/app/api/retrieval/route.ts`
+
+Implementation:
+
+- Extended `/api/notes` ingestion so every accepted user note also upserts a `vault_documents` row.
+- Added deterministic markdown chunking by headings and paragraphs.
+- Rebuilds `vault_chunks` for the ingested document with token estimates and metadata for title, chapter, subject, and source path.
+- Writes `vault_ingestion_logs` entries when documents are indexed.
+- Added `/api/retrieval` for authenticated, owner-scoped server-side retrieval over stored chunks with lexical ranking and optional chapter scoping.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add embedding generation and vector similarity ranking on top of the stored `vault_chunks`.
+- Wire Tutor payload generation to merge `/api/retrieval` results with local fallback retrieval.
