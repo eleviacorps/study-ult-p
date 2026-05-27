@@ -1,60 +1,74 @@
 import { NextResponse } from "next/server";
 
+const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
+const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
+
+type ChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content?: string | null;
+  tool_calls?: unknown[];
+  tool_call_id?: string;
+  name?: string;
+};
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { provider, baseUrl, apiKey, model, messages, max_tokens } = body;
-    if (!provider || !baseUrl) {
-      return NextResponse.json({ error: "Missing provider or baseUrl" }, { status: 400 });
+    const messages = Array.isArray(body.messages) ? body.messages.filter(isValidMessage).map(normalizeMessage) : [];
+    if (messages.length === 0) {
+      return NextResponse.json({ error: "missing_messages" }, { status: 400 });
     }
 
-    const bUrl = baseUrl.replace(/\/+$/, "");
+    const baseUrl = getServerAiBaseUrl();
+    const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
+    const apiKey = process.env.AI_API_KEY || process.env.OPENCODE_API_KEY || "";
     const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
     const requestBody: Record<string, unknown> = {
-      model: model || "gpt-4o-mini",
-      messages: messages && messages.length > 0 ? messages : [{ role: "user", content: "Hello" }],
-      max_tokens: max_tokens || 65536,
+      model,
+      messages,
+      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 32768) : 32768,
     };
-    if (body.tools) requestBody.tools = body.tools;
+    if (Array.isArray(body.tools)) requestBody.tools = body.tools;
     if (body.tool_choice) requestBody.tool_choice = body.tool_choice;
 
-    let url: string;
-    switch (provider) {
-      case "openai":
-      case "lmstudio":
-      case "custom": {
-        url = `${bUrl}/v1/chat/completions`;
-        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-        break;
-      }
-      case "anthropic": {
-        url = `${bUrl}/v1/messages`;
-        headers["x-api-key"] = apiKey;
-        headers["anthropic-version"] = "2023-06-01";
-        const systemMsg = (messages || []).find((m: any) => m.role === "system");
-        const userMsgs = (messages || []).filter((m: any) => m.role !== "system");
-        requestBody.system = systemMsg?.content || "";
-        requestBody.messages = userMsgs.length > 0 ? userMsgs : [{ role: "user", content: "Hello" }];
-        break;
-      }
-      case "ollama": {
-        url = `${bUrl}/api/chat`;
-        const ollamaMsgs = (messages || []).map((m: any) => ({
-          role: m.role === "system" ? "user" : m.role,
-          content: m.content,
-        }));
-        requestBody.messages = ollamaMsgs;
-        requestBody.stream = false;
-        break;
-      }
-      default:
-        return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
-    }
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    });
 
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(requestBody) });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unknown error" }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "unknown_error" }, { status: 500 });
   }
+}
+
+function getServerAiBaseUrl(): string {
+  return (process.env.AI_BASE_URL || DEFAULT_AI_BASE_URL).replace(/\/+$/, "");
+}
+
+function isValidMessage(message: unknown): message is ChatMessage {
+  if (!message || typeof message !== "object") return false;
+  const candidate = message as Partial<ChatMessage>;
+  return (
+    (candidate.role === "system" ||
+      candidate.role === "user" ||
+      candidate.role === "assistant" ||
+      candidate.role === "tool") &&
+    (typeof candidate.content === "string" || Array.isArray(candidate.tool_calls))
+  );
+}
+
+function normalizeMessage(message: ChatMessage): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {
+    role: message.role,
+    content: typeof message.content === "string" ? message.content : "",
+  };
+  if (Array.isArray(message.tool_calls)) normalized.tool_calls = message.tool_calls;
+  if (message.tool_call_id) normalized.tool_call_id = message.tool_call_id;
+  if (message.name) normalized.name = message.name;
+  return normalized;
 }

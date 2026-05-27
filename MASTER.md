@@ -374,3 +374,31 @@ Known follow-up:
 - Add UI controls for New Chat, chat history, and session switching.
 - Add automatic session summarization into `chat_context_summaries`.
 - Apply the updated Supabase SQL before relying on `chat_sessions` or `client_id` in a deployed database.
+
+### 2026-05-27 - Step 5 - Server-Side AI Model Boundary
+
+Intent: Stop the backend AI proxy from trusting browser-supplied provider configuration, base URLs, API keys, or model names.
+
+Files changed:
+
+- `src/app/api/llm/route.ts`
+- `src/app/api/llm/models/route.ts`
+
+Implementation:
+
+- Replaced provider-switching `/api/llm` logic with a server-configured OpenAI-compatible route.
+- Defaulted the internal base URL to `https://opencode.ai/zen`.
+- Defaulted the internal model to `deepseek-v4-flash-free`.
+- Read optional overrides from server-only environment variables: `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`, and `OPENCODE_API_KEY`.
+- Preserved tool-calling message compatibility by forwarding assistant `tool_calls` and tool `tool_call_id` values.
+- Replaced `/api/llm/models` with a server-only model list that exposes only the configured model.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Remove provider/API/model controls from Settings and Tutor UI.
+- Update browser AI context so it no longer stores provider config in localStorage.
+- Update note-agent bootstrap so it does not depend on local `studyult-llm` settings.
