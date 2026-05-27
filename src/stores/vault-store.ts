@@ -34,12 +34,14 @@ export function saveAgentNotes(notes: Note[]) {
   localStorage.setItem(AGENT_NOTES_KEY, JSON.stringify(notes));
 }
 
-function mergeAgentNotes(base: VaultContent): VaultContent {
-  const agentNotes = getAgentNotes();
-  if (agentNotes.length === 0) return base;
+function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultContent {
+  if (extraNotes.length === 0) return base;
+
+  const seen = new Set(base.notes.map((n) => n.path));
+  const uniqueNotes = extraNotes.filter((n) => !seen.has(n.path));
 
   const uniqueChapters = new Map<string, { subject: string; notes: Note[] }>();
-  for (const note of agentNotes) {
+  for (const note of uniqueNotes) {
     const key = note.chapter;
     if (!uniqueChapters.has(key)) {
       uniqueChapters.set(key, { subject: note.subject, notes: [] });
@@ -64,8 +66,12 @@ function mergeAgentNotes(base: VaultContent): VaultContent {
   return {
     ...base,
     chapters: [...base.chapters, ...agentChapters],
-    notes: [...base.notes, ...agentNotes],
+    notes: [...base.notes, ...uniqueNotes],
   };
+}
+
+function mergeAgentNotes(base: VaultContent): VaultContent {
+  return mergeNotesIntoVault(base, getAgentNotes());
 }
 
 interface VaultState {
@@ -79,7 +85,7 @@ interface VaultState {
   loadVault: () => Promise<void>;
   setCurrentChapter: (chapter: ChapterMeta | null) => void;
   setCurrentNote: (note: Note | null) => void;
-  addAgentNotes: (notes: Note[]) => void;
+  addAgentNotes: (notes: Note[]) => Promise<void>;
 }
 
 export const useVaultStore = create<VaultState>((set, get) => ({
@@ -114,7 +120,23 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       }
 
       if (baseVault) {
-        set({ baseVault, vault: mergeAgentNotes(baseVault), isLoaded: true, isLoading: false });
+        // Merge localStorage agent notes
+        let vault = mergeAgentNotes(baseVault);
+
+        // Also fetch notes from the DB if Supabase is configured
+        try {
+          const notesRes = await fetch("/api/notes");
+          if (notesRes.ok) {
+            const { notes: dbNotes } = await notesRes.json();
+            if (Array.isArray(dbNotes) && dbNotes.length > 0) {
+              vault = mergeNotesIntoVault(vault, dbNotes);
+            }
+          }
+        } catch {
+          // Supabase not configured or offline — localStorage is fine
+        }
+
+        set({ baseVault, vault, isLoaded: true, isLoading: false });
       } else {
         set({ isLoaded: true, isLoading: false });
       }
@@ -124,7 +146,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
   },
 
-  addAgentNotes: (notes: Note[]) => {
+  addAgentNotes: async (notes: Note[]) => {
     const existing = getAgentNotes();
     const merged = [...existing];
     for (const n of notes) {
@@ -134,11 +156,30 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
     saveAgentNotes(merged);
 
-    // Re-merge against the base vault data
+    // Re-merge: localStorage notes + DB notes on top of base vault
     const state = get();
     if (state.baseVault) {
-      set({ vault: mergeAgentNotes(state.baseVault) });
+      let vault = mergeAgentNotes(state.baseVault);
+      try {
+        const notesRes = await fetch("/api/notes");
+        if (notesRes.ok) {
+          const { notes: dbNotes } = await notesRes.json();
+          if (Array.isArray(dbNotes) && dbNotes.length > 0) {
+            vault = mergeNotesIntoVault(vault, dbNotes);
+          }
+        }
+      } catch {
+        // Supabase not configured
+      }
+      set({ vault });
     }
+
+    // Persist to Supabase (fire-and-forget)
+    fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    }).catch(() => {});
   },
 
   setCurrentChapter: (chapter) => set({ currentChapter: chapter }),

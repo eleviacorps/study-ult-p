@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
@@ -10,22 +10,20 @@ import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { cn } from "@/lib/cn";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  reasoning?: string;
-}
+import { loadChat, saveChat, syncChatToDB, getTutorKey, clearChat } from "@/lib/chat-store";
+import type { ChatMessage } from "@/lib/chat-store";
 
 export default function TutorPage() {
   const { vault } = useVaultStore();
   const { ask, config, setProvider, setBaseUrl, setApiKey, setModel, toggleEnabled, isAsking, availableModels, fetchModels } = useLlm();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content: "Hi! Ask me anything about physics. Configure an AI provider in Settings for smarter responses.",
-    },
-  ]);
+
+  const chatKey = getTutorKey();
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const saved = loadChat(chatKey);
+    return saved.length > 0 ? saved : [
+      { role: "assistant" as const, content: "Hi! Ask me anything about physics. Configure an AI provider in Settings for smarter responses." },
+    ];
+  });
   const [mounted, setMounted] = useState(false);
   const [input, setInput] = useState("");
 
@@ -41,6 +39,14 @@ export default function TutorPage() {
       }]);
     }
   }, [mounted, config.enabled]);
+
+  // Persist chat to localStorage + DB on every change
+  useEffect(() => {
+    if (mounted) {
+      saveChat(chatKey, messages);
+      syncChatToDB(messages);
+    }
+  }, [messages, mounted]);
   const [showSettings, setShowSettings] = useState(false);
   const [localProvider, setLocalProvider] = useState(config.provider);
   const [localBaseUrl, setLocalBaseUrl] = useState(config.baseUrl);

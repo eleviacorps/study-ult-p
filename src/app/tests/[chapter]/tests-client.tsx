@@ -9,8 +9,37 @@ import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { Header } from "@/components/layout/header";
-import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
+import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
+
+const TEST_KEY = "studyult-test-inprogress";
+
+function saveTestProgress(state: { questions: TestQuestion[]; currentQ: number; answers: Map<number, string | number>; marked: Set<number>; timeLeft: number; timeSpent: number }) {
+  try { localStorage.setItem(TEST_KEY, JSON.stringify({
+    questions: state.questions, currentQ: state.currentQ,
+    answers: Array.from(state.answers.entries()), marked: Array.from(state.marked),
+    timeLeft: state.timeLeft, timeSpent: state.timeSpent, savedAt: Date.now(),
+  })); } catch {}
+}
+
+function clearTestProgress() {
+  try { localStorage.removeItem(TEST_KEY); } catch {}
+}
+
+function loadTestProgress(): { questions: TestQuestion[]; currentQ: number; answers: Map<number, string | number>; marked: Set<number>; timeLeft: number; timeSpent: number } | null {
+  try {
+    const raw = localStorage.getItem(TEST_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    const elapsed = Math.floor((Date.now() - d.savedAt) / 1000);
+    return {
+      questions: d.questions, currentQ: d.currentQ,
+      answers: new Map(d.answers), marked: new Set(d.marked),
+      timeLeft: Math.max(0, d.timeLeft - elapsed),
+      timeSpent: d.timeSpent + elapsed,
+    };
+  } catch { return null; }
+}
 
 interface TestQuestion {
   text: string;
@@ -41,6 +70,7 @@ export default function TestTakePage() {
   const [timeSpent, setTimeSpent] = useState(0);
   const [score, setScore] = useState<{ correct: number; wrong: number; total: number; feedback: string } | null>(null);
   const [aiScoreLoading, setAiScoreLoading] = useState(false);
+  const [resumeData, setResumeData] = useState<{ questions: TestQuestion[]; currentQ: number; timeLeft: number; timeSpent: number } | null>(null);
 
   const questionsRef = useRef(questions);
   const answersRef = useRef(answers);
@@ -91,6 +121,7 @@ export default function TestTakePage() {
             setAnswers(new Map());
             setMarked(new Set());
             setPhase("started");
+            clearTestProgress();
             return;
           }
         } catch (e) {
@@ -115,6 +146,46 @@ export default function TestTakePage() {
     return () => clearInterval(t);
   }, [phase, timeLeft]);
 
+  // Check for in-progress test on mount
+  useEffect(() => {
+    const saved = loadTestProgress();
+    if (saved && saved.questions.length > 0 && saved.timeLeft > 0) {
+      setResumeData(saved);
+    }
+  }, []);
+
+  // Save progress on every meaningful change during "started" phase
+  useEffect(() => {
+    if (phase !== "started") return;
+    saveTestProgress({ questions, currentQ, answers, marked, timeLeft, timeSpent });
+  }, [phase, currentQ, answers, marked, timeLeft, questions]);
+
+  // Capture timer on visibility change
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden" && phase === "started") {
+        saveTestProgress({ questions, currentQ, answers, marked, timeLeft, timeSpent });
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [phase, questions, currentQ, answers, marked, timeLeft, timeSpent]);
+
+  const resumeTest = () => {
+    if (!resumeData) return;
+    setQuestions(resumeData.questions);
+    setCurrentQ(resumeData.currentQ);
+    setTimeLeft(resumeData.timeLeft);
+    setTimeSpent(resumeData.timeSpent);
+    setResumeData(null);
+    setPhase("started");
+  };
+
+  const discardTest = () => {
+    clearTestProgress();
+    setResumeData(null);
+  };
+
   const startTest = () => {
     const totalMin = customTimeMinutes ? parseInt(customTimeMinutes) || timeMinutes : timeMinutes;
     setTimeMinutes(totalMin);
@@ -133,6 +204,7 @@ export default function TestTakePage() {
 
     setScore({ correct, wrong: qs.length - correct, total: qs.length, feedback: "" });
     setPhase("finished");
+    clearTestProgress();
 
     const today = new Date().toISOString().split("T")[0];
 
@@ -190,6 +262,32 @@ export default function TestTakePage() {
 
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
+
+  if (resumeData) {
+    return (
+      <div className="min-h-screen">
+        <Header breadcrumbs={[{ label: "Mock Tests", href: "/tests" }, { label: chapterName, href: "#" }]} />
+        <div className="flex items-center justify-center min-h-[80vh] px-4">
+          <div className="glass p-8 max-w-md w-full text-center">
+            <RefreshCw className="w-10 h-10 mx-auto mb-3 text-[#F59E0B]" />
+            <h2 className="text-lg font-semibold mb-1">In-Progress Test Found</h2>
+            <p className="text-sm opacity-40 mb-1">{resumeData.questions.length} questions</p>
+            <p className="text-xs opacity-30 mb-6">
+              {Math.floor(resumeData.timeLeft / 60)}m {resumeData.timeLeft % 60}s remaining on Q{resumeData.currentQ + 1}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={resumeTest} className="px-5 py-2 bg-[#1856FF] hover:bg-[#1856FF]/90 text-white text-sm flex items-center gap-2 transition-all">
+                <Play className="w-4 h-4" /> Resume Test
+              </button>
+              <button onClick={discardTest} className="px-5 py-2 bg-[#EF4444]/10 text-[#EF4444] text-sm border border-[#EF4444]/20 flex items-center gap-2 hover:bg-[#EF4444]/20 transition-all">
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isLoaded) return <div className="min-h-screen"><Header /><div className="p-8"><div className="h-80 skeleton rounded-xl max-w-lg mx-auto" /></div></div>;
 

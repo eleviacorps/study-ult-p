@@ -8,8 +8,38 @@ import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { addPoints, updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { Header } from "@/components/layout/header";
-import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2 } from "lucide-react";
+import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
+
+const QUIZ_KEY = "studyult-quiz-inprogress";
+
+function saveQuizProgress(state: { questions: QuizQuestion[]; currentQ: number; answers: Map<number, number | null>; marked: Set<number>; timeLeft: number; timeSpent: number; questionCount: number; timeMinutes: number }) {
+  try { localStorage.setItem(QUIZ_KEY, JSON.stringify({
+    questions: state.questions, currentQ: state.currentQ,
+    answers: Array.from(state.answers.entries()), marked: Array.from(state.marked),
+    timeLeft: state.timeLeft, timeSpent: state.timeSpent, savedAt: Date.now(),
+    questionCount: state.questionCount, timeMinutes: state.timeMinutes,
+  })); } catch {}
+}
+
+function clearQuizProgress() {
+  try { localStorage.removeItem(QUIZ_KEY); } catch {}
+}
+
+function loadQuizProgress(): { questions: QuizQuestion[]; currentQ: number; answers: Map<number, number | null>; marked: Set<number>; timeLeft: number; timeSpent: number } | null {
+  try {
+    const raw = localStorage.getItem(QUIZ_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    const elapsed = Math.floor((Date.now() - d.savedAt) / 1000);
+    return {
+      questions: d.questions, currentQ: d.currentQ,
+      answers: new Map(d.answers), marked: new Set(d.marked),
+      timeLeft: Math.max(0, d.timeLeft - elapsed),
+      timeSpent: d.timeSpent + elapsed,
+    };
+  } catch { return null; }
+}
 
 interface QuizQuestion {
   id: string;
@@ -35,6 +65,7 @@ export default function QuizPage() {
   const [timeSpent, setTimeSpent] = useState(0);
   const [score, setScore] = useState<{ correct: number; wrong: number; unanswered: number; total: number; netScore: number; feedback: string } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [resumeData, setResumeData] = useState<{ questions: QuizQuestion[]; currentQ: number; timeLeft: number; timeSpent: number } | null>(null);
 
   const questionsRef = useRef(questions);
   const answersRef = useRef(answers);
@@ -65,6 +96,7 @@ export default function QuizPage() {
     setAnswers(new Map());
     setMarked(new Set());
     setPhase("started");
+    clearQuizProgress();
   }, [vault, questionCount, timeMinutes, config.enabled]);
 
   useEffect(() => {
@@ -76,6 +108,46 @@ export default function QuizPage() {
     }, 1000);
     return () => clearInterval(t);
   }, [phase, timeLeft]);
+
+  // Check for in-progress quiz on mount
+  useEffect(() => {
+    const saved = loadQuizProgress();
+    if (saved && saved.questions.length > 0 && saved.timeLeft > 0) {
+      setResumeData(saved);
+    }
+  }, []);
+
+  // Save progress on every meaningful change during "started" phase
+  useEffect(() => {
+    if (phase !== "started") return;
+    saveQuizProgress({ questions, currentQ, answers, marked, timeLeft, timeSpent, questionCount, timeMinutes });
+  }, [phase, currentQ, answers, marked, timeLeft, questions]);
+
+  // Capture timer on visibility change (user switches tabs)
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden" && phase === "started") {
+        saveQuizProgress({ questions, currentQ, answers, marked, timeLeft, timeSpent, questionCount, timeMinutes });
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [phase, questions, currentQ, answers, marked, timeLeft, timeSpent, questionCount, timeMinutes]);
+
+  const resumeQuiz = () => {
+    if (!resumeData) return;
+    setQuestions(resumeData.questions);
+    setCurrentQ(resumeData.currentQ);
+    setTimeLeft(resumeData.timeLeft);
+    setTimeSpent(resumeData.timeSpent);
+    setResumeData(null);
+    setPhase("started");
+  };
+
+  const discardQuiz = () => {
+    clearQuizProgress();
+    setResumeData(null);
+  };
 
   const finishQuiz = async () => {
     const qs = questionsRef.current;
@@ -98,6 +170,7 @@ export default function QuizPage() {
     const netScore = correct * 4 - wrong * 1;
     setScore({ correct, wrong, unanswered, total: qs.length, netScore, feedback: "" });
     setPhase("finished");
+    clearQuizProgress();
 
     addPoints(correct * 5 + (netScore > 0 ? netScore * 2 : 0), "Quiz Completed", `${correct}/${qs.length} correct`);
     const today = new Date().toISOString().split("T")[0];
@@ -148,6 +221,32 @@ export default function QuizPage() {
 
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
+
+  if (resumeData) {
+    return (
+      <div className="min-h-screen">
+        <Header breadcrumbs={[{ label: "Quizzes", href: "/quizzes" }]} />
+        <div className="flex items-center justify-center min-h-[80vh] px-4">
+          <div className="glass p-8 max-w-md w-full text-center">
+            <RefreshCw className="w-10 h-10 mx-auto mb-3 text-[#F59E0B]" />
+            <h2 className="text-lg font-semibold mb-1">In-Progress Quiz Found</h2>
+            <p className="text-sm opacity-40 mb-1">{resumeData.questions.length} questions</p>
+            <p className="text-xs opacity-30 mb-6">
+              {Math.floor(resumeData.timeLeft / 60)}m {resumeData.timeLeft % 60}s remaining on Q{resumeData.currentQ + 1}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={resumeQuiz} className="px-5 py-2 bg-[#1856FF] hover:bg-[#1856FF]/90 text-white text-sm flex items-center gap-2 transition-all">
+                <Play className="w-4 h-4" /> Resume Quiz
+              </button>
+              <button onClick={discardQuiz} className="px-5 py-2 bg-[#EF4444]/10 text-[#EF4444] text-sm border border-[#EF4444]/20 flex items-center gap-2 hover:bg-[#EF4444]/20 transition-all">
+                Discard
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isLoaded) return <div className="min-h-screen"><Header /><div className="p-8"><div className="h-80 skeleton rounded-xl max-w-lg mx-auto" /></div></div>;
 

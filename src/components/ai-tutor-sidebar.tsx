@@ -6,8 +6,10 @@ import { useLlm } from "@/lib/llm-context";
 import { addPoints, recordAiConversation } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
-import { Bot, Send, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
+import { Bot, Send, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { loadChat, saveChat, syncChatToDB, getSidebarKey } from "@/lib/chat-store";
+import type { ChatMessage } from "@/lib/chat-store";
 
 interface AiTutorSidebarProps {
   context: string;
@@ -15,14 +17,10 @@ interface AiTutorSidebarProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-interface ChatMsg {
-  role: "user" | "assistant";
-  content: string;
-}
-
 export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSidebarProps) {
+  const sidebarKey = getSidebarKey();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChat(sidebarKey));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const { ask, config } = useLlm();
@@ -30,6 +28,14 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
 
   useEffect(() => {
     messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  // Persist chat to localStorage + DB on every change
+  useEffect(() => {
+    if (messages.length > 0) {
+      saveChat(sidebarKey, messages);
+      syncChatToDB(messages);
+    }
   }, [messages]);
 
   const contextRef = useRef(context);
@@ -104,6 +110,15 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-[#8B5CF6]" />
               <span className="text-sm font-semibold">AI Tutor</span>
+              {messages.length > 0 && (
+                <button
+                  onClick={() => { setMessages([]); saveChat(sidebarKey, []); }}
+                  className="ml-auto p-1 text-white/20 hover:text-[#EF4444] transition-colors"
+                  title="Clear chat"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
             <button onClick={() => toggle(false)} className="p-1 text-white/30 hover:text-white/60">
               <ChevronRight className="w-4 h-4" />
