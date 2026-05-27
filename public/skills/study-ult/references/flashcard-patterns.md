@@ -1,115 +1,69 @@
 # Flashcard Patterns Reference
 
+## Parser Contract
+
+Every flashcard must use this exact structure so StudyUlt can parse it into review cards:
+
+```markdown
+## FC1. [Concept Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Type:** Conceptual / Formula / Comparison / Common Mistake
+
+### Question:
+[One clear question testing understanding]
+
+### Answer:
+[Concise but complete answer - 2-3 sentences]
+
+### Formula:
+$$[Formula with LaTeX, if applicable]$$
+
+### Variable Meanings:
+| Symbol | Meaning |
+|--------|---------|
+| $x$ | [description] |
+
+### When to Use:
+- [Condition 1]
+- [Condition 2]
+
+### When NOT to Use:
+- [Condition where this fails]
+
+### Memory Trick:
+> [!TIP]
+> [Mnemonic or memory phrase]
+
+### Explanation:
+[Common confusion, exam trap, or extra insight]
+
+### Related Concepts:
+- [[Related Topic 1]]
+- [[Related Topic 2]]
+```
+
 ## Flashcard Types
 
 ### Type 1: Conceptual Recall
 
-```markdown
-## FC1. [Concept Name]
-
-**Topic:** [[Topic Name]]
-
-**Question:**
-[One clear question testing understanding]
-
-**Answer:**
-[Concise but complete answer - 2-3 sentences]
-
-**Related:** [[Related Topic]]
-```
+Use `**Type:** Conceptual`. The question should test one definition, law, theorem, or conceptual distinction.
 
 ### Type 2: Formula Flashcard
 
-```markdown
-## FC2. [Formula Name]
-
-**Topic:** [[Topic Name]]
-
-**Formula:**
-$$F = \frac{k q_1 q_2}{r^2}$$
-
-**Meaning:**
-[What the formula represents physically]
-
-**When to Use:**
-[Problem conditions that call for this formula]
-
-**When NOT to Use:**
-[Problem conditions where this formula breaks down]
-
-**Units:**
-$S.I. units: [k] = Nm^2/C^2$
-
-**Memory Trick:**
-[Acronym or mnemonic]
-```
+Use `**Type:** Formula`. Always include `### Formula:` and `### Variable Meanings:` with a two-column table.
 
 ### Type 3: Comparison Flashcard
 
-```markdown
-## FC3. [Comparison]
-
-**Topics:** [[Topic A]] vs [[Topic B]]
-
-**Question:**
-[What is the difference between X and Y?]
-
-**Answer:**
-| Aspect | X | Y |
-|--------|---|---|
-| [Aspect 1] | [Value] | [Value] |
-| [Aspect 2] | [Value] | [Value] |
-
-**When to Use Each:**
-[When to apply X vs Y]
-```
+Use `**Type:** Comparison`. Put the comparison table inside `### Answer:`.
 
 ### Type 4: Memory Trick Flashcard
 
-```markdown
-## FC4. [Memory Aid]
-
-**Topic:** [[Topic Name]]
-
-**Question:**
-[How to remember X?]
-
-**Memory Trick:**
-[Acronym, phrase, or visual]
-
-**What it stands for:**
-[Full expansion]
-
-**Example:**
-[How to apply it]
-```
+Use `**Type:** Memory Trick`. The main mnemonic must be inside `### Memory Trick:`.
 
 ### Type 5: Common Mistake Flashcard
 
-```markdown
-## FC5. [Error Prevention]
-
-**Topic:** [[Topic Name]]
-
-**Question:**
-[A student calculates X. What's wrong?]
-
-**Common Mistake:**
-[Incorrect assumption or method]
-
-**Why it's Wrong:**
-[The correct reasoning]
-
-**Correct Approach:**
-[The right way]
-```
-
-## Active Recall Principles
-
-1. **Encode deeply**: Connect to existing knowledge
-2. **Test frequently**: Questions test understanding, not recognition
-3. **Vary contexts**: Different ways of asking same question
-4. **Include confidence markers**: Track difficulty
+Use `**Type:** Common Mistake`. Put the wrong approach and corrected approach inside `### Answer:` and explain the trap in `### Explanation:`.
 
 ## Coverage Targets
 
@@ -119,19 +73,12 @@ $S.I. units: [k] = Nm^2/C^2$
 | Medium (10-20 topics) | 100 |
 | Large (20+ topics) | 150+ |
 
-## Cross-Linking Rules
+## Quality Checklist
 
-- Every flashcard links to at least one topic
-- Related flashcards link to each other
-- Formula flashcards link to topic notes
-- Memory trick flashcards link to formula flashcards
-
-## Flashcard Quality Checklist
-
+- [ ] Heading is exactly `## FC<number>. <title>`
+- [ ] Uses `### Question:` and `### Answer:`
 - [ ] One concept per flashcard
-- [ ] Clear, single question
-- [ ] Answer fits in 2-3 sentences
-- [ ] Formula included if applicable
-- [ ] Topic wikilink
+- [ ] Topic wikilink included
+- [ ] Formula and variable table included when applicable
 - [ ] Memory trick or insight included
-- [ ] Common confusion addressed
+- [ ] No placeholder text

@@ -13,6 +13,44 @@ description: "Transform raw educational content into a premium Obsidian vault fo
 
 ---
 
+## STRICT PARSER CONTRACT - FOLLOW EXACTLY
+
+The StudyUlt app parses generated files with a deterministic markdown parser. You MUST use the formats below exactly for generated question, MCQ, flashcard, and quiz files.
+
+### Required Files
+
+Write these exact files under the generated chapter path:
+
+```text
+<ChapterPath>/questions/100_questions.md
+<ChapterPath>/questions/100_mcqs.md
+<ChapterPath>/flashcards/100_flashcards.md
+<ChapterPath>/quizzes/100_quizzes.md
+```
+
+### Global Formatting Rules
+
+- Start every solved question and MCQ item with `## Q<number>. <title>`.
+- Start every flashcard with `## FC<number>. <title>`.
+- Start every quiz item with `### Q<number>. <title>`.
+- Use bold metadata fields exactly like `**Topic:**`, `**Subtopic:**`, `**Difficulty:**`, `**Marks:**`, `**Type:**`.
+- Use section headings exactly like `### Given:`, `### Find:`, `### Problem:`, `### Solution:`, `### Answer:`, `### Explanation:`, `### Formula:`, `### Variable Meanings:`, `### Memory Trick:`.
+- Put the answer letter first in MCQs and quizzes, for example `### Answer: C - brief reason`.
+- For MCQs, use only this option table shape:
+
+```markdown
+| A | [Option text] | [Why wrong] |
+| B | [Option text] | [Why wrong] |
+| C | [Option text] | CORRECT - [Why correct] |
+| D | [Option text] | [Why wrong] |
+```
+
+- For quiz multiple-choice items, use only bullet options: `- A) ...`, `- B) ...`, `- C) ...`, `- D) ...`.
+- Do not use placeholder continuations like `[Continue for 100 questions...]`, `(+90 more)`, `same pattern`, or `todo`.
+- Do not mix `**Q:**` / `**A:**` shorthand with flashcards; use `### Question:` and `### Answer:`.
+
+---
+
 ## Workflow Checklist
 
 ```
@@ -198,7 +236,11 @@ This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL c
 - **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
 - **Status:** ⬜ Not Started / 🟡 In Progress / ✅ Completed
 
-[Continue for all chapters...]
+### Chapter N: [[Final Chapter Name]]
+- **Notes:** [[Topic 1]], [[Topic 2]], [[Topic 3]]
+- **Questions:** [[100 Questions]], [[100 MCQs]], [[{EXAM_NAME} Main]], [[{EXAM_NAME} Advanced]]
+- **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
+- **Status:** Completed
 
 ---
 
@@ -921,19 +963,18 @@ $$[Formula 2]$$
 
 **CRITICAL:** Generate EXACTLY 100 questions. Each question MUST have a complete answer with full solution. NO reference text placeholders.
 
-### Question Format - Each Question MUST Have:
+### Solved Question Format - Use This Exact Shape:
 
 ```markdown
 ## Q[X]. [Question Title]
 **Topic:** [[Topic Name]]
 **Subtopic:** [Subtopic]
-**Difficulty:** Easy / Moderate / Difficult
+**Difficulty:** Easy / Moderate / Hard
 **Marks:** [X]
 
 ### Given:
 - [Quantity 1]: [Value] [Unit]
 - [Quantity 2]: [Value] [Unit]
-- ...
 
 ### Find:
 [What needs to be calculated]
@@ -958,11 +999,10 @@ $$= [result]$$
 $$[Final formula]$$
 $$= [final answer] [unit]$$
 
-### Common Mistake:
+### Explanation:
 ⚠️ [What students typically get wrong here]
 
-### Answer:
-✅ **[Final Answer with units]**
+### Answer: [Final answer with units]
 
 ---
 
@@ -1141,20 +1181,18 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 ## Q[X]. [Question Title]
 **Topic:** [[Topic Name]]
 **Subtopic:** [Subtopic]
-**Difficulty:** Easy / Moderate / Difficult
+**Difficulty:** Easy / Moderate / Hard
 **Exam:** {EXAM_LEVEL1} / {EXAM_LEVEL2} / Boards
 
 ### Problem:
 [Clear, unambiguous problem statement]
 
-| Option | Value | Reason |
-|--------|-------|--------|
-| A | [Value] | [Why this is WRONG - specific trap] |
-| B | [Value] | [Why this is WRONG - specific trap] |
-| C | [Value] | **[✓ CORRECT ANSWER]** |
-| D | [Value] | [Why this is WRONG - specific trap] |
+| A | [Option text] | [Why this is wrong] |
+| B | [Option text] | [Why this is wrong] |
+| C | [Option text] | CORRECT - [Why this is correct] |
+| D | [Option text] | [Why this is wrong] |
 
-### Answer: C
+### Answer: C - [brief reason]
 
 ### Detailed Explanation:
 > [!KEY-CONCEPT]
@@ -1209,36 +1247,38 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 **Subtopic:** [Subtopic]
 **Type:** Conceptual / Formula / Comparison / Common Mistake
 
-**Q:** [One clear question testing understanding]
+### Question:
+[One clear question testing understanding]
 
-**A:** [Concise but complete answer - 2-3 sentences]
+### Answer:
+[Concise but complete answer - 2-3 sentences]
 [Key formula if applicable]
 
-**Formula:**
+### Formula:
 $$[Formula with LaTeX]$$
 
-**Variable Meanings:**
+### Variable Meanings:
 | Symbol | Meaning |
 |--------|---------|
 | $x$ | [description] |
 | $y$ | [description] |
 
-**When to Use:**
-- ✅ [Condition 1]
-- ✅ [Condition 2]
+### When to Use:
+- [Condition 1]
+- [Condition 2]
 
-**When NOT to Use:**
-- ❌ [Condition where this fails]
+### When NOT to Use:
+- [Condition where this fails]
 
-**Memory Trick:**
+### Memory Trick:
 > [!TIP]
 > **Mnemonic:** [memory phrase]
 > **What it stands for:** [full expansion]
 
-**Common Confusion:**
+### Explanation:
 ⚠️ [Why students struggle with this concept]
 
-**Related Concepts:**
+### Related Concepts:
 - [[Related Topic 1]]
 - [[Related Topic 2]]
 
@@ -1262,9 +1302,9 @@ $$[Formula with LaTeX]$$
 
 ---
 
-## Step 10: Quizzes Template (100 Quizzes - WITH ANSWERS)
+## Step 10: Quizzes Template (100 Multiple-Choice Quizzes - WITH ANSWERS)
 
-**CRITICAL:** Generate 100 quiz items with ANSWERS.
+**CRITICAL:** Generate 100 quiz items with A-D options and ANSWERS. The quiz UI expects selectable options, so every quiz item must be multiple choice.
 
 ```markdown
 # 100+ Quizzes
@@ -1279,31 +1319,39 @@ $$[Formula with LaTeX]$$
 - C) [Option]
 - D) [Option]
 
-**Answer:** [Correct option with brief reason]
+### Answer: C - [brief reason]
 
-### Q2. [Question Type: True/False]
-> [Statement]
+### Q2. [Question Type: Multiple Choice]
+> [Question]
 
-**Answer:** True/False with explanation
+- A) [Option]
+- B) [Option]
+- C) [Option]
+- D) [Option]
 
-### Q3. [Question Type: Fill in Blank]
-> [Statement with ____ blank]
+### Answer: A - [brief reason]
 
-**Answer:** [Correct answer]
+### Q100. [Final Question Type]
+> [Final complete quiz prompt]
 
-[Continue for 100 questions...]
+- A) [Option]
+- B) [Option]
+- C) [Option]
+- D) [Option]
+
+### Answer: D - [Final complete explanation]
 
 ### Quiz Summary:
 - Total Questions: 100
 - Topics Covered: [List]
-- Difficulty: Mix of Easy/Moderate/Difficult
+- Difficulty: Mix of Easy/Moderate/Hard
 ```
 
 ### Quiz Pre-Delivery Checklist:
 - [ ] All 100 quiz items have answers
 - [ ] Each answer includes brief explanation
 - [ ] Topics distributed across chapter
-- [ ] Mix of question types included
+- [ ] Every quiz item has A-D options
 
 ---
 

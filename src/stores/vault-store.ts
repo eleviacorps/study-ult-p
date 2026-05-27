@@ -39,58 +39,207 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
 
+type MarkdownBlock = {
+  title: string;
+  body: string;
+};
+
+type ParsedSections = Map<string, string>;
+
+const CORRECT_MARKERS = ["correct", "answer", "✓", "✅", "✔", "âœ“", "âœ…"];
+
+function notePathIncludes(note: Note, segment: string): boolean {
+  const path = note.path.toLowerCase().replace(/\\/g, "/");
+  return path === segment || path.startsWith(`${segment}/`) || path.includes(`/${segment}/`);
+}
+
+function normalizeSectionKey(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function splitNumberedBlocks(content: string, prefix: "Q" | "FC"): MarkdownBlock[] {
+  const headingRx = new RegExp(`^#{2,3}\\s+(${prefix}\\d+)(?:[.)])?\\s*(.*)$`, "gmi");
+  const matches = [...content.matchAll(headingRx)];
+
+  return matches.map((match, index) => {
+    const title = `${match[1]}${match[2] ? `. ${match[2].trim()}` : ""}`.trim();
+    const bodyStart = (match.index || 0) + match[0].length;
+    const bodyEnd = index + 1 < matches.length ? matches[index + 1].index || content.length : content.length;
+    return { title, body: content.slice(bodyStart, bodyEnd).trim() };
+  });
+}
+
+function parseSections(block: string): ParsedSections {
+  const sections: ParsedSections = new Map();
+  let currentKey = "";
+  let currentValue: string[] = [];
+
+  const commit = () => {
+    if (!currentKey) return;
+    sections.set(currentKey, currentValue.join("\n").trim());
+  };
+
+  for (const line of block.split(/\r?\n/)) {
+    const headingMatch = line.match(/^#{1,4}\s+(.+?)(?::\s*(.*))?$/);
+    const boldMatch = line.match(/^\*\*([^*:]+):\*\*\s*(.*)$/);
+    const shortBoldMatch = line.match(/^\*\*([QA]):\*\*?\s*(.*)$/i);
+    const match = headingMatch || boldMatch || shortBoldMatch;
+
+    if (match) {
+      commit();
+      currentKey = normalizeSectionKey(match[1]);
+      currentValue = match[2] ? [match[2]] : [];
+      continue;
+    }
+
+    if (currentKey) {
+      currentValue.push(line);
+    }
+  }
+
+  commit();
+  return sections;
+}
+
+function getSection(sections: ParsedSections, labels: string[]): string {
+  for (const label of labels) {
+    const value = sections.get(normalizeSectionKey(label));
+    if (value) return stripField(value);
+  }
+  return "";
+}
+
+function stripMdNoise(value: string): string {
+  return value
+    .replace(/^>\s?/gm, "")
+    .replace(/^\s*(?:✅|✓|✔|❌|⚠️|âœ…|âœ“|âŒ|âš ï¸)\s*/gm, "")
+    .replace(/^\[![^\]]+\]\s*$/gm, "")
+    .replace(/\*\*\[?\s*(?:✅|✓|✔|âœ…|âœ“)?\s*correct answer\s*\]?\*\*/gi, "")
+    .replace(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g, "$1")
+    .trim();
+}
+
+function normalizeDifficulty(value: string): "Easy" | "Moderate" | "Hard" {
+  const lower = value.toLowerCase();
+  if (lower.includes("easy")) return "Easy";
+  if (lower.includes("hard") || lower.includes("difficult")) return "Hard";
+  return "Moderate";
+}
+
+function parseVariableMeanings(value: string): { symbol: string; meaning: string }[] | undefined {
+  const rows: { symbol: string; meaning: string }[] = [];
+
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = stripMdNoise(line);
+    if (!trimmed || /^[-|:\s]+$/.test(trimmed)) continue;
+
+    if (trimmed.startsWith("|")) {
+      const cells = trimmed.split("|").map((cell) => cell.trim()).filter(Boolean);
+      if (cells.length < 2 || /^symbol$/i.test(cells[0]) || /^-+$/.test(cells[0])) continue;
+      rows.push({ symbol: cells[0], meaning: cells.slice(1).join(" - ") });
+      continue;
+    }
+
+    const listMatch = trimmed.match(/^[-*]?\s*([^:=-]+)\s*[:=-]\s*(.+)$/);
+    if (listMatch) {
+      rows.push({ symbol: listMatch[1].trim(), meaning: listMatch[2].trim() });
+    }
+  }
+
+  return rows.length > 0 ? rows : undefined;
+}
+
+function hasCorrectMarker(value: string): boolean {
+  const lower = value.toLowerCase();
+  return CORRECT_MARKERS.some((marker) => lower.includes(marker));
+}
+
+function cleanOptionText(value: string): string {
+  return stripMdNoise(value)
+    .replace(/\*\*\[?\s*(?:✅|✓|✔|âœ…|âœ“)?\s*correct answer\s*\]?\*\*/gi, "")
+    .replace(/\(?\s*(?:correct|answer)\s*\)?/gi, "")
+    .trim();
+}
+
+function parseOptions(block: string): { label: string; text: string; correct?: boolean }[] {
+  const options: { label: string; text: string; correct?: boolean }[] = [];
+
+  const checkboxMatches = [...block.matchAll(/^\s*[-*]\s*\[([ xX])\]\s*(.+)$/gm)];
+  if (checkboxMatches.length > 0) {
+    return checkboxMatches.map((match, index) => ({
+      label: String.fromCharCode(65 + index),
+      text: cleanOptionText(match[2]),
+      correct: match[1].toLowerCase() === "x",
+    }));
+  }
+
+  const tableRows = [...block.matchAll(/^\s*\|(.+)\|\s*$/gm)]
+    .map((match) => match[1].split("|").map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 2);
+  const tableOptions = tableRows.filter((cells) => /^[A-D]$/i.test(cells[0]));
+  if (tableOptions.length >= 2) {
+    return tableOptions.map((cells) => ({
+      label: cells[0].toUpperCase(),
+      text: cleanOptionText(cells[1]),
+      correct: hasCorrectMarker(cells.join(" ")),
+    }));
+  }
+
+  const letterMatches = [...block.matchAll(/^\s*(?:[-*]\s*)?([A-D])[).]\s+(.+)$/gim)];
+  for (const match of letterMatches) {
+    options.push({
+      label: match[1].toUpperCase(),
+      text: cleanOptionText(match[2]),
+      correct: hasCorrectMarker(match[2]),
+    });
+  }
+
+  return options;
+}
+
+function applyAnswerToOptions<T extends { label: string; text: string; correct?: boolean }>(options: T[], answer: string): T[] {
+  if (options.length === 0 || options.some((option) => option.correct)) return options;
+  const answerLabel = stripMdNoise(answer).match(/^([A-D])(?:\b|[).:])/i)?.[1]?.toUpperCase();
+  if (!answerLabel) return options;
+  return options.map((option) => option.label === answerLabel ? { ...option, correct: true } : option);
+}
+
 // Parse questions from agent-generated files (paths containing "questions/")
-function parseAgentQuestions(notes: Note[]): Question[] {
+export function parseAgentQuestions(notes: Note[]): Question[] {
   const result: Question[] = [];
   for (const note of notes) {
-    if (!note.path.includes("questions/")) continue;
+    if (!notePathIncludes(note, "questions")) continue;
     const chapter = note.chapter;
     const subject = note.subject || "";
-    const blocks = note.content.split(/^#{2,3}\s+Q\d+/m).slice(1);
+    const blocks = splitNumberedBlocks(note.content, "Q");
     if (blocks.length === 0) continue;
-    const titles = note.content.match(/^#{2,3}\s+(Q\d+.+)$/gm) || [];
-    blocks.forEach((block, i) => {
-      const title = titles[i]?.replace(/^#{2,3}\s+/, "").trim() || `Question ${i + 1}`;
-      const diffMatch = block.match(fieldRx("Difficulty"));
-      const marksMatch = block.match(fieldRx("Marks"));
-      const marksVal = marksMatch?.[1]?.match(/\d+/)?.[0];
-      const givenMatch = block.match(fieldRx("Given"));
-      const findMatch = block.match(fieldRx("Find"));
-      const solutionMatch = block.match(fieldRx("Solution"));
-      const answerMatch = block.match(fieldRx("Answer"));
-      const explanationMatch = block.match(fieldRx("Explanation"));
-      const aShortMatch = !answerMatch ? block.match(/\*\*A:(?:\*\*)?\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
 
-      // Parse options from table format or A) format
-      let options: { label: string; text: string }[] | undefined;
-      const optTableMatch = block.match(/^\|\s*([A-D])\s*\|\s*([^|]+)/m);
-      if (optTableMatch) {
-        const tableOpts = [...block.matchAll(/^\|\s*([A-D])\s*\|\s*([^|]+)/gm)];
-        if (tableOpts.length >= 2) {
-          options = tableOpts.map((m) => ({ label: m[1], text: m[2].trim() }));
-        }
-      }
-      if (!options) {
-        const optListMatch = block.match(/(?:^|\n)([A-D])\)\s+(.+)/g);
-        if (optListMatch) {
-          options = [...block.matchAll(/([A-D])\)\s+(.+)/g)].map((m) => ({ label: m[1], text: m[2].trim() }));
-        }
-      }
+    blocks.forEach(({ title, body }, i) => {
+      const sections = parseSections(body);
+      const marksVal = getSection(sections, ["Marks"]).match(/\d+/)?.[0];
+      const answer = getSection(sections, ["Answer", "A"]);
+      const explanation = getSection(sections, ["Explanation", "Detailed Explanation", "Why Other Options Are Wrong"]);
+      const solution = getSection(sections, ["Solution", "Detailed Explanation", "Approach", "Step-by-step solution"]) || explanation;
+      const parsedOptions = applyAnswerToOptions(parseOptions(body), answer);
+      const options = parsedOptions.length >= 2
+        ? parsedOptions.map((option) => ({ label: option.label, text: option.text }))
+        : undefined;
 
       result.push({
-        id: slugify(`${chapter}-q-${i + 1}`),
+        id: slugify(`${chapter}-${note.id}-q-${i + 1}`),
         title,
         chapter,
         subject,
-        topic: "",
-        difficulty: (stripField(diffMatch?.[1]) || "Moderate") as "Easy" | "Moderate" | "Hard",
+        topic: stripMdNoise(getSection(sections, ["Topic"])),
+        subtopic: stripMdNoise(getSection(sections, ["Subtopic"])) || undefined,
+        difficulty: normalizeDifficulty(getSection(sections, ["Difficulty"])),
         marks: marksVal ? parseInt(marksVal) : 4,
-        given: stripField(givenMatch?.[1]),
-        find: stripField(findMatch?.[1]),
+        given: getSection(sections, ["Given", "Problem"]),
+        find: getSection(sections, ["Find"]),
         options,
-        solution: stripField(solutionMatch?.[1]) || stripField(aShortMatch?.[1]),
-        answer: stripField(answerMatch?.[1]),
-        explanation: stripField(explanationMatch?.[1]),
+        solution,
+        answer,
+        explanation,
         tags: note.tags,
         type: options ? "mcq" : "solved",
       });
@@ -100,36 +249,32 @@ function parseAgentQuestions(notes: Note[]): Question[] {
 }
 
 // Parse flashcards from agent-generated files (paths containing "flashcards/")
-function parseAgentFlashcards(notes: Note[]): Flashcard[] {
+export function parseAgentFlashcards(notes: Note[]): Flashcard[] {
   const result: Flashcard[] = [];
   for (const note of notes) {
-    if (!note.path.includes("flashcards/")) continue;
+    if (!notePathIncludes(note, "flashcards")) continue;
     const chapter = note.chapter;
     const subject = note.subject || "";
-    const blocks = note.content.split(/^##\s+FC\d+/m).slice(1);
+    const blocks = splitNumberedBlocks(note.content, "FC");
     if (blocks.length === 0) continue;
-    const titles = note.content.match(/^##\s+(FC\d+.+)$/gm) || [];
-    blocks.forEach((block, i) => {
-      const question = titles[i]?.replace(/^##\s+FC\d+\.\s*/, "").trim() || "";
-      const answerMatch = block.match(fieldRx("Answer"));
-      const aShortMatch = !answerMatch ? block.match(/\*\*A:(?:\*\*)?\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
-      const formulaMatch = block.match(fieldRx("Formula"));
-      const varMatch = block.match(fieldRx("Variable Meanings"));
-      const memoryMatch = block.match(fieldRx("Memory Trick"));
+
+    blocks.forEach(({ title, body }, i) => {
+      const sections = parseSections(body);
+      const titleQuestion = title.replace(/^FC\d+\.?\s*/, "").trim();
+      const variableMeanings = parseVariableMeanings(getSection(sections, ["Variable Meanings", "Meaning"]));
+
       result.push({
-        id: slugify(`${chapter}-fc-${i + 1}`),
+        id: slugify(`${chapter}-${note.id}-fc-${i + 1}`),
         chapter,
         subject,
-        topic: "",
-        type: "definition",
-        question,
-        answer: stripField(answerMatch?.[1]) || stripField(aShortMatch?.[1]),
-        formula: stripField(formulaMatch?.[1]),
-        variableMeanings: varMatch?.[1]?.trim().split("\n").filter(Boolean).map((l) => {
-          const parts = l.trim().replace(/^-\s*/, "").split(":").map((s) => s.trim());
-          return parts.length >= 2 ? { symbol: parts[0], meaning: parts.slice(1).join(": ") } : { symbol: parts[0] || "", meaning: l.trim() };
-        }),
-        memoryTrick: stripField(memoryMatch?.[1]),
+        topic: stripMdNoise(getSection(sections, ["Topic", "Topics"])),
+        subtopic: stripMdNoise(getSection(sections, ["Subtopic"])) || undefined,
+        type: getSection(sections, ["Type"]) || "definition",
+        question: getSection(sections, ["Question", "Q"]) || titleQuestion,
+        answer: getSection(sections, ["Answer", "A", "Common Mistake", "Correct Approach"]),
+        formula: getSection(sections, ["Formula"]) || undefined,
+        variableMeanings,
+        memoryTrick: getSection(sections, ["Memory Trick", "Memory", "Mnemonic"]) || undefined,
         tags: note.tags,
       });
     });
@@ -138,68 +283,29 @@ function parseAgentFlashcards(notes: Note[]): Flashcard[] {
 }
 
 // Parse quizzes from agent-generated files (paths containing "quizzes/")
-function parseAgentQuizzes(notes: Note[]): { id: string; chapter: string; question: string; options: { label: string; text: string; correct: boolean }[]; explanation?: string }[] {
+export function parseAgentQuizzes(notes: Note[]): { id: string; chapter: string; question: string; options: { label: string; text: string; correct: boolean }[]; explanation?: string }[] {
   const result: { id: string; chapter: string; question: string; options: { label: string; text: string; correct: boolean }[]; explanation?: string }[] = [];
   for (const note of notes) {
-    if (!note.path.includes("quizzes/")) continue;
+    if (!notePathIncludes(note, "quizzes")) continue;
     const chapter = note.chapter;
-    const blocks = note.content.split(/^###\s+Q\d+/m).slice(1);
+    const blocks = splitNumberedBlocks(note.content, "Q");
     if (blocks.length === 0) continue;
-    const titles = note.content.match(/^###\s+(Q\d+.+)$/gm) || [];
-    blocks.forEach((block, i) => {
-      const qText = titles[i]?.replace(/^###\s+Q\d+\.\s*/, "").trim() || "";
-      // Extract the question text (everything up to the first option line)
-      const qMatch = block.match(/^>\s*(.+)/m);
-      const question = qMatch?.[1]?.trim() || qText;
-      const expMatch = block.match(fieldRx("Answer"));
 
-      const options: { label: string; text: string; correct: boolean }[] = [];
-
-      // Try checkbox format: - [x] Option or - [ ] Option
-      let checkboxMatch = [...block.matchAll(/[-*]\s*\[([ x])\]\s*(.+)/g)];
-      if (checkboxMatch.length > 0) {
-        for (const m of checkboxMatch) {
-          options.push({ label: String.fromCharCode(65 + options.length), text: m[2].trim(), correct: m[1] === "x" });
-        }
-      }
-
-      // Try letter format: - A) Option or A) Option
-      if (options.length === 0) {
-        const letterMatch = [...block.matchAll(/(?:^|\n)\s*(?:-|\*)?\s*([A-D])[).]\s+(.+)/g)];
-        if (letterMatch.length > 0) {
-          for (const m of letterMatch) {
-            const correct = m[2].toLowerCase().includes("correct") || m[2].toLowerCase().includes("✓");
-            options.push({ label: m[1], text: m[2].trim(), correct });
-          }
-        }
-      }
-
-      // Try table format: | A | Option | Reason |
-      if (options.length === 0) {
-        const tableMatch = [...block.matchAll(/^\|\s*([A-D])\s*\|\s*([^|]+)/gm)];
-        if (tableMatch.length >= 2) {
-          for (const m of tableMatch) {
-            const correct = m[2].toLowerCase().includes("correct") || m[2].toLowerCase().includes("✓");
-            options.push({ label: m[1], text: m[2].trim(), correct });
-          }
-        }
-      }
-
-      // Mark correct option from Answer field
-      const answerText = stripField(expMatch?.[1]);
-      if (answerText && options.length > 0 && !options.some((o) => o.correct)) {
-        const answerLabel = answerText.match(/^([A-D])/)?.[1];
-        if (answerLabel) {
-          for (const opt of options) {
-            if (opt.label === answerLabel) opt.correct = true;
-          }
-        }
-      }
+    blocks.forEach(({ title, body }, i) => {
+      const sections = parseSections(body);
+      const answerText = getSection(sections, ["Answer", "A", "Explanation"]);
+      const blockquoteQuestion = body.match(/^>\s*(.+)/m)?.[1]?.trim() || "";
+      const question = getSection(sections, ["Question", "Problem"]) || blockquoteQuestion || title.replace(/^Q\d+\.?\s*/, "").trim();
+      const options = applyAnswerToOptions(parseOptions(body), answerText).map((option) => ({
+        label: option.label,
+        text: option.text,
+        correct: !!option.correct,
+      }));
 
       result.push({
-        id: slugify(`${chapter}-qz-${i + 1}`),
+        id: slugify(`${chapter}-${note.id}-qz-${i + 1}`),
         chapter,
-        question,
+        question: stripMdNoise(question),
         options,
         explanation: answerText,
       });
@@ -212,14 +318,9 @@ function dedupKey(n: Note): string {
   return `${n.chapter}|${n.id}`;
 }
 
-// Strip trailing closing ** from field values (e.g. "A**" → "A")
+// Strip trailing closing ** from field values (e.g. "A**" -> "A")
 function stripField(val: string | undefined): string {
-  return val?.trim().replace(/\*+\s*$/, "") || "";
-}
-
-// Match both **Label:** and ### Label field headers
-function fieldRx(label: string): RegExp {
-  return new RegExp(`(?:\\*\\*${label}:|###\\s+${label})\\s*([\\s\\S]*?)(?=\\n(?:\\*\\*|###)\\s*(?:Given|Find|Solution|Answer|Explanation|Formula|Variable|Memory|Options|Difficulty|Marks|Topic|Subtopic|Exam)|\\*\\*\\n|$)`, 'i');
+  return stripMdNoise(val?.trim().replace(/\*+\s*$/, "") || "");
 }
 
 function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultContent {
