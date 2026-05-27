@@ -312,3 +312,33 @@ Validation:
 Next steps:
 
 - Implement Step 3: schema foundations and note ingestion hashing.
+
+### 2026-05-27 - Step 3 - Schema Foundations And Note Hashing
+
+Intent: Establish the first Phase 1 stability layer: content identity, idempotent note ingestion, cognitive-state tables, chat-memory tables, canonical vault tables, retrieval tables, and RLS coverage for the new tables.
+
+Files changed:
+
+- `supabase-schema.sql`
+- `src/lib/content-identity.ts`
+- `src/app/api/notes/route.ts`
+
+Implementation:
+
+- Added `content_hash` and `canonical_slug` to `user_notes`.
+- Added a unique per-user note content hash index to prevent duplicate user note ingestion under different paths.
+- Added `chat_sessions`, `chat_context_summaries`, and `interaction_memory` for scoped AI memory.
+- Added student cognitive state foundations: `student_learning_state`, `student_mastery`, `student_misconceptions`, `student_focus_queue`, `student_recovery_tasks`, `student_ai_profiles`, and `student_goal_profiles`.
+- Added canonical vault/retrieval foundations: `vault_documents`, `vault_chunks`, `vault_nodes`, `vault_edges`, `vault_ingestion_logs`, `content_embeddings`, `question_embeddings`, `concept_relationships`, and `semantic_clusters`.
+- Enabled RLS and owner-only policies for all new user-scoped tables.
+- Added `sha256Hex` and `canonicalSlug` utilities.
+- Updated `/api/notes` to validate note payloads, compute SHA-256 hashes server-side, skip duplicate content under different paths, and persist canonical slugs.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- The Supabase SQL must be applied to the project database before the deployed `/api/notes` route can select `content_hash`.
+- Next slice should replace raw `chat_messages` persistence with first-class `chat_sessions` and non-duplicating message sync.
