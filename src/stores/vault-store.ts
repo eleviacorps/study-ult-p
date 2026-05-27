@@ -246,6 +246,13 @@ function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultConte
   const parsedFlashcards = parseAgentFlashcards(uniqueNotes);
   const parsedQuizzes = parseAgentQuizzes(uniqueNotes);
 
+  // Ensure all notes have links/backlinks arrays (safety for missing fields from old data)
+  const safeNotes = uniqueNotes.map((n) => ({
+    ...n,
+    links: n.links || [],
+    backlinks: n.backlinks || [],
+  }));
+
   // Dedup questions/flashcards/quizzes by id (prevent accumulation on re-merge)
   const seenQ = new Set(base.questions.map((q) => q.id));
   const seenF = new Set(base.flashcards.map((f) => f.id));
@@ -254,7 +261,7 @@ function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultConte
   return {
     ...base,
     chapters: [...base.chapters, ...agentChapters],
-    notes: [...base.notes, ...uniqueNotes],
+    notes: [...base.notes, ...safeNotes],
     questions: [...base.questions, ...parsedQuestions.filter((q) => !seenQ.has(q.id))],
     flashcards: [...base.flashcards, ...parsedFlashcards.filter((f) => !seenF.has(f.id))],
     quizzes: [...base.quizzes, ...parsedQuizzes.filter((z) => !seenZ.has(z.id))],

@@ -16,7 +16,7 @@ export default function ReaderChapterPage() {
 
   const chapterName = decodeURIComponent(params.chapter);
 
-  const chapterNotes = vault ? vault.notes.filter((n) => n.chapter === chapterName) : [];
+  const chapterNotes = vault ? vault.notes.filter((n) => n.chapter === chapterName && !n.path.match(/[/\\](questions|flashcards|quizzes)[/\\]/)) : [];
 
   if (!isLoaded || !vault) {
     return (

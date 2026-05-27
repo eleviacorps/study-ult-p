@@ -225,24 +225,22 @@ export default function NoteAgentPage() {
   };
 
   const saveToVault = () => {
-    const notes: Note[] = files
-      .filter((f) => f.path.includes("/notes/"))
-      .map((f) => {
-        const parts = f.path.split("/");
-        const filename = parts[parts.length - 1].replace(".md", "");
-        const title = filename.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-        return {
-          id: filename,
-          title,
-          path: f.path,
-          chapter: chapterName,
-          subject: parts[0] || "",
-          tags: [chapterName, parts[0]].filter(Boolean),
-          content: f.content,
-          links: [],
-          backlinks: [],
-        };
-      });
+    const notes: Note[] = files.map((f) => {
+      const parts = f.path.split("/");
+      const filename = parts[parts.length - 1].replace(".md", "");
+      const title = filename.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      return {
+        id: filename,
+        title,
+        path: f.path,
+        chapter: chapterName,
+        subject: parts[0] || "",
+        tags: [chapterName, parts[0]].filter(Boolean),
+        content: f.content,
+        links: [],
+        backlinks: [],
+      };
+    });
 
     useVaultStore.getState().addAgentNotes(notes);
     setVaultSaved(true);

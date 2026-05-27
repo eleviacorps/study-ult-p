@@ -52,12 +52,14 @@ export default function GraphPage() {
       if (seenTitles.has(note.title)) continue;
       seenTitles.add(note.title);
       const isCore = note.path.endsWith("core.md");
+      const linksArr = note.links || [];
+      const backlinksArr = note.backlinks || [];
       const node: SimNode = {
         id: note.id,
         label: note.title,
         group: note.chapter,
         type: isCore ? "chapter" : "note",
-        val: note.links.length + note.backlinks.length + 1,
+        val: linksArr.length + backlinksArr.length + 1,
         x: Math.random() * 600,
         y: Math.random() * 400,
       };
@@ -69,7 +71,7 @@ export default function GraphPage() {
     for (const note of vault.notes) {
       const source = nodeMap.get(note.title.toLowerCase());
       if (!source) continue;
-      for (const link of note.links) {
+      for (const link of note.links || []) {
         const target = nodeMap.get(link.target.toLowerCase());
         if (target && target.id !== source.id) {
           links.push({ source, target, type: "wiki-link" });

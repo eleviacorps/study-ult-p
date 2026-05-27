@@ -38,7 +38,7 @@ export default function ReaderRootPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {vault.chapters.map((ch, i) => {
-              const noteCount = vault.notes.filter((n) => n.chapter === ch.name).length;
+              const noteCount = vault.notes.filter((n) => n.chapter === ch.name && !n.path.match(/[/\\](questions|flashcards|quizzes)[/\\]/)).length;
               return (
                 <motion.div
                   key={ch.name}
