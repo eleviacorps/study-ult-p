@@ -59,7 +59,7 @@ function parseAgentQuestions(notes: Note[]): Question[] {
       const solutionMatch = block.match(fieldRx("Solution"));
       const answerMatch = block.match(fieldRx("Answer"));
       const explanationMatch = block.match(fieldRx("Explanation"));
-      const aShortMatch = !answerMatch ? block.match(/\*\*A:\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
+      const aShortMatch = !answerMatch ? block.match(/\*\*A:(?:\*\*)?\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
 
       // Parse options from table format or A) format
       let options: { label: string; text: string }[] | undefined;
@@ -112,7 +112,7 @@ function parseAgentFlashcards(notes: Note[]): Flashcard[] {
     blocks.forEach((block, i) => {
       const question = titles[i]?.replace(/^##\s+FC\d+\.\s*/, "").trim() || "";
       const answerMatch = block.match(fieldRx("Answer"));
-      const aShortMatch = !answerMatch ? block.match(/\*\*A:\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
+      const aShortMatch = !answerMatch ? block.match(/\*\*A:(?:\*\*)?\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
       const formulaMatch = block.match(fieldRx("Formula"));
       const varMatch = block.match(fieldRx("Variable Meanings"));
       const memoryMatch = block.match(fieldRx("Memory Trick"));
