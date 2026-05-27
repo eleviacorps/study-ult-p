@@ -57,6 +57,7 @@ export function setChatSession(key: string, sessionId: string, syncedCount = 0) 
   try {
     localStorage.setItem(storageKey(key, "session-id"), sessionId);
     localStorage.setItem(storageKey(key, "synced-count"), String(syncedCount));
+    localStorage.setItem(storageKey(key, "summarized-count"), String(syncedCount));
   } catch {}
 }
 
@@ -121,7 +122,30 @@ export function syncChatToDB(key: string, messages: ChatMessage[], options: Chat
     .then((res) => {
       if (res.ok) {
         localStorage.setItem(storageKey(key, "synced-count"), String(messages.length));
+        maybeSummarizeChat(key, sessionId, messages.length);
       }
+    })
+    .catch(() => {});
+}
+
+function maybeSummarizeChat(key: string, sessionId: string, messageCount: number) {
+  if (messageCount < 8) return;
+
+  const summaryKey = storageKey(key, "summarized-count");
+  let summarizedCount = 0;
+  try {
+    summarizedCount = Number(localStorage.getItem(summaryKey) || "0");
+  } catch {}
+
+  if (messageCount - summarizedCount < 6) return;
+
+  fetch("/api/chat/summary", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  })
+    .then((res) => {
+      if (res.ok) localStorage.setItem(summaryKey, String(messageCount));
     })
     .catch(() => {});
 }

@@ -681,3 +681,30 @@ Known follow-up:
 
 - Run visual checks on mobile widths after the broader UI pass.
 - Audit each major page for bottom-nav overlap and thumb reach.
+
+### 2026-05-27 - Step 16 - Scoped Chat Summaries
+
+Intent: Add compressed chat memory so long sessions can be represented by summaries instead of raw full-history injection.
+
+Files changed:
+
+- `src/app/api/chat/summary/route.ts`
+- `src/lib/chat-store.ts`
+
+Implementation:
+
+- Added `/api/chat/summary` for authenticated, owner-scoped session summarization.
+- The summary route verifies session ownership, reads scoped messages, generates a compact AI summary through the server-side model boundary, and falls back to deterministic compression if AI is unavailable.
+- Stores summaries in `chat_context_summaries` with covered message ids and token estimates.
+- Updates `chat_sessions.summary` with the latest compact summary.
+- Updated chat sync to trigger summarization automatically after sessions reach enough new messages.
+- Session switching now marks fetched messages as summarized/synced locally to prevent immediate duplicate summary calls.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Inject `chat_sessions.summary` and latest `chat_context_summaries` into Tutor payloads.
+- Add user-visible summary previews in chat history.
