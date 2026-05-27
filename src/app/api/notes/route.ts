@@ -68,3 +68,31 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ synced: true });
 }
+
+// DELETE /api/notes?chapter=xxx — delete all notes for a chapter (or all if no chapter)
+export async function DELETE(request: Request) {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return NextResponse.json({ deleted: false, error: "supabase_not_configured" }, { status: 501 });
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const chapter = searchParams.get("chapter");
+
+  let query = supabase.from("user_notes").delete().eq("user_id", user.id);
+  if (chapter) {
+    query = query.eq("chapter", chapter);
+  }
+  const { error } = await query;
+
+  if (error) {
+    return NextResponse.json({ deleted: false, error: error.message });
+  }
+
+  return NextResponse.json({ deleted: true });
+}
