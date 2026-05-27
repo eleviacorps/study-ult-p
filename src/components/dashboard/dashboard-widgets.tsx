@@ -48,7 +48,7 @@ function WidgetCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay, ease: [0.25, 0.4, 0.25, 1] }}
-      className={cn("glass p-5 flex flex-col gap-3", className)}
+      className={cn("glass p-4 sm:p-5 flex flex-col gap-3 rounded-2xl", className)}
     >
       {children}
     </motion.div>
@@ -276,18 +276,18 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
   }
 
   return (
-    <div className="space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">
+    <div className="space-y-4 sm:space-y-6">
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div className="min-w-0">
+            <div className="flex items-start sm:items-center gap-3 flex-col sm:flex-row">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight">
                 Welcome back, <span className="text-[#1856FF]">Student</span>
               </h1>
-              <button onClick={() => handleUpdate()} disabled={updating || aiGenerating} className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] disabled:opacity-40">
+              <button onClick={() => handleUpdate()} disabled={updating || aiGenerating} className="min-h-10 flex items-center gap-1.5 px-3 py-2 text-[11px] rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] disabled:opacity-40">
                 <RefreshCw className={cn("w-3 h-3", updating && "animate-spin")} /> {updating || aiGenerating ? "Updating..." : "Update"}
               </button>
             </div>
-            <p className="text-sm text-white/40 mt-1">
+            <p className="text-xs sm:text-sm text-white/40 mt-1">
               {totalChapters} chapters · {vault.notes.length} notes · {totalQuestions} problems
             </p>
           </div>
@@ -300,14 +300,14 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
           </div>
         </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <WidgetCard delay={0}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#1856FF]/10 flex items-center justify-center">
               <Flame className="w-5 h-5 text-[#1856FF]" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">{analytics.streak}</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">{analytics.streak}</p>
               <p className="text-xs text-white/35">Day Streak</p>
             </div>
           </div>
@@ -339,7 +339,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <Clock className="w-5 h-5 text-[#06B6D4]" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">
                 {analytics.todayMinutes > 60
                   ? `${(analytics.todayMinutes / 60).toFixed(1)}h`
                   : `${analytics.todayMinutes}m`}
@@ -364,7 +364,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <Layers className="w-5 h-5 text-[#8B5CF6]" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">{reviewedCards}</p>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">{reviewedCards}</p>
               <p className="text-xs text-white/35">of {totalFlashcards} cards</p>
             </div>
           </div>
@@ -390,7 +390,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
               <Target className="w-5 h-5 text-[#10B981]" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">
+              <p className="text-xl sm:text-2xl font-bold tracking-tight">
                 {analytics.totalAttempts > 0 ? `${analytics.accuracy}%` : "--"}
               </p>
               <p className="text-xs text-white/35">Accuracy</p>
@@ -547,7 +547,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
                         todo.priority === "medium" ? "bg-[#F59E0B]/10 text-[#F59E0B]" :
                         "bg-white/[0.04] text-white/40"
                       )}>{todo.priority}</span>
-                      <button onClick={() => deleteTodo(todo.id, true)} className="opacity-0 group-hover:opacity-30 hover:!opacity-60 transition-opacity flex-shrink-0">
+                      <button onClick={() => deleteTodo(todo.id, true)} className="opacity-35 sm:opacity-0 sm:group-hover:opacity-30 hover:!opacity-60 transition-opacity flex-shrink-0 p-1">
                         <Trash2 className="w-3 h-3" />
                       </button>
                     </div>
@@ -595,7 +595,7 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
                       todo.priority === "medium" ? "bg-[#F59E0B]/10 text-[#F59E0B]" :
                       "bg-white/[0.04] text-white/40"
                     )}>{todo.priority}</span>
-                    <button onClick={() => deleteTodo(todo.id, false)} className="opacity-0 group-hover:opacity-30 hover:!opacity-60 transition-opacity flex-shrink-0">
+                    <button onClick={() => deleteTodo(todo.id, false)} className="opacity-35 sm:opacity-0 sm:group-hover:opacity-30 hover:!opacity-60 transition-opacity flex-shrink-0 p-1">
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>

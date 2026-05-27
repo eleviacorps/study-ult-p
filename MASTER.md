@@ -708,3 +708,30 @@ Known follow-up:
 
 - Inject `chat_sessions.summary` and latest `chat_context_summaries` into Tutor payloads.
 - Add user-visible summary previews in chat history.
+
+### 2026-05-27 - Step 17 - Mobile Dashboard Ergonomics
+
+Intent: Improve the Dashboard as the primary Android first screen without changing its data model.
+
+Files changed:
+
+- `src/app/dashboard/page.tsx`
+- `src/components/dashboard/dashboard-widgets.tsx`
+
+Implementation:
+
+- Reduced phone padding and skeleton height to fit Android screens better.
+- Tightened Dashboard card spacing on mobile.
+- Made key metric cards render in a two-column mobile grid.
+- Adjusted the greeting/action row so it wraps cleanly on narrow screens.
+- Increased the Update action tap target.
+- Made task delete controls visible on touch devices instead of hover-only.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Continue mobile passes for Reader, Questions, Tutor, and Note Agent.
+- Run browser/mobile screenshots once the dev server is started for visual verification.
