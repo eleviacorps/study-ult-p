@@ -342,3 +342,35 @@ Known follow-up:
 
 - The Supabase SQL must be applied to the project database before the deployed `/api/notes` route can select `content_hash`.
 - Next slice should replace raw `chat_messages` persistence with first-class `chat_sessions` and non-duplicating message sync.
+
+### 2026-05-27 - Step 4 - Scoped Chat Sessions And Non-Duplicating Sync
+
+Intent: Move tutor persistence toward the AI memory architecture by introducing first-class chat sessions and idempotent message sync while preserving the current tutor UI.
+
+Files changed:
+
+- `supabase-schema.sql`
+- `src/app/api/chat/route.ts`
+- `src/lib/chat-store.ts`
+- `src/app/tutor/page.tsx`
+- `src/components/ai-tutor-sidebar.tsx`
+
+Implementation:
+
+- Added `client_id` to `chat_messages` with a unique `(user_id, session_id, client_id)` index for idempotent sync.
+- Updated `/api/chat` so `GET /api/chat?sessions=1` lists scoped sessions and `GET /api/chat?session_id=...` fetches session messages.
+- Updated `/api/chat` `POST` to upsert `chat_sessions` before saving messages.
+- Added validation for message role/content/session id and normalized allowed chat session types.
+- Rebuilt `chat-store` around persisted per-surface session ids and synced message counts, so re-renders only sync newly appended messages.
+- Tagged the main tutor as `physics_tutor` and the reader sidebar as chapter-scoped `concept_discussion`.
+- Clearing sidebar chat now resets local messages and the local session id/sync marker.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add UI controls for New Chat, chat history, and session switching.
+- Add automatic session summarization into `chat_context_summaries`.
+- Apply the updated Supabase SQL before relying on `chat_sessions` or `client_id` in a deployed database.

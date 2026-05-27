@@ -44,7 +44,11 @@ export default function TutorPage() {
   useEffect(() => {
     if (mounted) {
       saveChat(chatKey, messages);
-      syncChatToDB(messages);
+      syncChatToDB(chatKey, messages, {
+        type: "physics_tutor",
+        title: "Physics Tutor",
+        subject: "Physics",
+      });
     }
   }, [messages, mounted]);
   const [showSettings, setShowSettings] = useState(false);

@@ -6,16 +6,51 @@ export interface ChatMessage {
   reasoning?: string;
 }
 
+export type ChatSessionType =
+  | "physics_tutor"
+  | "revision_planner"
+  | "mock_test_review"
+  | "concept_discussion"
+  | "problem_solving"
+  | "strategy_coaching";
+
+interface ChatSyncOptions {
+  type?: ChatSessionType;
+  title?: string;
+  subject?: string;
+  chapter?: string;
+  scope?: Record<string, unknown>;
+}
+
 const CHAT_KEY = "studyult-tutor-chat";
 const SIDEBAR_CHAT_KEY = "studyult-tutor-sidebar-chat";
 
-let sessionId: string | null = null;
+function storageKey(key: string, suffix: string): string {
+  return `${key}:${suffix}`;
+}
 
-function getSessionId(): string {
-  if (!sessionId) {
-    sessionId = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+function createId(): string {
+  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function getChatSessionId(key: string): string {
+  const idKey = storageKey(key, "session-id");
+  try {
+    const existing = localStorage.getItem(idKey);
+    if (existing) return existing;
+    const next = createId();
+    localStorage.setItem(idKey, next);
+    return next;
+  } catch {
+    return createId();
   }
-  return sessionId;
+}
+
+export function resetChatSession(key: string) {
+  try {
+    localStorage.removeItem(storageKey(key, "session-id"));
+    localStorage.removeItem(storageKey(key, "synced-count"));
+  } catch {}
 }
 
 export function loadChat(key: string): ChatMessage[] {
@@ -39,22 +74,49 @@ export function saveChat(key: string, messages: ChatMessage[]) {
 export function clearChat(key: string) {
   try {
     localStorage.removeItem(key);
+    resetChatSession(key);
   } catch {}
 }
 
-// Sync messages to Supabase (fire-and-forget, only if authenticated)
-export function syncChatToDB(messages: ChatMessage[]) {
+export function syncChatToDB(key: string, messages: ChatMessage[], options: ChatSyncOptions = {}) {
+  if (messages.length === 0) return;
+
+  let syncedCount = 0;
+  try {
+    syncedCount = Number(localStorage.getItem(storageKey(key, "synced-count")) || "0");
+  } catch {}
+
+  if (syncedCount >= messages.length) return;
+
+  const sessionId = getChatSessionId(key);
+  const pending = messages.slice(syncedCount);
+
   fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      messages: messages.map((m) => ({
-        session_id: getSessionId(),
-        role: m.role,
-        content: m.content,
+      session: {
+        id: sessionId,
+        type: options.type || "concept_discussion",
+        title: options.title || inferTitle(messages),
+        subject: options.subject || "",
+        chapter: options.chapter || "",
+        scope: options.scope || {},
+      },
+      messages: pending.map((message, index) => ({
+        session_id: sessionId,
+        client_id: `${sessionId}-${syncedCount + index}`,
+        role: message.role,
+        content: message.content,
       })),
     }),
-  }).catch(() => {});
+  })
+    .then((res) => {
+      if (res.ok) {
+        localStorage.setItem(storageKey(key, "synced-count"), String(messages.length));
+      }
+    })
+    .catch(() => {});
 }
 
 export function getTutorKey() {
@@ -63,4 +125,9 @@ export function getTutorKey() {
 
 export function getSidebarKey() {
   return SIDEBAR_CHAT_KEY;
+}
+
+function inferTitle(messages: ChatMessage[]): string {
+  const firstUserMessage = messages.find((message) => message.role === "user")?.content;
+  return firstUserMessage ? firstUserMessage.slice(0, 80) : "New Chat";
 }

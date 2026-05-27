@@ -8,7 +8,7 @@ import { PROMPTS } from "@/lib/ai-config";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { loadChat, saveChat, syncChatToDB, getSidebarKey } from "@/lib/chat-store";
+import { clearChat, loadChat, saveChat, syncChatToDB, getSidebarKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 interface AiTutorSidebarProps {
@@ -34,9 +34,14 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   useEffect(() => {
     if (messages.length > 0) {
       saveChat(sidebarKey, messages);
-      syncChatToDB(messages);
+      syncChatToDB(sidebarKey, messages, {
+        type: "concept_discussion",
+        title: chapterName ? `${chapterName} sidebar tutor` : "Reader sidebar tutor",
+        chapter: chapterName || "",
+        scope: { surface: "reader_sidebar" },
+      });
     }
-  }, [messages]);
+  }, [messages, chapterName, sidebarKey]);
 
   const contextRef = useRef(context);
   contextRef.current = context;
@@ -112,7 +117,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
               <span className="text-sm font-semibold">AI Tutor</span>
               {messages.length > 0 && (
                 <button
-                  onClick={() => { setMessages([]); saveChat(sidebarKey, []); }}
+                  onClick={() => { setMessages([]); clearChat(sidebarKey); }}
                   className="ml-auto p-1 text-white/20 hover:text-[#EF4444] transition-colors"
                   title="Clear chat"
                 >
