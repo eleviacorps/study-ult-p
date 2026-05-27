@@ -281,3 +281,34 @@ Next steps:
 - Audit current schema and AI flows against this architecture.
 - Create a prioritized implementation plan for Phase 1.
 - Implement Phase 1 in small commits with this ledger updated each time.
+
+### 2026-05-27 - Step 2 - Phase 1 Current-State Audit
+
+Intent: Compare the current implementation against the master architecture before changing code.
+
+Findings:
+
+- `supabase-schema.sql` has core user tables and RLS, but it does not yet include first-class cognitive state, chat sessions, summaries, vault documents/chunks/nodes/edges, embeddings, or ingestion logs.
+- `user_notes` dedupes by `(user_id, path)` only. It does not store `content_hash`, so identical content can be repeatedly ingested under different paths.
+- `src/app/api/notes/route.ts` upserts raw notes without hashing, canonical document identity, or payload validation beyond array shape.
+- `src/app/api/chat/route.ts` stores messages directly in `chat_messages` but lacks `chat_sessions`, session type, scoped summaries, and memory records.
+- `src/app/api/llm/route.ts` accepts provider, base URL, API key, and model from the request body. This violates the target model-configuration rule and should be replaced by server-side environment configuration.
+- `src/app/note-agent/page.tsx` seeds the browser note agent with all vault notes, which violates the retrieval architecture. This needs a retrieval-scoped replacement.
+- `src/lib/chat-store.ts` keeps a single local module session id and syncs all local messages repeatedly, creating duplicate chat rows and no session isolation.
+
+Phase 1 implementation order:
+
+1. Add schema foundations for content hashing, canonical vault documents/chunks/nodes/edges, ingestion logs, cognitive state tables, chat sessions, summaries, and scoped interaction memory.
+2. Add server utilities for SHA-256 content hashing and canonical slug generation.
+3. Update note ingestion to compute `content_hash`, dedupe idempotently, and return clear sync results.
+4. Replace direct client-supplied AI provider configuration with server-side environment defaults.
+5. Introduce chat sessions and scoped message persistence before changing the tutor UI.
+6. Add retrieval payload builders that select relevant chunks/state instead of dumping the vault.
+
+Validation:
+
+- Audit only; no code behavior changed in this step.
+
+Next steps:
+
+- Implement Step 3: schema foundations and note ingestion hashing.
