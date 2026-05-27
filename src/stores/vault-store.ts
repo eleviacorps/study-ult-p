@@ -51,22 +51,28 @@ function parseAgentQuestions(notes: Note[]): Question[] {
     const titles = note.content.match(/^##\s+(Q\d+.+)$/gm) || [];
     blocks.forEach((block, i) => {
       const title = titles[i]?.replace(/^##\s+/, "").trim() || `Question ${i + 1}`;
-      const diffMatch = block.match(/\*\*Difficulty:\*\*\s*(.+)/);
-      const marksMatch = block.match(/\*\*Marks:\*\*\s*(\d+)/);
-      const givenMatch = block.match(/\*\*Given:\*\*\s*([\s\S]*?)(?=\*\*Find|\*\*Options|\*\*Solution|\*\*Answer|$)/);
-      const findMatch = block.match(/\*\*Find:\*\*\s*([\s\S]*?)(?=\*\*Options|\*\*Solution|\*\*Answer|$)/);
-      const solutionMatch = block.match(/\*\*Solution:\*\*\s*([\s\S]*?)(?=\*\*Answer|$)/i);
-      const answerMatch = block.match(/\*\*Answer:\*\*\s*([\s\S]*?)(?=$|\*\*Explanation)/);
-      const explanationMatch = block.match(/\*\*Explanation:\*\*\s*([\s\S]*?)$/);
+      const diffMatch = block.match(fieldRx("Difficulty"));
+      const marksMatch = block.match(fieldRx("Marks"));
+      const marksVal = marksMatch?.[1]?.match(/\d+/)?.[0];
+      const givenMatch = block.match(fieldRx("Given"));
+      const findMatch = block.match(fieldRx("Find"));
+      const solutionMatch = block.match(fieldRx("Solution"));
+      const answerMatch = block.match(fieldRx("Answer"));
+      const explanationMatch = block.match(fieldRx("Explanation"));
 
+      // Parse options from table format or A) format
       let options: { label: string; text: string }[] | undefined;
-      const optionsSection = block.match(/\*\*Options:\*\*\s*([\s\S]*?)(?=\*\*Solution|\*\*Answer|$)/);
-      if (optionsSection) {
-        const optRegex = /([A-D])\)\s*(.+)/g;
-        let m;
-        options = [];
-        while ((m = optRegex.exec(optionsSection[1])) !== null) {
-          options.push({ label: m[1], text: m[2].trim() });
+      const optTableMatch = block.match(/^\|\s*([A-D])\s*\|\s*([^|]+)/m);
+      if (optTableMatch) {
+        const tableOpts = [...block.matchAll(/^\|\s*([A-D])\s*\|\s*([^|]+)/gm)];
+        if (tableOpts.length >= 2) {
+          options = tableOpts.map((m) => ({ label: m[1], text: m[2].trim() }));
+        }
+      }
+      if (!options) {
+        const optListMatch = block.match(/(?:^|\n)([A-D])\)\s+(.+)/g);
+        if (optListMatch) {
+          options = [...block.matchAll(/([A-D])\)\s+(.+)/g)].map((m) => ({ label: m[1], text: m[2].trim() }));
         }
       }
 
@@ -77,7 +83,7 @@ function parseAgentQuestions(notes: Note[]): Question[] {
         subject,
         topic: "",
         difficulty: (diffMatch?.[1]?.trim() || "Moderate") as "Easy" | "Moderate" | "Hard",
-        marks: marksMatch ? parseInt(marksMatch[1]) : 4,
+        marks: marksVal ? parseInt(marksVal) : 4,
         given: givenMatch?.[1]?.trim(),
         find: findMatch?.[1]?.trim(),
         options,
@@ -104,10 +110,10 @@ function parseAgentFlashcards(notes: Note[]): Flashcard[] {
     const titles = note.content.match(/^##\s+(FC\d+.+)$/gm) || [];
     blocks.forEach((block, i) => {
       const question = titles[i]?.replace(/^##\s+FC\d+\.\s*/, "").trim() || "";
-      const answerMatch = block.match(/\*\*Answer:\*\*\s*([\s\S]*?)(?=\*\*Formula|\*\*Variable Meanings|\*\*Memory Trick|$)/);
-      const formulaMatch = block.match(/\*\*Formula:\*\*\s*([\s\S]*?)(?=\*\*Variable Meanings|\*\*Memory Trick|$)/);
-      const varMatch = block.match(/\*\*Variable Meanings:\*\*\s*([\s\S]*?)(?=\*\*Memory Trick|$)/);
-      const memoryMatch = block.match(/\*\*Memory Trick:\*\*\s*([\s\S]*?)$/);
+      const answerMatch = block.match(fieldRx("Answer"));
+      const formulaMatch = block.match(fieldRx("Formula"));
+      const varMatch = block.match(fieldRx("Variable Meanings"));
+      const memoryMatch = block.match(fieldRx("Memory Trick"));
       result.push({
         id: slugify(`${chapter}-fc-${i + 1}`),
         chapter,
@@ -139,14 +145,42 @@ function parseAgentQuizzes(notes: Note[]): { id: string; chapter: string; questi
     if (blocks.length === 0) continue;
     const titles = note.content.match(/^###\s+(Q\d+.+)$/gm) || [];
     blocks.forEach((block, i) => {
-      const question = titles[i]?.replace(/^###\s+Q\d+\.\s*/, "").trim() || "";
-      const expMatch = block.match(/\*\*Explanation:\*\*\s*([\s\S]*?)$/);
+      const qText = titles[i]?.replace(/^###\s+Q\d+\.\s*/, "").trim() || "";
+      // Extract the question text (everything up to the first option line)
+      const qMatch = block.match(/^>\s*(.+)/m);
+      const question = qMatch?.[1]?.trim() || qText;
+      const expMatch = block.match(fieldRx("Answer"));
 
       const options: { label: string; text: string; correct: boolean }[] = [];
-      const optRegex = /[-*]\s*\[([ x])\]\s*(.+)/g;
-      let m;
-      while ((m = optRegex.exec(block)) !== null) {
-        options.push({ label: String.fromCharCode(65 + options.length), text: m[2].trim(), correct: m[1] === "x" });
+
+      // Try checkbox format: - [x] Option or - [ ] Option
+      let checkboxMatch = [...block.matchAll(/[-*]\s*\[([ x])\]\s*(.+)/g)];
+      if (checkboxMatch.length > 0) {
+        for (const m of checkboxMatch) {
+          options.push({ label: String.fromCharCode(65 + options.length), text: m[2].trim(), correct: m[1] === "x" });
+        }
+      }
+
+      // Try letter format: - A) Option or A) Option
+      if (options.length === 0) {
+        const letterMatch = [...block.matchAll(/(?:^|\n)\s*(?:-|\*)?\s*([A-D])[).]\s+(.+)/g)];
+        if (letterMatch.length > 0) {
+          for (const m of letterMatch) {
+            const correct = m[2].toLowerCase().includes("correct") || m[2].toLowerCase().includes("✓");
+            options.push({ label: m[1], text: m[2].trim(), correct });
+          }
+        }
+      }
+
+      // Try table format: | A | Option | Reason |
+      if (options.length === 0) {
+        const tableMatch = [...block.matchAll(/^\|\s*([A-D])\s*\|\s*([^|]+)/gm)];
+        if (tableMatch.length >= 2) {
+          for (const m of tableMatch) {
+            const correct = m[2].toLowerCase().includes("correct") || m[2].toLowerCase().includes("✓");
+            options.push({ label: m[1], text: m[2].trim(), correct });
+          }
+        }
       }
 
       result.push({
@@ -163,6 +197,11 @@ function parseAgentQuizzes(notes: Note[]): { id: string; chapter: string; questi
 
 function dedupKey(n: Note): string {
   return `${n.chapter}|${n.id}`;
+}
+
+// Match both **Label:** and ### Label field headers
+function fieldRx(label: string): RegExp {
+  return new RegExp(`(?:\\*\\*${label}:|###\\s+${label})\\s*([\\s\\S]*?)(?=\\n(?:\\*\\*|###)\\s*(?:Given|Find|Solution|Answer|Explanation|Formula|Variable|Memory|Options|Difficulty|Marks|Topic|Subtopic|Exam)|$)`, 'i');
 }
 
 function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultContent {
@@ -184,8 +223,11 @@ function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultConte
     uniqueChapters.get(key)!.notes.push(note);
   }
 
+  // Dedup chapters by name (prevent duplicate chapter entries)
+  const existingChapterNames = new Set(base.chapters.map((c) => c.name));
   const agentChapters: ChapterMeta[] = [];
   for (const [chapterName, info] of uniqueChapters) {
+    if (existingChapterNames.has(chapterName)) continue;
     const slug = chapterName.replace(/[\s]+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
     agentChapters.push({
       name: chapterName,
@@ -196,6 +238,7 @@ function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultConte
       weightage: { jeeMain: "", jeeAdvanced: "", boards: "" },
       priority: "High" as const,
     });
+    existingChapterNames.add(chapterName);
   }
 
   // Parse questions, flashcards, quizzes from agent notes
@@ -203,13 +246,18 @@ function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultConte
   const parsedFlashcards = parseAgentFlashcards(uniqueNotes);
   const parsedQuizzes = parseAgentQuizzes(uniqueNotes);
 
+  // Dedup questions/flashcards/quizzes by id (prevent accumulation on re-merge)
+  const seenQ = new Set(base.questions.map((q) => q.id));
+  const seenF = new Set(base.flashcards.map((f) => f.id));
+  const seenZ = new Set(base.quizzes.map((z) => z.id));
+
   return {
     ...base,
     chapters: [...base.chapters, ...agentChapters],
     notes: [...base.notes, ...uniqueNotes],
-    questions: [...base.questions, ...parsedQuestions],
-    flashcards: [...base.flashcards, ...parsedFlashcards],
-    quizzes: [...base.quizzes, ...parsedQuizzes],
+    questions: [...base.questions, ...parsedQuestions.filter((q) => !seenQ.has(q.id))],
+    flashcards: [...base.flashcards, ...parsedFlashcards.filter((f) => !seenF.has(f.id))],
+    quizzes: [...base.quizzes, ...parsedQuizzes.filter((z) => !seenZ.has(z.id))],
   };
 }
 
