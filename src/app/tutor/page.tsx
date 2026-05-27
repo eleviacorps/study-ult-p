@@ -10,7 +10,7 @@ import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { cn } from "@/lib/cn";
-import { clearChat, loadChat, saveChat, setChatSession, syncChatToDB, getTutorKey } from "@/lib/chat-store";
+import { clearChat, getChatSessionSummary, loadChat, saveChat, setChatSession, syncChatToDB, getTutorKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 type TutorSession = {
@@ -81,10 +81,11 @@ export default function TutorPage() {
     { icon: FileQuestion, label: "Generate questions", query: "Generate 3 JEE-level practice questions based on the chapter content." },
   ];
 
-  const buildContext = (question: string): string => {
+  const buildContext = (question: string, chatSummary = ""): string => {
     return buildStructuredTutorContext(vault, question, {
       surface: "main_tutor",
       subject: "Physics",
+      chatSummary,
     });
   };
 
@@ -94,7 +95,8 @@ export default function TutorPage() {
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setInput("");
 
-    const context = buildContext(userMsg);
+    const chatSummary = await getChatSessionSummary(chatKey);
+    const context = buildContext(userMsg, chatSummary);
     const { content, reasoning } = await ask(context, userMsg);
     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
 
@@ -243,7 +245,7 @@ export default function TutorPage() {
               {quickActions.map((action) => (
                 <button key={action.label} onClick={() => {
                   setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  ask(buildContext(action.query), action.query).then(({ content, reasoning }) => {
+                  getChatSessionSummary(chatKey).then((chatSummary) => ask(buildContext(action.query, chatSummary), action.query)).then(({ content, reasoning }) => {
                     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
                     updateStudyState((state) => {
                       const today = new Date().toISOString().split("T")[0];

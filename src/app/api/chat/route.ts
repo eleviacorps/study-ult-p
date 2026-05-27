@@ -81,6 +81,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ messages: [] });
   }
 
+  if (sessionId) {
+    const { data: session } = await supabase
+      .from("chat_sessions")
+      .select("id,type,title,summary,subject,chapter,scope,updated_at")
+      .eq("user_id", user.id)
+      .eq("id", sessionId)
+      .single();
+    return NextResponse.json({ messages: data || [], session: session || null });
+  }
+
   return NextResponse.json({ messages: data || [] });
 }
 

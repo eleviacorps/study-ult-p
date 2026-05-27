@@ -46,6 +46,18 @@ export function getChatSessionId(key: string): string {
   }
 }
 
+export async function getChatSessionSummary(key: string): Promise<string> {
+  try {
+    const sessionId = getChatSessionId(key);
+    const res = await fetch(`/api/chat?session_id=${encodeURIComponent(sessionId)}`);
+    if (!res.ok) return "";
+    const data = await res.json();
+    return typeof data.session?.summary === "string" ? data.session.summary : "";
+  } catch {
+    return "";
+  }
+}
+
 export function resetChatSession(key: string) {
   try {
     localStorage.removeItem(storageKey(key, "session-id"));

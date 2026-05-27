@@ -8,7 +8,7 @@ import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { clearChat, loadChat, saveChat, syncChatToDB, getSidebarKey } from "@/lib/chat-store";
+import { clearChat, getChatSessionSummary, loadChat, saveChat, syncChatToDB, getSidebarKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 interface AiTutorSidebarProps {
@@ -58,10 +58,12 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     setLoading(true);
     try {
+      const chatSummary = await getChatSessionSummary(sidebarKey);
       const sysContext = buildStructuredTutorContext(null, q, {
         surface: "reader_sidebar",
         chapter: chapterName,
         readerContext: contextRef.current,
+        chatSummary,
       });
       const { content } = await ask(sysContext, q);
       setMessages((prev) => [...prev, { role: "assistant", content: content || "No response" }]);

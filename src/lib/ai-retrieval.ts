@@ -19,6 +19,7 @@ type TutorContextOptions = {
   chapter?: string;
   subject?: string;
   readerContext?: string;
+  chatSummary?: string;
 };
 
 const STOP_WORDS = new Set([
@@ -262,6 +263,9 @@ export function buildStructuredTutorContext(
       surface: options.surface,
       current_question: question,
       scope: { chapter: options.chapter || null, subject: options.subject || null },
+    },
+    memory: {
+      session_summary: options.chatSummary || "",
     },
     student_state: buildStudentStateSnapshot(),
     retrievals,

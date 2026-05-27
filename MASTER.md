@@ -762,3 +762,32 @@ Known follow-up:
 
 - Add reader-sidebar session history controls.
 - Verify drawer behavior in Android WebView/mobile browser screenshots.
+
+### 2026-05-27 - Step 19 - Tutor Summary Memory Injection
+
+Intent: Use scoped chat summaries in active AI tutor payloads so summaries reduce future context needs.
+
+Files changed:
+
+- `src/app/api/chat/route.ts`
+- `src/lib/chat-store.ts`
+- `src/lib/ai-retrieval.ts`
+- `src/app/tutor/page.tsx`
+- `src/components/ai-tutor-sidebar.tsx`
+
+Implementation:
+
+- `/api/chat?session_id=...` now returns the matching chat session metadata, including `summary`.
+- Added a client helper to fetch the active session summary by chat storage key.
+- Extended structured Tutor payloads with a `memory.session_summary` field.
+- Main Tutor now fetches the active session summary before AI calls.
+- Reader sidebar Tutor now includes its scoped session summary before AI calls.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Avoid fetching the summary on every send by caching it with invalidation after new summaries.
+- Add visible summary previews in chat history.
