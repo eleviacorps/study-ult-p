@@ -1209,38 +1209,36 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 **Subtopic:** [Subtopic]
 **Type:** Conceptual / Formula / Comparison / Common Mistake
 
-### Question:
-> [One clear question testing understanding]
+**Q:** [One clear question testing understanding]
 
-### Answer:
-> [Concise but complete answer - 2-3 sentences]
-> [Key formula if applicable]
+**A:** [Concise but complete answer - 2-3 sentences]
+[Key formula if applicable]
 
-### Formula:
+**Formula:**
 $$[Formula with LaTeX]$$
 
-### Variable Meanings:
+**Variable Meanings:**
 | Symbol | Meaning |
 |--------|---------|
 | $x$ | [description] |
 | $y$ | [description] |
 
-### When to Use:
+**When to Use:**
 - ✅ [Condition 1]
 - ✅ [Condition 2]
 
-### When NOT to Use:
+**When NOT to Use:**
 - ❌ [Condition where this fails]
 
-### Memory Trick:
+**Memory Trick:**
 > [!TIP]
 > **Mnemonic:** [memory phrase]
 > **What it stands for:** [full expansion]
 
-### Common Confusion:
+**Common Confusion:**
 ⚠️ [Why students struggle with this concept]
 
-### Related Concepts:
+**Related Concepts:**
 - [[Related Topic 1]]
 - [[Related Topic 2]]
 

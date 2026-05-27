@@ -46,11 +46,11 @@ function parseAgentQuestions(notes: Note[]): Question[] {
     if (!note.path.includes("questions/")) continue;
     const chapter = note.chapter;
     const subject = note.subject || "";
-    const blocks = note.content.split(/^##\s+Q\d+/m).slice(1);
+    const blocks = note.content.split(/^#{2,3}\s+Q\d+/m).slice(1);
     if (blocks.length === 0) continue;
-    const titles = note.content.match(/^##\s+(Q\d+.+)$/gm) || [];
+    const titles = note.content.match(/^#{2,3}\s+(Q\d+.+)$/gm) || [];
     blocks.forEach((block, i) => {
-      const title = titles[i]?.replace(/^##\s+/, "").trim() || `Question ${i + 1}`;
+      const title = titles[i]?.replace(/^#{2,3}\s+/, "").trim() || `Question ${i + 1}`;
       const diffMatch = block.match(fieldRx("Difficulty"));
       const marksMatch = block.match(fieldRx("Marks"));
       const marksVal = marksMatch?.[1]?.match(/\d+/)?.[0];
@@ -59,6 +59,7 @@ function parseAgentQuestions(notes: Note[]): Question[] {
       const solutionMatch = block.match(fieldRx("Solution"));
       const answerMatch = block.match(fieldRx("Answer"));
       const explanationMatch = block.match(fieldRx("Explanation"));
+      const aShortMatch = !answerMatch ? block.match(/\*\*A:\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
 
       // Parse options from table format or A) format
       let options: { label: string; text: string }[] | undefined;
@@ -82,14 +83,14 @@ function parseAgentQuestions(notes: Note[]): Question[] {
         chapter,
         subject,
         topic: "",
-        difficulty: (diffMatch?.[1]?.trim() || "Moderate") as "Easy" | "Moderate" | "Hard",
+        difficulty: (stripField(diffMatch?.[1]) || "Moderate") as "Easy" | "Moderate" | "Hard",
         marks: marksVal ? parseInt(marksVal) : 4,
-        given: givenMatch?.[1]?.trim(),
-        find: findMatch?.[1]?.trim(),
+        given: stripField(givenMatch?.[1]),
+        find: stripField(findMatch?.[1]),
         options,
-        solution: solutionMatch?.[1]?.trim() || "",
-        answer: answerMatch?.[1]?.trim() || "",
-        explanation: explanationMatch?.[1]?.trim(),
+        solution: stripField(solutionMatch?.[1]) || stripField(aShortMatch?.[1]),
+        answer: stripField(answerMatch?.[1]),
+        explanation: stripField(explanationMatch?.[1]),
         tags: note.tags,
         type: options ? "mcq" : "solved",
       });
@@ -111,6 +112,7 @@ function parseAgentFlashcards(notes: Note[]): Flashcard[] {
     blocks.forEach((block, i) => {
       const question = titles[i]?.replace(/^##\s+FC\d+\.\s*/, "").trim() || "";
       const answerMatch = block.match(fieldRx("Answer"));
+      const aShortMatch = !answerMatch ? block.match(/\*\*A:\s*([\s\S]*?)(?=\n(?:\*\*|###)|$)/) : null;
       const formulaMatch = block.match(fieldRx("Formula"));
       const varMatch = block.match(fieldRx("Variable Meanings"));
       const memoryMatch = block.match(fieldRx("Memory Trick"));
@@ -121,13 +123,13 @@ function parseAgentFlashcards(notes: Note[]): Flashcard[] {
         topic: "",
         type: "definition",
         question,
-        answer: answerMatch?.[1]?.trim() || "",
-        formula: formulaMatch?.[1]?.trim(),
+        answer: stripField(answerMatch?.[1]) || stripField(aShortMatch?.[1]),
+        formula: stripField(formulaMatch?.[1]),
         variableMeanings: varMatch?.[1]?.trim().split("\n").filter(Boolean).map((l) => {
           const parts = l.trim().replace(/^-\s*/, "").split(":").map((s) => s.trim());
           return parts.length >= 2 ? { symbol: parts[0], meaning: parts.slice(1).join(": ") } : { symbol: parts[0] || "", meaning: l.trim() };
         }),
-        memoryTrick: memoryMatch?.[1]?.trim(),
+        memoryTrick: stripField(memoryMatch?.[1]),
         tags: note.tags,
       });
     });
@@ -183,12 +185,23 @@ function parseAgentQuizzes(notes: Note[]): { id: string; chapter: string; questi
         }
       }
 
+      // Mark correct option from Answer field
+      const answerText = stripField(expMatch?.[1]);
+      if (answerText && options.length > 0 && !options.some((o) => o.correct)) {
+        const answerLabel = answerText.match(/^([A-D])/)?.[1];
+        if (answerLabel) {
+          for (const opt of options) {
+            if (opt.label === answerLabel) opt.correct = true;
+          }
+        }
+      }
+
       result.push({
         id: slugify(`${chapter}-qz-${i + 1}`),
         chapter,
         question,
         options,
-        explanation: expMatch?.[1]?.trim(),
+        explanation: answerText,
       });
     });
   }
@@ -199,9 +212,14 @@ function dedupKey(n: Note): string {
   return `${n.chapter}|${n.id}`;
 }
 
+// Strip trailing closing ** from field values (e.g. "A**" → "A")
+function stripField(val: string | undefined): string {
+  return val?.trim().replace(/\*+\s*$/, "") || "";
+}
+
 // Match both **Label:** and ### Label field headers
 function fieldRx(label: string): RegExp {
-  return new RegExp(`(?:\\*\\*${label}:|###\\s+${label})\\s*([\\s\\S]*?)(?=\\n(?:\\*\\*|###)\\s*(?:Given|Find|Solution|Answer|Explanation|Formula|Variable|Memory|Options|Difficulty|Marks|Topic|Subtopic|Exam)|$)`, 'i');
+  return new RegExp(`(?:\\*\\*${label}:|###\\s+${label})\\s*([\\s\\S]*?)(?=\\n(?:\\*\\*|###)\\s*(?:Given|Find|Solution|Answer|Explanation|Formula|Variable|Memory|Options|Difficulty|Marks|Topic|Subtopic|Exam)|\\*\\*\\n|$)`, 'i');
 }
 
 function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultContent {
