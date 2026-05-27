@@ -35,9 +35,9 @@ function notify() {
   }
 }
 
-function persistState() {
+function persistState(force = false) {
   const now = Date.now();
-  if (now - lastSave < 2000) return; // throttle to 2s
+  if (!force && now - lastSave < 2000) return; // throttle to 2s
   lastSave = now;
   saveToDB(DB_KEY, currentState).catch(() => {});
 }
@@ -53,8 +53,10 @@ function deriveToolCalls(steps: AgentStep[]): { name: string; status: "running" 
 }
 
 function mergeSteps(existing: AgentStep[], incoming: AgentStep[], incomingTurn: number): AgentStep[] {
-  if (existing.some((s) => s.turn === incomingTurn)) return existing;
-  return [...existing, ...incoming.map((s) => ({ ...s, turn: incomingTurn }))];
+  const map = new Map<number, AgentStep>();
+  for (const s of existing) map.set(s.turn, s);
+  for (const s of incoming) map.set(incomingTurn, { ...s, turn: incomingTurn });
+  return Array.from(map.values()).sort((a, b) => a.turn - b.turn);
 }
 
 function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
@@ -80,7 +82,7 @@ function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
       const files = msg.workspace.map(([path, content]) => ({ path, content }));
       currentState = {
         ...currentState,
-        phase: msg.turn === 0 && currentState.turn === 0 && msg.workspace.length === 0 ? "idle" : "done",
+        phase: "done",
         turn: msg.turn,
         steps: allSteps,
         toolCalls: deriveToolCalls(allSteps),
@@ -89,7 +91,7 @@ function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
         updatedAt: Date.now(),
       };
       notify();
-      persistState();
+      persistState(true); // force save — final state must persist
       break;
     }
     case "error": {
@@ -174,8 +176,9 @@ export function discard() {
 
 export async function restoreSavedState(): Promise<AgentUIState | null> {
   const saved = await loadFromDB<AgentUIState>(DB_KEY);
-  if (saved && saved.phase !== "idle" && saved.files.length > 0) {
+  if (saved && saved.phase !== "idle" && (saved.files.length > 0 || saved.steps.length > 0)) {
     currentState = { ...saved };
+    notify();
     return currentState;
   }
   return null;
@@ -185,6 +188,7 @@ export async function restoreRunningState(): Promise<AgentUIState | null> {
   const saved = await loadFromDB<AgentUIState>(DB_KEY);
   if (saved && saved.phase === "running") {
     currentState = { ...saved, phase: "idle" as AgentPhase };
+    notify();
     return currentState;
   }
   return null;
