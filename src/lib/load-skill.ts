@@ -1,18 +1,29 @@
+import type { ExamPreset } from "./exam-presets";
+
 interface SkillFiles {
   skill: string;
   references: { name: string; content: string }[];
   combined: string;
 }
 
-let cached: SkillFiles | null = null;
+const cache = new Map<string, SkillFiles | null>();
 
-export async function loadSkill(): Promise<SkillFiles> {
-  if (cached) return cached;
+function substitute(content: string, vars: Record<string, string>): string {
+  let result = content;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{${key}}`, value);
+  }
+  return result;
+}
+
+export async function loadSkill(examPreset?: ExamPreset): Promise<SkillFiles> {
+  const cacheKey = examPreset?.id || "default";
+  if (cache.has(cacheKey)) return cache.get(cacheKey)!;
 
   const base = "/skills/study-ult";
   const skillRes = await fetch(`${base}/skill.md`);
   if (!skillRes.ok) throw new Error("Failed to load skill.md");
-  const skill = await skillRes.text();
+  let skill = await skillRes.text();
 
   const refNames = [
     "note-template-full.md",
@@ -30,11 +41,20 @@ export async function loadSkill(): Promise<SkillFiles> {
     }
   }
 
+  // Substitute variables in skill and references
+  if (examPreset) {
+    skill = substitute(skill, examPreset.variables);
+    for (const ref of references) {
+      ref.content = substitute(ref.content, examPreset.variables);
+    }
+  }
+
   let combined = `# SKILL: Study Material Generator\n\n${skill}\n\n`;
   for (const ref of references) {
     combined += `\n---\n# REFERENCE: ${ref.name}\n\n${ref.content}\n`;
   }
 
-  cached = { skill, references, combined };
-  return cached;
+  const result: SkillFiles = { skill, references, combined };
+  cache.set(cacheKey, result);
+  return result;
 }

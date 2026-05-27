@@ -7,11 +7,12 @@ import { useVaultStore } from "@/stores/vault-store";
 import type { Note } from "@/types";
 import {
   NOTE_AGENT_TOOLS,
-  AGENT_SYSTEM_PROMPT,
+  getAgentSystemPrompt,
   type AgentConfig,
   type AgentStep,
 } from "@/lib/llm-agent";
 import { loadSkill } from "@/lib/load-skill";
+import { EXAM_PRESETS, getDefaultPreset, type ExamPreset } from "@/lib/exam-presets";
 import {
   Upload,
   FileText,
@@ -61,6 +62,7 @@ export default function NoteAgentPage() {
   const [vaultSaved, setVaultSaved] = useState(false);
   const [allToolCalls, setAllToolCalls] = useState<{ name: string; status: "running" | "done" | "error"; desc: string }[]>([]);
   const [resumeData, setResumeData] = useState<AgentUIState | null>(null);
+  const [examPreset, setExamPreset] = useState<ExamPreset>(getDefaultPreset);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Subscribe to bridge — survives component remount (module singleton)
@@ -143,10 +145,10 @@ export default function NoteAgentPage() {
     setSteps([]);
     setAllToolCalls([]);
 
-    // Load skill files
+    // Load skill files with exam preset substitution
     let skillContext = "";
     try {
-      const skill = await loadSkill();
+      const skill = await loadSkill(examPreset);
       skillContext = skill.combined;
     } catch {
       // fall back to built-in prompt
@@ -161,10 +163,12 @@ export default function NoteAgentPage() {
       }
     }
 
+    const systemPrompt = getAgentSystemPrompt(examPreset.variables.EXAM_NAME);
+
     const messages: Record<string, unknown>[] = [
       {
         role: "system",
-        content: `${AGENT_SYSTEM_PROMPT}\n\n${skillContext ? `=== SKILL INSTRUCTIONS ===\n${skillContext}\n========================\n` : ""}The chapter being processed is: "${chapterName}". Use "${chapterPath}" as the path prefix for all files (e.g., "${chapterPath}/notes/topic.md", "${chapterPath}/questions/100_questions.md").`,
+        content: `${systemPrompt}\n\n${skillContext ? `=== SKILL INSTRUCTIONS ===\n${skillContext}\n========================\n` : ""}The chapter being processed is: "${chapterName}". Use "${chapterPath}" as the path prefix for all files (e.g., "${chapterPath}/notes/topic.md", "${chapterPath}/questions/100_questions.md").`,
       },
       {
         role: "user",
@@ -172,7 +176,7 @@ export default function NoteAgentPage() {
       },
     ];
 
-    bridge.start(config, NOTE_AGENT_TOOLS, vaultNotes, chapterName, chapterPath, messages);
+    bridge.start(config, NOTE_AGENT_TOOLS, vaultNotes, chapterName, chapterPath, messages, examPreset.variables);
   };
 
   const resumeSession = () => {
@@ -196,7 +200,7 @@ export default function NoteAgentPage() {
           if (note.content) vaultNotes.push({ path: key, content: note.content });
         }
       }
-      bridge.start(config, NOTE_AGENT_TOOLS, vaultNotes, resumeData.chapterName || chapterName, chapterPath, resumeData.messages);
+      bridge.start(config, NOTE_AGENT_TOOLS, vaultNotes, resumeData.chapterName || chapterName, chapterPath, resumeData.messages, examPreset.variables);
     } else {
       // Restore the completed state
       setPhase(resumeData.phase);
@@ -375,6 +379,33 @@ export default function NoteAgentPage() {
               )}
             </div>
 
+            {/* Exam Preset */}
+            <div>
+              <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
+                Exam Target
+              </label>
+              <select
+                value={examPreset.id}
+                onChange={(e) => {
+                  const p = EXAM_PRESETS.find((x) => x.id === e.target.value);
+                  if (p) setExamPreset(p);
+                }}
+                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#8B5CF6]/30 appearance-none cursor-pointer"
+                style={{ color: "var(--text-primary)" }}
+              >
+                <optgroup label="Indian Exams">
+                  {EXAM_PRESETS.filter((p) => p.group === "indian").map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="International Exams">
+                  {EXAM_PRESETS.filter((p) => p.group === "international").map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
             {/* Chapter Name */}
             <div>
               <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
@@ -482,7 +513,7 @@ export default function NoteAgentPage() {
 
               {/* Step details */}
               {steps.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {steps.map((step, i) => (
                     <div key={i} className="border border-white/[0.05]">
                       <button

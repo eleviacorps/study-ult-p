@@ -6,9 +6,9 @@
 |------------|------------|-------------|
 | Easy | 15-20% | Direct formula application, single step |
 | Moderate | 35-40% | Single concept, 2-3 steps |
-| Difficult | 40-50% | Multi-concept, JEE Advanced |
+| Difficult | 40-50% | Multi-concept, {EXAM_LEVEL2} |
 
-## JEE Main Question Types
+## {EXAM_LEVEL1} Question Types
 
 1. Direct formula application
 2. Unit-based questions
@@ -17,13 +17,13 @@
 5. Assertion-reasoning
 6. Integer answer (single digit)
 
-### JEE Main Example
+### {EXAM_LEVEL1} Example
 
 ```markdown
 ## Q5. Electric Field Calculation
 
 **Topic:** [[Electric Field]]
-**Difficulty:** JEE Main
+**Difficulty:** {EXAM_LEVEL1}
 **Marks:** 4
 
 Two point charges $q_1 = +4\mu C$ and $q_2 = -9\mu C$ are placed 30 cm apart.
@@ -45,7 +45,7 @@ $$x = 0.12 m = 12 cm$$
 > So x/(0.3-x) = 2/3 → x = 0.12 m
 ```
 
-## JEE Advanced Question Types
+## {EXAM_LEVEL2} Question Types
 
 1. Multi-concept integration (2+ topics)
 2. Hidden assumptions (conditions for formula validity)
@@ -57,13 +57,13 @@ $$x = 0.12 m = 12 cm$$
 8. Matrix match
 9. Numerical integer (upto 9)
 
-### JEE Advanced Example
+### {EXAM_LEVEL2} Example
 
 ```markdown
 ## Q3. Charge Distribution on Conductors
 
 **Topic:** [[Electrostatics]] + [[Conductors]]
-**Difficulty:** JEE Advanced
+**Difficulty:** {EXAM_LEVEL2}
 **Marks:** 4
 
 A conducting sphere of radius R carrying charge Q is placed with its center at distance 3R from another uncharged conducting sphere of radius R. Find the final charge distribution when they are connected by a thin wire.
@@ -160,6 +160,6 @@ D. A is false but R is false
 - [ ] Explanation of why wrong options are wrong
 - [ ] Topic wikilink
 - [ ] Difficulty level
-- [ ] JEE insight or shortcut
+- [ ] {EXAM_NAME} insight or shortcut
 - [ ] Common trap identified
 - [ ] Progressive difficulty (easy→moderate→difficult)

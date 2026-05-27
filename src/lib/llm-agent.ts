@@ -182,13 +182,15 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   },
 ];
 
-export const AGENT_SYSTEM_PROMPT = `You are an expert study material generator building a structured Obsidian vault.
+export function getAgentSystemPrompt(examName?: string): string {
+  const insight = examName ? `${examName}-INSIGHT` : "EXAM-INSIGHT";
+  return `You are an expert study material generator building a structured Obsidian vault.
 
 === INSTRUCTIONS ===
 - Follow the SKILL instructions below as your primary workflow and formatting guide.
 - The SKILL defines the vault structure, note templates, question/MCQ/flashcard types, callout patterns, and quality checks.
-- Adapt terminology to be exam-agnostic (use "exam-level" instead of "JEE", etc.).
-- Use the available tools (write_file, read_file, list_workspace, check_completeness, find_placeholders, final_report) throughout the workflow.
+- The content is being generated for "${examName || "exam"}" preparation. Adapt terminology accordingly.
+- Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
 
 === WORKFLOW OVERVIEW ===
 1. ANALYZE input → extract ALL topics
@@ -215,7 +217,10 @@ export const AGENT_SYSTEM_PROMPT = `You are an expert study material generator b
 === RULES ===
 - Every file must have REAL content. No placeholders, "Coming soon", or "(+X more)".
 - Use LaTeX ($$...$$) for all formulas.
-- Use all callout types: >[!KEY-CONCEPT], >[!EXAM-INSIGHT], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
+- Use all callout types: >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
 - Use wikilinks ([[Topic Name]]) for cross-references.
 - Tag every file with #Subject #Chapter.
 - Generate complete content for every section — do not skip or abbreviate.`;
+}
+
+export const AGENT_SYSTEM_PROMPT = getAgentSystemPrompt();

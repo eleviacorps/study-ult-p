@@ -13,8 +13,8 @@
             <topic3>.md
         /questions/
             mcq.md            # 100 MCQs
-            jee_main.md       # JEE Main questions
-            jee_advanced.md   # JEE Advanced questions
+            jee_main.md       # {EXAM_LEVEL1} questions
+            jee_advanced.md   # {EXAM_LEVEL2} questions
             solved.md         # Solved problems
         /flashcards/
             flashcards.md    # 100+ flashcards
@@ -78,8 +78,8 @@ Mathematics/
 
 | Exam | Weightage | Trend |
 |------|----------|-------|
-| JEE Main | X-X marks/year | [increasing/stable/decreasing] |
-| JEE Advanced | X-X marks/year | [increasing/stable/decreasing] |
+| {EXAM_LEVEL1} | X-X marks/year | [increasing/stable/decreasing] |
+| {EXAM_LEVEL2} | X-X marks/year | [increasing/stable/decreasing] |
 | Boards | X-X marks | [important/moderate] |
 
 ## Key Topics
@@ -101,7 +101,7 @@ Mathematics/
 3. **Advanced** (Day 5-6): [Difficult portions]
 4. **Practice** (Day 7+): [Question solving]
 
-## Common JEE Patterns
+## Common {EXAM_NAME} Patterns
 
 - Pattern 1: [Description]
 - Pattern 2: [Description]
@@ -122,8 +122,8 @@ Mathematics/
 
 **Questions:**
 - [[MCQ]]
-- [[JEE Main]]
-- [[JEE Advanced]]
+- [[{EXAM_NAME} Main]]
+- [[{EXAM_NAME} Advanced]]
 
 **Revision:**
 - [[Formula Sheet]]

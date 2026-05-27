@@ -37,15 +37,15 @@ Use these callouts in EVERY topic note:
 > Frequently tested concept.
 ```
 
-### JEE-Specific Callouts
+### Exam-Specific Callouts
 
 ```markdown
-> [!JEE-INSIGHT]
-> What JEE examiners look for.
+> [!{EXAM_NAME}-INSIGHT]
+> What {EXAM_NAME} examiners look for.
 > Common exam patterns.
 
 > [!EXAM-PATTERN]
-> How this topic appears in JEE.
+> How this topic appears in {EXAM_NAME}.
 > Frequency: High/Medium/Low
 
 > [!SHORTCUT]
@@ -101,12 +101,12 @@ $$[LaTeX formula]$$
 **Approach:** [How to think]  
 **Solution:** [Steps with explanations]
 
-> [!JEE-INSIGHT]
+> [!{EXAM_NAME}-INSIGHT]
 > [Exam relevance]
 
-## JEE Insights
+## {EXAM_NAME} Insights
 > [!EXAM-PATTERN]
-> [How it appears in JEE]
+> [How it appears in {EXAM_NAME}]
 
 ## Memory Tricks
 > [!INTUITION]

@@ -25,6 +25,7 @@ export interface WorkerStartMessage {
   vaultNotes: { path: string; content: string }[];
   chapterName: string;
   chapterPath: string;
+  examVars: Record<string, string>;
 }
 
 export interface WorkerAbortMessage {

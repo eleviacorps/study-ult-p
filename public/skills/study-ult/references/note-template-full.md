@@ -7,7 +7,7 @@ Copy this entire template for each topic. Every section is REQUIRED.
 
 ```markdown
 # <Topic Name>
-#<Subject> #<Chapter> #<JEE> #<SubTopic>
+#<Subject> #<Chapter> #<{EXAM_NAME}> #<SubTopic>
 
 ---
 
@@ -133,7 +133,7 @@ Direction: [describe]
 **Step 3:**
 $$E_{net} = [sum]$$
 
-> [!JEE-INSIGHT]
+> [!{EXAM_NAME}-INSIGHT]
 > **What this tests:** [concept]
 > **Common trap:** [mistake]
 > **Shortcut:** [if available]
@@ -148,7 +148,7 @@ $$E_{net} = [sum]$$
 
 ---
 
-### Example 3: JEE Advanced Style
+### Example 3: {EXAM_LEVEL2} Style
 
 [Complex problem with multiple concepts]
 
@@ -200,7 +200,7 @@ $$E_{net} = [sum]$$
 
 ---
 
-## JEE Advanced Patterns (4+ REQUIRED)
+## {EXAM_LEVEL2} Patterns (4+ REQUIRED)
 
 ### Pattern 1: [Common pattern]
 **What to look for:** [Identifier]
@@ -226,7 +226,7 @@ $$E_{net} = [sum]$$
 
 ---
 
-*Tags: #<SubTopic> #<Chapter> #<JEE>*
+*Tags: #<SubTopic> #<Chapter> #<{EXAM_NAME}>*
 ```
 
 ---
@@ -264,7 +264,7 @@ Each example needs:
 - Given/Find
 - Approach (how to think)
 - Step-by-step solution
-- >[!JEE-INSIGHT] callout
+- >[!{EXAM_NAME}-INSIGHT] callout
 - Answer with units
 
 ### Quick Rules (20-30 lines)
@@ -283,7 +283,7 @@ Each mistake needs:
 - How to avoid
 - >[!COMMON-MISTAKE] callout
 
-### JEE Patterns (40-50 lines)
+### {EXAM_NAME} Patterns (40-50 lines)
 - 4+ patterns
 - What to look for
 - Approach for each

@@ -33,6 +33,7 @@ interface StartMessage {
   vaultNotes: { path: string; content: string }[];
   chapterName: string;
   chapterPath: string;
+  examVars: Record<string, string>;
 }
 
 interface AbortMessage {

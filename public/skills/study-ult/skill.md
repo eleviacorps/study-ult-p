@@ -1,11 +1,11 @@
 ---
 name: study-ult
-description: "Transform raw educational content into a premium Obsidian vault for JEE Main, JEE Advanced, JAC Boards, Olympiads. Use when user says 'build study vault', 'create notes', 'generate flashcards', 'make MCQs', 'JEE notes', 'one-shot revision', 'build vault', 'generate questions'. Generates: ultra-detailed notes like Allen/Resonance/FIITJEE material, 100+ MCQs, 100+ questions, 100+ flashcards, 100+ quizzes, formula sheets, derivations, common mistakes, JEE insights. Triggers on: 'study vault', 'build vault', 'generate flashcards', 'MCQ from', 'JEE study', 'one shot', 'obsidian notes', 'detailed notes', ' NCERT notes', 'board preparation'."
+description: "Transform raw educational content into a premium Obsidian vault for {EXAM_LEVEL1}, {EXAM_LEVEL2}, Boards, Olympiads. Use when user says 'build study vault', 'create notes', 'generate flashcards', 'make MCQs', '{EXAM_NAME} notes', 'one-shot revision', 'build vault', 'generate questions'. Generates: ultra-detailed coaching institute material, 100+ MCQs, 100+ questions, 100+ flashcards, 100+ quizzes, formula sheets, derivations, common mistakes, {EXAM_NAME} insights. Triggers on: 'study vault', 'build vault', 'generate flashcards', 'MCQ from', '{EXAM_NAME} study', 'one shot', 'obsidian notes', 'detailed notes', ' NCERT notes', 'board preparation'."
 ---
 
 # IRON LAW: MASTER TEACHER QUALITY
 
-**You are NOT a summarizer. You are a master teacher, JEE mentor, board examiner, and knowledge reconstruction engine.**
+**You are NOT a summarizer. You are a master teacher, {EXAM_NAME} mentor, board examiner, and knowledge reconstruction engine.**
 
 **After analyzing input: START WRITING IMMEDIATELY. Generate every section below with maximum depth and detail.**
 
@@ -33,7 +33,7 @@ study-ult Progress:
 - [ ] Step 10: Generate 100+ Quizzes
 - [ ] Step 11: Generate Important Derivations
 - [ ] Step 12: Generate Common Mistakes Section
-- [ ] Step 13: Generate JEE Advanced Thinking
+- [ ] Step 13: Generate {EXAM_LEVEL2} Thinking
 - [ ] Step 14: Generate One-Shot Revision Sheet
 - [ ] Step 15: Generate Graph Explanations
 - [ ] Step 16: Pre-Delivery Checklist
@@ -106,8 +106,8 @@ study-ult Progress:
         /questions/
             100_questions.md     # 100 questions with ANSWERS
             100_mcqs.md          # 100 MCQs with explanations
-            jee_main.md          # JEE Main practice
-            jee_advanced.md      # JEE Advanced practice
+            jee_main.md          # {EXAM_LEVEL1} practice
+            jee_advanced.md      # {EXAM_LEVEL2} practice
             solved.md            # Solved examples
         /flashcards/
             100_flashcards.md    # 100 flashcards
@@ -118,7 +118,7 @@ study-ult Progress:
             one_shot_revision.md
             common_mistakes.md
             derivations.md
-            jee_advanced_insights.md
+            exam_insights.md
             graphs_visualizations.md
             memory_techniques.md
         concept_connection_map.md
@@ -139,7 +139,7 @@ This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL c
 
 ```markdown
 # <Subject> (e.g., Physics)
-#<Subject> #JEE #JEEAdvanced #Class12 #NCERT #Boards
+#<Subject> {EXAM_TAGS}
 
 ---
 
@@ -149,13 +149,13 @@ This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL c
 |-------|-------|
 | **Subject** | <Subject Name> |
 | **Total Chapters** | <X> |
-| **Exam Relevance** | JEE Main: 🔴 High | JEE Advanced: 🔴 High | Boards: 🔴 High |
+| **Exam Relevance** | {EXAM_LEVEL1}: 🔴 High | {EXAM_LEVEL2}: 🔴 High | Boards: 🔴 High |
 
 ---
 
-## 📊 Subject Weightage (JEE)
+## 📊 Subject Weightage ({EXAM_NAME})
 
-| Chapter | JEE Main Weight | JEE Advanced Weight | Priority |
+| Chapter | {EXAM_LEVEL1} Weight | {EXAM_LEVEL2} Weight | Priority |
 |---------|-----------------|---------------------|-----------|
 | [[Chapter 1]] | X-X marks | X-X marks | 🔴 Very High |
 | [[Chapter 2]] | X-X marks | X-X marks | 🔴 Very High |
@@ -188,13 +188,13 @@ This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL c
 
 ### Chapter 1: [[Chapter Name]]
 - **Notes:** [[Topic 1]], [[Topic 2]], [[Topic 3]], ...
-- **Questions:** [[100 Questions]], [[100 MCQs]], [[JEE Main]], [[JEE Advanced]]
+- **Questions:** [[100 Questions]], [[100 MCQs]], [[{EXAM_NAME} Main]], [[{EXAM_NAME} Advanced]]
 - **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
 - **Status:** ⬜ Not Started / 🟡 In Progress / ✅ Completed
 
 ### Chapter 2: [[Chapter Name]]
 - **Notes:** [[Topic 1]], [[Topic 2]], [[Topic 3]], ...
-- **Questions:** [[100 Questions]], [[100 MCQs]], [[JEE Main]], [[JEE Advanced]]
+- **Questions:** [[100 Questions]], [[100 MCQs]], [[{EXAM_NAME} Main]], [[{EXAM_NAME} Advanced]]
 - **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
 - **Status:** ⬜ Not Started / 🟡 In Progress / ✅ Completed
 
@@ -221,12 +221,12 @@ This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL c
 
 ## 📈 Recommended Study Order
 
-### For JEE Main (Quick Revision):
+### For {EXAM_LEVEL1} (Quick Revision):
 1. ⬜ [[Chapter with Highest Weightage]]
 2. ⬜ [[Chapter with 2nd Highest Weightage]]
 3. ⬜ [[Chapter with 3rd Highest Weightage]]
 
-### For JEE Advanced (Deep Study):
+### For {EXAM_LEVEL2} (Deep Study):
 1. ⬜ [[Chapter 1]] - Complete with derivations
 2. ⬜ [[Chapter 2]] - Complete with derivations
 3. ⬜ [[Chapter 3]] - Complete with derivations
@@ -258,7 +258,7 @@ This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL c
 
 ---
 
-*Tags: #<Subject> #JEE #JEEAdvanced #Class12 #NCERT #Boards*
+*Tags: #<Subject> {EXAM_TAGS}*
 *Last Updated: <Current Date>*
 ```
 
@@ -270,7 +270,7 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 
 ```markdown
 # <Chapter Name>
-#<Subject> #<Chapter> #JEE #JEEAdvanced #Class12 #NCERT #Boards
+#<Subject> #<Chapter> {EXAM_TAGS}
 
 ---
 
@@ -282,16 +282,16 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 | **Subject** | <Physics/Chemistry/Math/Biology> |
 | **Class** | Class 11/12 |
 | **Total Topics** | <X> |
-| **Exam Relevance** | JEE Main: 🔴 High | JEE Advanced: 🔴 High | Boards: 🔴 High |
+| **Exam Relevance** | {EXAM_LEVEL1}: 🔴 High | {EXAM_LEVEL2}: 🔴 High | Boards: 🔴 High |
 
 ---
 
-## 📊 JEE Weightage Analysis
+## 📊 {EXAM_NAME} Weightage Analysis
 
 | Exam | Weightage | Trend | Questions/Year |
 |------|-----------|-------|----------------|
-| JEE Main | X-X marks | 📈 Increasing/Stable/📉 | X-X |
-| JEE Advanced | X-X marks | 📈 Increasing/Stable/📉 | X-X |
+| {EXAM_LEVEL1} | X-X marks | 📈 Increasing/Stable/📉 | X-X |
+| {EXAM_LEVEL2} | X-X marks | 📈 Increasing/Stable/📉 | X-X |
 | Boards | X-X marks | Important | X-X |
 
 ---
@@ -335,8 +335,8 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 ### 📋 Questions
 - [[100 Questions with Answers]] - questions/100_questions.md
 - [[100 MCQs with Explanations]] - questions/100_mcqs.md
-- [[JEE Main Practice]] - questions/jee_main.md
-- [[JEE Advanced Practice]] - questions/jee_advanced.md
+- [[{EXAM_NAME} Main Practice]] - questions/jee_main.md
+- [[{EXAM_NAME} Advanced Practice]] - questions/jee_advanced.md
 - [[Solved Problems]] - questions/solved.md
 
 ### 🎴 Flashcards & Quizzes
@@ -348,7 +348,7 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 - [[One-Shot Revision]] - revision/one_shot_revision.md
 - [[Common Mistakes]] - revision/common_mistakes.md
 - [[Important Derivations]] - revision/derivations.md
-- [[JEE Advanced Insights]] - revision/jee_advanced_insights.md
+- [[{EXAM_NAME} Advanced Insights]] - revision/exam_insights.md
 - [[Graphs & Visualizations]] - revision/graphs_visualizations.md
 - [[Memory Techniques]] - revision/memory_techniques.md
 
@@ -363,7 +363,7 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 |-------|------|--------|-------|
 | Foundation | Day 1-2 | [[Topic 1]], [[Topic 2]] | Definitions, Formulas |
 | Core | Day 3-5 | [[Topic 3]], [[Topic 4]] | Concepts, Examples |
-| Advanced | Day 6-7 | [[Topic 5]], Mixed | JEE Advanced |
+| Advanced | Day 6-7 | [[Topic 5]], Mixed | {EXAM_LEVEL2} |
 | Practice | Day 8+ | All | Question Solving |
 
 ---
@@ -390,7 +390,7 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 
 ---
 
-*Tags: #<Chapter> #JEE #JEEAdvanced #Class12 #NCERT #Boards #<Subject>*
+*Tags: #<Chapter> {EXAM_TAGS} #<Subject>*
 *Last Updated: <Current Date>*
 ```
 
@@ -413,7 +413,7 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 
 ```markdown
 # <Topic Name>
-#<Subject> #<Chapter> #JEE #JEEAdvanced #Class12 #NCERT #Boards
+#<Subject> #<Chapter> {EXAM_TAGS}
 
 ---
 
@@ -461,8 +461,8 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 - **Field lines/Diagrams:** [Describe what the diagram shows]
 - **Graphs:** [Describe key features]
 
-### 1.5 JEE Interpretation 🎓
-**How JEE examines this:**
+### 1.5 {EXAM_NAME} Interpretation 🎓
+**How {EXAM_NAME} examines this:**
 - 🔴 Frequently asked in: [Question types]
 - 📌 Examiners look for: [What they test]
 - ⚠️ Common mistake: [What students get wrong]
@@ -609,7 +609,7 @@ $$E_2 = [numerical value] \text{ N/C}$$
 $$E_{net} = \sqrt{E_1^2 + E_2^2 + 2E_1E_2\cos\theta}$$
 $$E_{net} = [final value] \text{ N/C}$$
 
-> [!JEE-INSIGHT]
+> [!{EXAM_NAME}-INSIGHT]
 > - **What this tests:** [concept being tested]
 > - **Common trap:** [what students get wrong]
 > - **Shortcut:** [elimination method or fast approach if available]
@@ -648,7 +648,7 @@ $$\Rightarrow [final answer]$$
 
 ---
 
-### Example 3: [Title — JEE Advanced Style] 📕
+### Example 3: [Title — {EXAM_LEVEL2} Style] 📕
 
 **Problem:**
 > [Complex problem with multiple concepts or hidden assumptions]
@@ -678,7 +678,7 @@ $$\Rightarrow [result 2]$$
 $$E_{final} = [Final answer]$$
 
 > [!EXAM-PATTERN]
-> - **Frequency in JEE:** 🔴 High / 🟡 Medium / 🟢 Low
+> - **Frequency in {EXAM_NAME}:** 🔴 High / 🟡 Medium / 🟢 Low
 > - **Why it appears:** [pattern reason]
 > - **Variations:** [other forms of this problem]
 
@@ -763,7 +763,7 @@ $$E_{final} = [Final answer]$$
 
 ---
 
-## 🎓 10. JEE Advanced Patterns (4 REQUIRED)
+## 🎓 10. {EXAM_LEVEL2} Patterns (4 REQUIRED)
 
 ### Pattern 1: [Common advanced pattern - MULTI-CONCEPT]
 - **🔍 What to look for:** [identifier in question]
@@ -859,7 +859,7 @@ E
 
 ---
 
-*Tags: #<SubTopic> #<Chapter> #JEE #JEEAdvanced #Class12 #NCERT #Boards*
+*Tags: #<SubTopic> #<Chapter> {EXAM_TAGS}*
 *Word Count: 400+ lines*
 ```
 
@@ -969,7 +969,7 @@ $$= [final answer] [unit]$$
 ### Difficulty Distribution:
 - **Easy (Q1-Q20):** 20 questions - Direct formula application
 - **Moderate (Q21-Q60):** 40 questions - Single concept, 2-3 steps
-- **Difficult (Q61-Q100):** 40 questions - Multi-concept, JEE Advanced level
+- **Difficult (Q61-Q100):** 40 questions - Multi-concept, {EXAM_LEVEL2} level
 
 ### Question Generation Guidelines:
 
@@ -1017,13 +1017,13 @@ $$= [final answer] [unit]$$
 - Energy + Force problems
 - Capacitor + Electric Field problems
 
-#### Q81-Q90: JEE Advanced Level
+#### Q81-Q90: {EXAM_LEVEL2} Level
 - Complex integration problems
 - Unusual charge distributions
 - Multi-stage problems
 
 #### Q91-Q100: Mixed Comprehensive
-- Previous year JEE questions
+- Previous year {EXAM_NAME} questions
 - Mixed topics from entire chapter
 - Integer answer type
 ```
@@ -1142,7 +1142,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 **Topic:** [[Topic Name]]
 **Subtopic:** [Subtopic]
 **Difficulty:** Easy / Moderate / Difficult
-**Exam:** JEE Main / JEE Advanced / Boards
+**Exam:** {EXAM_LEVEL1} / {EXAM_LEVEL2} / Boards
 
 ### Problem:
 [Clear, unambiguous problem statement]
@@ -1171,7 +1171,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 > - **B:** [Specific reason why B is wrong]
 > - **D:** [Specific reason why D is wrong]
 
-### JEE Insight:
+### {EXAM_NAME} Insight:
 > [!SHORTCUT]
 > **Quick elimination method:** [How to eliminate wrong options quickly]
 > **Time saved:** ~X seconds
@@ -1183,7 +1183,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 ### MCQ Distribution:
 - **Easy (Q1-Q20):** 20 MCQs - Direct application
 - **Moderate (Q21-Q60):** 40 MCQs - Concept understanding
-- **Difficult (Q61-Q100):** 40 MCQs - JEE Advanced level
+- **Difficult (Q61-Q100):** 40 MCQs - {EXAM_LEVEL2} level
 
 ### MCQ Pre-Delivery Checklist:
 - [ ] Exactly 100 MCQs generated
@@ -1191,7 +1191,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 - [ ] Every MCQ has detailed explanation
 - [ ] Every MCQ explains why ALL wrong options are wrong
 - [ ] Topic/subtopic for each MCQ
-- [ ] JEE shortcut/insight included
+- [ ] {EXAM_NAME} shortcut/insight included
 - [ ] Common traps identified
 - [ ] No placeholder text
 
@@ -1358,10 +1358,9 @@ $$[Result]$$
 
 ---
 
-## Step 13: JEE Advanced Insights Template
+## Step 13: {EXAM_LEVEL2} Insights Template
 
-```markdown
-# JEE Advanced Thinking
+# {EXAM_LEVEL2} Thinking
 
 ## Multi-Concept Insights
 [Advanced connections between topics]
@@ -1426,7 +1425,7 @@ $$[All key formulas in one place]$$
 - [ ] Every topic has dedicated .md file
 - [ ] **core.md has complete navigation** to ALL files
 - [ ] Wikilinks throughout (no broken links)
-- [ ] Tags used (#JEE, #JEEAdvanced, #Class12, #NCERT, #Boards)
+- [ ] Tags used ({EXAM_TAGS})
 
 ### Content ✅
 - [ ] **Each topic note: 400+ lines**
@@ -1438,7 +1437,7 @@ $$[All key formulas in one place]$$
 - [ ] Concept connection map
 - [ ] Important derivations
 - [ ] Common mistakes (5+ per topic)
-- [ ] JEE advanced insights
+- [ ] {EXAM_NAME} advanced insights
 - [ ] One-shot revision sheet
 - [ ] Graph explanations
 
@@ -1452,7 +1451,7 @@ $$[All key formulas in one place]$$
 - [ ] LaTeX for all formulas
 
 ### Quality ✅
-- [ ] Callouts used throughout (KEY-CONCEPT, JEE-INSIGHT, COMMON-MISTAKE, DEEP-INSIGHT, INTUITION, TIP)
+- [ ] Callouts used throughout (KEY-CONCEPT, {EXAM_NAME}-INSIGHT, COMMON-MISTAKE, DEEP-INSIGHT, INTUITION, TIP)
 - [ ] Tables for comparisons, formulas, data
 - [ ] LaTeX for all formulas
 - [ ] 3+ worked examples per topic
@@ -1475,7 +1474,7 @@ $$[All key formulas in one place]$$
 - [ ] Deep explanations, not surface-level
 - [ ] Real-world analogies
 - [ ] Intuitive explanations
-- [ ] JEE patterns identified
+- [ ] {EXAM_NAME} patterns identified
 - [ ] Board exam patterns identified
 - [ ] Multiple approaches shown
 - [ ] Conceptual traps highlighted
@@ -1499,7 +1498,7 @@ $$[All key formulas in one place]$$
 - ❌ **Do NOT skip derivations**
 - ❌ **Do NOT skip intuitive explanations**
 - ❌ **Do NOT skip real-world analogies**
-- ❌ **Do NOT skip JEE pattern analysis**
+- ❌ **Do NOT skip {EXAM_NAME} pattern analysis**
 - ❌ **Do NOT produce low-effort content**
 - ❌ **Do NOT use placeholder text** like "Questions 31-100 continue in similar format" - YOU MUST GENERATE ACTUAL QUESTIONS
 - ❌ **Do NOT put reference text** instead of generating actual content

@@ -52,12 +52,16 @@ function deriveToolCalls(steps: AgentStep[]): { name: string; status: "running" 
   return result;
 }
 
+function mergeSteps(existing: AgentStep[], incoming: AgentStep[], incomingTurn: number): AgentStep[] {
+  if (existing.some((s) => s.turn === incomingTurn)) return existing;
+  return [...existing, ...incoming.map((s) => ({ ...s, turn: incomingTurn }))];
+}
+
 function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
   const msg = e.data;
   switch (msg.type) {
     case "progress": {
-      const turnSteps = msg.steps.map((s) => ({ ...s, turn: msg.turn }));
-      const allSteps = [...currentState.steps, ...turnSteps];
+      const allSteps = mergeSteps(currentState.steps, msg.steps, msg.turn);
       currentState = {
         ...currentState,
         phase: "running",
@@ -72,8 +76,7 @@ function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
       break;
     }
     case "done": {
-      const turnSteps = msg.steps.map((s) => ({ ...s, turn: msg.turn }));
-      const allSteps = [...currentState.steps, ...turnSteps];
+      const allSteps = mergeSteps(currentState.steps, msg.steps, msg.turn);
       const files = msg.workspace.map(([path, content]) => ({ path, content }));
       currentState = {
         ...currentState,
@@ -122,7 +125,7 @@ export function getState(): AgentUIState {
   return currentState;
 }
 
-export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path: string; content: string }[], chapterName: string, chapterPath: string, initialMessages: Record<string, unknown>[]) {
+export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path: string; content: string }[], chapterName: string, chapterPath: string, initialMessages: Record<string, unknown>[], examVars?: Record<string, string>) {
   const w = ensureWorker();
 
   // Make sure it's connected (re-attach handler if worker was recreated)
@@ -149,6 +152,7 @@ export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path:
     chapterName,
     chapterPath,
     messages: initialMessages,
+    examVars: examVars || {},
   });
 }
 
