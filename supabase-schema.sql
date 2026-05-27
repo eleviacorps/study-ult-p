@@ -16,9 +16,11 @@ create table if not exists profiles (
   twitter text default '',
   github text default '',
   website text default '',
+  onboarding_completed boolean not null default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+alter table profiles add column if not exists onboarding_completed boolean not null default false;
 create unique index if not exists idx_profiles_username on profiles(username) where username is not null;
 
 -- 2. STUDY SESSIONS (daily minutes)

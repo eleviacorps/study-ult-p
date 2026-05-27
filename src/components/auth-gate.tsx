@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Loader2 } from "lucide-react";
 
 const PUBLIC_ROUTES = ["/login", "/auth/callback"];
+const SHELLLESS_ROUTES = ["/login", "/auth/callback", "/onboarding"];
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,6 +15,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
+    const isOnboarding = pathname.startsWith("/onboarding");
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       setStatus("authed");
@@ -25,6 +27,20 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
+        if (!isPublic) {
+          try {
+            const res = await fetch("/api/profile");
+            const profile = res.ok ? await res.json() : null;
+            if (!profile?.onboarding_completed && !isOnboarding) {
+              window.location.replace("/onboarding");
+              return;
+            }
+            if (profile?.onboarding_completed && isOnboarding) {
+              window.location.replace("/dashboard");
+              return;
+            }
+          } catch {}
+        }
         setStatus(isPublic ? "public" : "authed");
       } else if (isPublic) {
         setStatus("public");
@@ -46,7 +62,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (status === "public") {
+  const shellless = SHELLLESS_ROUTES.some((route) => pathname.startsWith(route));
+
+  if (status === "public" || shellless) {
     return <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">{children}</main>;
   }
 

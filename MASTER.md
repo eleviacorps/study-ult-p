@@ -597,3 +597,34 @@ Known follow-up:
 
 - Move Note Agent's `AgentConfig` parameter out entirely in a later cleanup once worker message compatibility is no longer needed.
 - Add server-side health/status reporting for unavailable AI service states.
+
+### 2026-05-27 - Step 13 - Mobile-First Onboarding And AI Profile Seeding
+
+Intent: Add the required post-signup onboarding flow and seed the persistent learning profile used by future tutoring sessions.
+
+Files changed:
+
+- `supabase-schema.sql`
+- `src/app/api/profile/route.ts`
+- `src/app/api/onboarding/route.ts`
+- `src/app/onboarding/page.tsx`
+- `src/components/auth-gate.tsx`
+
+Implementation:
+
+- Added `profiles.onboarding_completed` with an idempotent migration statement.
+- Updated profile writes to support the onboarding completion flag.
+- Added `/api/onboarding` to save name, username, survey data, goal profile, AI profile, and initial learning-state profile fields.
+- The onboarding API tries to generate a compact AI learning profile, adaptive strategy, and tutor personality prompt through the server-side AI boundary, with a deterministic fallback if AI is unavailable.
+- Added an authenticated onboarding page with phone-first layout, large tap targets, chip controls, compact survey sections, and a sticky mobile completion action.
+- Updated `AuthGate` so incomplete users are routed to onboarding and completed users are routed away from it.
+- Kept onboarding shell-free so Android/WebView users do not fight the desktop sidebar during setup.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add profile hydration into Tutor payloads from `student_ai_profiles` and `student_goal_profiles`.
+- Add username availability feedback before submit.

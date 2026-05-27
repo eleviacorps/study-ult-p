@@ -33,8 +33,8 @@ export async function PUT(request: Request) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const allowed = ["name", "username", "bio", "avatar_url", "instagram", "twitter", "github", "website"];
-  const updates: Record<string, string> = {};
+  const allowed = ["name", "username", "bio", "avatar_url", "instagram", "twitter", "github", "website", "onboarding_completed"];
+  const updates: Record<string, string | boolean> = {};
   for (const key of allowed) {
     if (body[key] !== undefined) updates[key] = body[key];
   }
