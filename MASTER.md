@@ -541,3 +541,29 @@ Known follow-up:
 
 - Add idempotency keys for evaluation attempts to prevent accidental double writes on retries.
 - Use AI-generated misconception labels instead of raw feedback text when creating `student_misconceptions`.
+
+### 2026-05-27 - Step 11 - Tutor Chat Session Controls
+
+Intent: Expose the scoped chat-session architecture in the Tutor UI with New Chat and session switching.
+
+Files changed:
+
+- `src/lib/chat-store.ts`
+- `src/app/tutor/page.tsx`
+
+Implementation:
+
+- Added a `setChatSession` helper so the UI can switch the active local session id and mark fetched remote messages as already synced.
+- Added Tutor controls for New Chat and Chat History.
+- Added a history drawer that fetches saved `physics_tutor` sessions from `/api/chat?sessions=1`.
+- Added session loading from `/api/chat?session_id=...`, preserving the selected session id and preventing re-sync duplication.
+- New Chat now resets the local session marker and starts a fresh tutor thread.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add session delete/rename and summary previews.
+- Add the same session switching UX to reader sidebar chats with chapter scoping.

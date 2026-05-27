@@ -5,13 +5,21 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
-import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp, Plus, History } from "lucide-react";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { cn } from "@/lib/cn";
-import { loadChat, saveChat, syncChatToDB, getTutorKey } from "@/lib/chat-store";
+import { clearChat, loadChat, saveChat, setChatSession, syncChatToDB, getTutorKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
+
+type TutorSession = {
+  id: string;
+  title: string;
+  type: string;
+  updated_at?: string;
+  last_message_at?: string;
+};
 
 export default function TutorPage() {
   const { vault } = useVaultStore();
@@ -26,6 +34,8 @@ export default function TutorPage() {
   });
   const [mounted, setMounted] = useState(false);
   const [input, setInput] = useState("");
+  const [sessions, setSessions] = useState<TutorSession[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -44,6 +54,22 @@ export default function TutorPage() {
   }, [messages, mounted]);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
   const chatRef = useRef<HTMLDivElement>(null);
+
+  const refreshSessions = async () => {
+    try {
+      const res = await fetch("/api/chat?sessions=1");
+      if (!res.ok) return;
+      const data = await res.json();
+      const next = Array.isArray(data.sessions)
+        ? data.sessions.filter((session: TutorSession) => session.type === "physics_tutor")
+        : [];
+      setSessions(next);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (mounted) refreshSessions();
+  }, [mounted]);
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
@@ -78,12 +104,88 @@ export default function TutorPage() {
       state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
     });
     addPoints(3, "Tutor Chat", userMsg.substring(0, 50));
+    refreshSessions();
+  };
+
+  const startNewChat = () => {
+    const greeting = { role: "assistant" as const, content: "Hi! Ask me anything about physics." };
+    clearChat(chatKey);
+    setMessages([greeting]);
+    setExpandedReasoning(new Set());
+    setShowHistory(false);
+  };
+
+  const loadSession = async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/chat?session_id=${encodeURIComponent(sessionId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const nextMessages = Array.isArray(data.messages)
+        ? data.messages
+            .filter((message: any) => message.role === "user" || message.role === "assistant")
+            .map((message: any) => ({ role: message.role, content: message.content }))
+        : [];
+      setChatSession(chatKey, sessionId, nextMessages.length);
+      saveChat(chatKey, nextMessages);
+      setMessages(nextMessages.length > 0 ? nextMessages : [{ role: "assistant", content: "Hi! Ask me anything about physics." }]);
+      setExpandedReasoning(new Set());
+      setShowHistory(false);
+    } catch {}
   };
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header title="AI Tutor" />
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4 sm:px-6">
+        <div className="pt-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs opacity-35">Physics tutor</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowHistory((value) => !value)}
+              className="p-2 rounded-xl glass-interactive opacity-60 hover:opacity-100"
+              title="Chat history"
+            >
+              <History className="w-4 h-4" />
+            </button>
+            <button
+              onClick={startNewChat}
+              className="p-2 rounded-xl bg-[#1856FF]/15 text-[#1856FF] border border-[#1856FF]/20 hover:bg-[#1856FF]/25"
+              title="New chat"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {showHistory && (
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="glass p-3 mt-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium">Chat History</p>
+              <button onClick={refreshSessions} className="text-[10px] opacity-35 hover:opacity-70">Refresh</button>
+            </div>
+            {sessions.length === 0 ? (
+              <p className="text-xs opacity-30 py-2">No saved tutor sessions yet.</p>
+            ) : (
+              <div className="space-y-1 max-h-56 overflow-y-auto">
+                {sessions.map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => loadSession(session.id)}
+                    className="w-full text-left p-2 rounded-lg bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.05] transition-colors"
+                  >
+                    <p className="text-xs font-medium truncate">{session.title || "New Chat"}</p>
+                    <p className="text-[10px] opacity-25">
+                      {session.updated_at ? new Date(session.updated_at).toLocaleString() : "Saved session"}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         <div ref={chatRef} className="flex-1 overflow-y-auto py-6 space-y-4">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}

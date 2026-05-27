@@ -53,6 +53,13 @@ export function resetChatSession(key: string) {
   } catch {}
 }
 
+export function setChatSession(key: string, sessionId: string, syncedCount = 0) {
+  try {
+    localStorage.setItem(storageKey(key, "session-id"), sessionId);
+    localStorage.setItem(storageKey(key, "synced-count"), String(syncedCount));
+  } catch {}
+}
+
 export function loadChat(key: string): ChatMessage[] {
   if (typeof window === "undefined") return [];
   try {
