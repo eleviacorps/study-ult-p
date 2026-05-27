@@ -10,6 +10,7 @@ import { useLlm } from "@/lib/llm-context";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { getAiCache, setAiCache } from "@/lib/ai-cache";
 import { PROMPTS } from "@/lib/ai-config";
+import { recordEvaluationAttempt } from "@/lib/evaluation-sync";
 import type { Question } from "@/types";
 import {
   Lightbulb,
@@ -66,7 +67,7 @@ function parseAiJson(raw: string): AiStructured | null {
   }
 }
 
-function saveAnswer(questionId: string, chapter: string, topic: string, correct: boolean) {
+function saveAnswer(questionId: string, chapter: string, topic: string, correct: boolean, syncEvaluation = true) {
   updateStudyState((state) => {
     const key = `q-${questionId}`;
     const current = state.questionAttempts[key] || { correct: 0, total: 0 };
@@ -87,6 +88,17 @@ function saveAnswer(questionId: string, chapter: string, topic: string, correct:
     }
   });
   addPoints(correct ? 10 : 2, correct ? "Correct Answer" : "Answer Attempt", `${chapter} - ${topic || "General"}`);
+  if (syncEvaluation) {
+    recordEvaluationAttempt({
+      surface: "practice",
+      questionId,
+      topic: topic || chapter,
+      chapter,
+      correct,
+      score: correct ? 1 : 0,
+      maxScore: 1,
+    });
+  }
 }
 
 function QuestionCard({ question, index }: { question: Question; index: number }) {
@@ -203,7 +215,19 @@ Format the JSON exactly like this:
           feedback: result.feedback ?? "",
         });
         const passed = (result.score ?? 0) >= 6;
-        saveAnswer(question.id, question.chapter, question.topic, passed);
+        saveAnswer(question.id, question.chapter, question.topic, passed, false);
+        recordEvaluationAttempt({
+          surface: "ai_judge",
+          questionId: question.id,
+          topic: question.topic || question.chapter,
+          chapter: question.chapter,
+          subject: question.subject,
+          correct: passed,
+          score: result.score ?? 0,
+          maxScore: result.maxScore ?? 10,
+          feedback: result.feedback ?? "",
+          misconception: passed ? "" : result.feedback ?? "",
+        });
         setAnswerJudged(true);
       }
     } catch {}

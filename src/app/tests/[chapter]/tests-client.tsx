@@ -8,6 +8,7 @@ import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
+import { recordEvaluationAttempt } from "@/lib/evaluation-sync";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -214,6 +215,20 @@ export default function TestTakePage() {
         const isCorrect = q.type === "mcq"
           ? (typeof userAns === "number" && userAns === q.correctIndex)
           : (typeof userAns === "string" && userAns.trim().length > 0);
+        recordEvaluationAttempt({
+          surface: "test",
+          questionId: `${chapterName}-q${i}`,
+          topic: `${chapterName} > Test Q${i + 1}`,
+          chapter: chapterName,
+          correct: isCorrect,
+          score: isCorrect ? 1 : 0,
+          maxScore: 1,
+          metadata: {
+            selected: userAns ?? null,
+            correctIndex: q.correctIndex,
+            type: q.type,
+          },
+        });
         const key = `test-${chapterName}-q${i}`;
         const current = state.questionAttempts[key] || { correct: 0, total: 0 };
         state.questionAttempts[key] = {

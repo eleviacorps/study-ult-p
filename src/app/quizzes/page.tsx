@@ -7,6 +7,7 @@ import { useLlm } from "@/lib/llm-context";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { addPoints, updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
+import { recordEvaluationAttempt } from "@/lib/evaluation-sync";
 import { Header } from "@/components/layout/header";
 import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -186,6 +187,19 @@ export default function QuizPage() {
       qs.forEach((q, i) => {
         const userAns = ans.get(i);
         const isCorrect = userAns === q.correctIndex;
+        recordEvaluationAttempt({
+          surface: "quiz",
+          questionId: q.id,
+          topic: `Quiz Q${i + 1}`,
+          chapter: "General",
+          correct: isCorrect,
+          score: isCorrect ? 1 : 0,
+          maxScore: 1,
+          metadata: {
+            selected: userAns ?? null,
+            correctIndex: q.correctIndex,
+          },
+        });
         state.questionAttempts[`quiz-${q.id}`] = {
           correct: (state.questionAttempts[`quiz-${q.id}`]?.correct || 0) + (isCorrect ? 1 : 0),
           total: (state.questionAttempts[`quiz-${q.id}`]?.total || 0) + 1,

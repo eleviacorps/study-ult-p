@@ -511,3 +511,33 @@ Known follow-up:
 
 - Hydrate local tutoring context from remote `studentLearningState` on login/session start.
 - Add evaluation-result writers that update mastery, misconceptions, and recovery tasks immediately after question grading.
+
+### 2026-05-27 - Step 10 - Evaluation Analytics Writers
+
+Intent: Make question outcomes update durable learning intelligence tables instead of living only in UI feedback and local analytics.
+
+Files changed:
+
+- `supabase-schema.sql`
+- `src/app/api/evaluation/route.ts`
+- `src/lib/evaluation-sync.ts`
+- `src/app/questions/[chapter]/questions-client.tsx`
+- `src/app/quizzes/page.tsx`
+- `src/app/tests/[chapter]/tests-client.tsx`
+
+Implementation:
+
+- Added required analytics tables: `daily_learning_metrics`, `attempt_analytics`, `topic_velocity`, `performance_trends`, and `attention_patterns`.
+- Enabled RLS and owner-only policies for the new analytics tables.
+- Added `/api/evaluation` to record an attempt, update concept mastery, add misconception evidence for wrong answers, create recovery tasks, update daily metrics, update topic velocity, and append performance trend points.
+- Added a browser helper for fire-and-forget evaluation recording.
+- Wired MCQ practice, AI-judged written answers, quizzes, and mock tests to send attempt outcomes to the evaluation endpoint.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add idempotency keys for evaluation attempts to prevent accidental double writes on retries.
+- Use AI-generated misconception labels instead of raw feedback text when creating `student_misconceptions`.
