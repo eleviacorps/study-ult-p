@@ -80,16 +80,18 @@
 
 html {
   height: 100%;
+  overflow: hidden;
 }
 
 body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
-  min-height: 100%;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 button,
@@ -403,9 +405,9 @@ html[data-mobile="true"] .top-nav-header {
   display: none;
 }
 
-/* Mobile bottom-nav clearance — applies to scrollable pages only, not 100dvh screens */
+/* Mobile bottom-nav clearance — applies to scrollable pages only, not fixed-height screens */
 @media (max-width: 1023px) {
-  main > div:not(.h-\[100dvh\]):not(.h-screen) {
+  main > div:not(.h-\[100dvh\]):not(.h-screen):not(.h-full) {
     padding-bottom: 96px;
   }
 }
@@ -415,7 +417,8 @@ html[data-mobile="true"] .top-nav-header {
     padding-bottom: calc(env(safe-area-inset-bottom) + 6.5rem);
   }
 
-  .app-main > .h-\[100dvh\] {
+  .app-main > .h-\[100dvh\],
+  .app-main > .h-full {
     padding-bottom: 0;
   }
 
@@ -463,4 +466,10 @@ html[data-mobile="true"] .top-nav-header {
     width: 100%;
     max-width: 100%;
   }
+}
+
+.scroll-region {
+  contain: layout;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }

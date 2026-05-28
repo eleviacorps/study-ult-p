@@ -208,7 +208,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             )}
           </div>
 
-          <div className="p-3 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/[0.06]">
+          <div className="p-3 pb-[max(env(safe-area-inset-bottom),8px)] border-t border-white/[0.06]">
             <div className="flex items-center gap-2">
               <input
                 type="text"

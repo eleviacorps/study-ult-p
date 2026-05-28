@@ -218,9 +218,9 @@ export default function TutorPage() {
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col">
       <Header title="AI Tutor" />
-      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col">
+      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col overflow-hidden">
         <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">
           <div>
             <p className="text-xs opacity-35">Physics tutor</p>
@@ -254,11 +254,8 @@ export default function TutorPage() {
             ) : (
               <div className="space-y-1 max-h-56 overflow-y-auto">
                 {sessions.map((session) => (
-                  <button
-                    key={session.id}
-                    onClick={() => loadSession(session.id)}
-                    className="w-full text-left p-2 rounded-lg bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.05] transition-colors"
-                  >
+                  <button key={session.id} onClick={() => loadSession(session.id)}
+                    className="w-full text-left p-2 rounded-lg bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.05] transition-colors">
                     <p className="text-xs font-medium truncate">{session.title || "New Chat"}</p>
                     <p className="text-[10px] opacity-25">
                       {session.updated_at ? new Date(session.updated_at).toLocaleString() : "Saved session"}
@@ -270,7 +267,7 @@ export default function TutorPage() {
           </motion.div>
         )}
 
-        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-4 sm:py-6 pb-6 space-y-4">
+        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y py-4 sm:py-6 space-y-4 scroll-region">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
@@ -288,21 +285,12 @@ export default function TutorPage() {
                 </div>
                 {msg.reasoning && (
                   <div className="mt-2">
-                    <button
-                      onClick={() => {
-                        setExpandedReasoning((prev) => {
-                          const next = new Set(prev);
-                          next.has(i) ? next.delete(i) : next.add(i);
-                          return next;
-                        });
-                      }}
-                      className="flex items-center gap-1 text-[10px] opacity-30 hover:opacity-60 transition-opacity"
-                    >
-                      {expandedReasoning.has(i) ? (
-                        <><ChevronUp className="w-3 h-3" /> Hide thinking</>
-                      ) : (
-                        <><ChevronDown className="w-3 h-3" /> Show thinking</>
-                      )}
+                    <button onClick={() => setExpandedReasoning((prev) => {
+                      const next = new Set(prev);
+                      next.has(i) ? next.delete(i) : next.add(i);
+                      return next;
+                    })} className="flex items-center gap-1 text-[10px] opacity-30 hover:opacity-60 transition-opacity">
+                      {expandedReasoning.has(i) ? <><ChevronUp className="w-3 h-3" /> Hide thinking</> : <><ChevronDown className="w-3 h-3" /> Show thinking</>}
                     </button>
                     {expandedReasoning.has(i) && (
                       <div className="mt-1.5 p-2.5 rounded-lg bg-[#1856FF]/5 border border-[#1856FF]/10 text-[11px] opacity-40 leading-relaxed max-h-48 overflow-y-auto">
@@ -340,43 +328,27 @@ export default function TutorPage() {
               </button>
             </div>
           )}
-
-          {pending && (
-            <div className="glass p-4 mt-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-white/50">
-                  {pending.action === "explain" && "Which topic would you like me to explain?"}
-                  {pending.action === "summarize" && "Which chapter would you like me to summarize?"}
-                  {pending.action === "questions" && pending.step === "ask_topic" && "Which topic should the questions be about?"}
-                  {pending.action === "questions" && pending.step === "ask_count" && "How many questions do you want?"}
-                </p>
-                <button onClick={() => setPending(null)} className="p-1 rounded-lg hover:bg-white/5">
-                  <X className="w-3.5 h-3.5 opacity-40" />
-                </button>
-              </div>
-              <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-xl p-1.5">
-                <input
-                  type={pending.step === "ask_count" ? "number" : "text"}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-                  placeholder={pending.step === "ask_count" ? "e.g. 5" : "Type your answer..."}
-                  autoFocus
-                  className="flex-1 bg-transparent text-sm outline-none px-2 min-w-0 text-white/70 placeholder:text-white/20"
-                />
-                <button onClick={handleSend} disabled={!input.trim() || isAsking}
-                  className="p-2 rounded-lg bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0">
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="flex-shrink-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4">
+        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/90 border-t border-white/[0.06] pt-3 pb-[max(env(safe-area-inset-bottom),8px)] px-0">
+          {pending && (
+            <div className="flex items-center justify-between px-1 pb-2">
+              <span className="text-[10px] text-white/40">
+                {pending.action === "explain" && "Which topic should I explain?"}
+                {pending.action === "summarize" && "Which chapter should I summarize?"}
+                {pending.action === "questions" && pending.step === "ask_topic" && "Questions about which topic?"}
+                {pending.action === "questions" && pending.step === "ask_count" && "How many questions?"}
+              </span>
+              <button onClick={() => { setPending(null); setInput(""); }} className="text-[10px] text-white/30 hover:text-white/60 transition-colors">
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder={pending ? "Type your answer..." : "Ask anything about physics..."}
+              placeholder={
+                pending ? (pending.step === "ask_count" ? "e.g. 5" : "Type your answer...") : "Ask anything about physics..."
+              }
               className="flex-1 bg-transparent text-sm outline-none px-3 min-w-0 text-white/70 placeholder:text-white/20" />
             <button onClick={handleSend} disabled={!input.trim() || isAsking}
               className="p-2.5 rounded-xl bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
