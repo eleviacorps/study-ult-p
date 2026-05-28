@@ -1125,3 +1125,28 @@ Validation:
 Known follow-up:
 
 - Replace regex SVG sanitizing with a strict XML sanitizer dependency before public multi-user launch.
+
+### 2026-05-28 - Step 33 - AI Endpoint Security Hardening
+
+Intent: Close model-configuration leakage and reduce unauthenticated AI endpoint abuse.
+
+Files changed:
+
+- `src/app/api/llm/route.ts`
+- `src/app/api/llm/models/route.ts`
+
+Implementation:
+
+- Changed `/api/llm/models` to return only `{ enabled: true }` instead of exposing the internal model name.
+- Required an authenticated Supabase user for `/api/llm` when Supabase is configured.
+- Added request limits for number of messages, per-message text size, and total prompt size.
+- Kept internal model and provider selection server-side only.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+- Ran `npm run build` successfully.
+
+Known follow-up:
+
+- Add durable server-side rate limiting for `/api/llm`, `/api/chat/summary`, `/api/onboarding`, and diagram rendering.

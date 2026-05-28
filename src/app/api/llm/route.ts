@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
 const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
+const MAX_MESSAGES = 12;
+const MAX_MESSAGE_CHARS = 18000;
+const MAX_TOTAL_CHARS = 60000;
 
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -13,10 +17,23 @@ type ChatMessage = {
 
 export async function POST(request: Request) {
   try {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json().catch(() => ({}));
-    const messages = Array.isArray(body.messages) ? body.messages.filter(isValidMessage).map(normalizeMessage) : [];
+    const messages: Record<string, unknown>[] = Array.isArray(body.messages) ? body.messages.filter(isValidMessage).map(normalizeMessage) : [];
     if (messages.length === 0) {
       return NextResponse.json({ error: "missing_messages" }, { status: 400 });
+    }
+    if (messages.length > MAX_MESSAGES) {
+      return NextResponse.json({ error: "too_many_messages" }, { status: 413 });
+    }
+    const totalChars = messages.reduce((sum, message) => sum + String(message.content || "").length, 0);
+    if (totalChars > MAX_TOTAL_CHARS) {
+      return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
     }
 
     const baseUrl = getServerAiBaseUrl();
@@ -81,7 +98,7 @@ function isValidMessage(message: unknown): message is ChatMessage {
 function normalizeMessage(message: ChatMessage): Record<string, unknown> {
   const normalized: Record<string, unknown> = {
     role: message.role,
-    content: typeof message.content === "string" ? message.content : "",
+    content: typeof message.content === "string" ? message.content.slice(0, MAX_MESSAGE_CHARS) : "",
   };
   if (Array.isArray(message.tool_calls)) normalized.tool_calls = message.tool_calls;
   if (message.tool_call_id) normalized.tool_call_id = message.tool_call_id;
