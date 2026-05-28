@@ -387,3 +387,14 @@ body::before {
   background: rgba(24, 86, 255, 0.15);
   box-shadow: 0 0 20px rgba(24, 86, 255, 0.1);
 }
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.bg-animated-gradient {
+  background: linear-gradient(-45deg, var(--bg-base), var(--bg-surface), var(--bg-elevated), var(--bg-surface), var(--bg-base));
+  background-size: 400% 400%;
+  animation: gradient-shift 20s ease infinite;
+}

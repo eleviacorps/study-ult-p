@@ -22,20 +22,24 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    async function check() {
+        async function check() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
         if (!isPublic) {
           try {
-            const res = await fetch("/api/profile");
-            const profile = res.ok ? await res.json() : null;
-            if (!profile?.onboarding_completed && !isOnboarding) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("onboarding_completed")
+              .eq("id", user.id)
+              .maybeSingle();
+            const onboarded = profile?.onboarding_completed === true;
+            if (!onboarded && !isOnboarding) {
               window.location.replace("/onboarding");
               return;
             }
-            if (profile?.onboarding_completed && isOnboarding) {
+            if (onboarded && isOnboarding) {
               window.location.replace("/dashboard");
               return;
             }
@@ -49,14 +53,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       }
     }
 
-    check().catch(() => {
-      setStatus(isPublic ? "public" : "authed");
-    });
+    check();
   }, [pathname]);
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">
+      <div className="fixed inset-0 flex items-center justify-center bg-[var(--bg-base)] z-50">
         <Loader2 className="w-6 h-6 animate-spin opacity-30" />
       </div>
     );
