@@ -14,6 +14,7 @@ interface LlmResponse {
 interface LlmContextValue {
   config: LlmConfig;
   ask: (context: string, question: string) => Promise<LlmResponse>;
+  askStream: (context: string, question: string) => AsyncGenerator<string, void, unknown>;
   isAsking: boolean;
 }
 
@@ -99,8 +100,61 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const askStream = useCallback(async function* (context: string, question: string): AsyncGenerator<string, void, unknown> {
+    setIsAsking(true);
+    try {
+      const messages = question
+        ? [{ role: "system" as const, content: context }, { role: "user" as const, content: question }]
+        : [{ role: "user" as const, content: context }];
+
+      const res = await fetch("/api/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages, max_tokens: 4096, stream: true }),
+      });
+
+      if (!res.ok) {
+        yield `AI service error (${res.status})`;
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) {
+        yield "AI service error: no response body";
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (data === "[DONE]" || !data) continue;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta;
+              const content = delta?.content || "";
+              if (content) yield content;
+            } catch {}
+          }
+        }
+      }
+    } finally {
+      setIsAsking(false);
+    }
+  }, []);
+
   return (
-    <LlmContext.Provider value={{ config: SERVER_CONFIGURED_LLM, ask, isAsking }}>
+    <LlmContext.Provider value={{ config: SERVER_CONFIGURED_LLM, ask, askStream, isAsking }}>
       {children}
     </LlmContext.Provider>
   );

@@ -23,7 +23,7 @@ type TutorSession = {
 
 export default function TutorPage() {
   const { vault } = useVaultStore();
-  const { ask, isAsking } = useLlm();
+  const { askStream, isAsking } = useLlm();
 
   const chatKey = getTutorKey();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -126,8 +126,28 @@ export default function TutorPage() {
 
     const chatSummary = await getChatSessionSummary(chatKey);
     const context = await buildContext(userMsg, chatSummary);
-    const { content, reasoning } = await ask(context, userMsg);
-    setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
+
+    setMessages((prev) => [...prev, { role: "assistant", content: "", reasoning: "" }]);
+
+    let fullContent = "";
+    try {
+      for await (const token of askStream(context, userMsg)) {
+        fullContent += token;
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          updated[updated.length - 1] = { ...last, content: fullContent };
+          return updated;
+        });
+      }
+    } catch {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        updated[updated.length - 1] = { ...last, content: fullContent || "AI service error" };
+        return updated;
+      });
+    }
 
     updateStudyState((state) => {
       const today = new Date().toISOString().split("T")[0];
@@ -274,17 +294,28 @@ export default function TutorPage() {
           {messages.length <= 1 && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
               {quickActions.map((action) => (
-                <button key={action.label} onClick={() => {
+                <button key={action.label} onClick={async () => {
                   setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  getChatSessionSummary(chatKey).then(async (chatSummary) => ask(await buildContext(action.query, chatSummary), action.query)).then(({ content, reasoning }) => {
-                    setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
-                    updateStudyState((state) => {
-                      const today = new Date().toISOString().split("T")[0];
-                      state.lastStudyDate = today;
-                      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
-                    });
-                    addPoints(3, action.label, action.query.substring(0, 50));
+                  const chatSummary = await getChatSessionSummary(chatKey);
+                  const ctx = await buildContext(action.query, chatSummary);
+                  setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+                  let fullContent = "";
+                  try {
+                    for await (const token of askStream(ctx, action.query)) {
+                      fullContent += token;
+                      setMessages((prev) => {
+                        const updated = [...prev];
+                        updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+                        return updated;
+                      });
+                    }
+                  } catch {}
+                  updateStudyState((state) => {
+                    const today = new Date().toISOString().split("T")[0];
+                    state.lastStudyDate = today;
+                    state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
                   });
+                  addPoints(3, action.label, action.query.substring(0, 50));
                 }} className="glass glass-interactive p-4 text-left">
                   <action.icon className="w-4 h-4 text-[#1856FF] mb-2" />
                   <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{action.label}</p>

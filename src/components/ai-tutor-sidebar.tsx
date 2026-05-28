@@ -24,7 +24,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { ask } = useLlm();
+  const { askStream } = useLlm();
   const messagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,11 +65,31 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
         readerContext: contextRef.current,
         chatSummary,
       });
-      const { content } = await ask(sysContext, q);
-      setMessages((prev) => [...prev, { role: "assistant", content: content || "No response" }]);
+
+      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+      let fullContent = "";
+      try {
+        for await (const token of askStream(sysContext, q)) {
+          fullContent += token;
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+            return updated;
+          });
+        }
+      } catch {
+        fullContent = fullContent || "No response";
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+          return updated;
+        });
+      }
+
       addPoints(2, "Tutor Query", q.substring(0, 50));
       recordAiConversation("user", q, chapterName || "general");
-      recordAiConversation("assistant", content || "No response", chapterName || "general");
+      recordAiConversation("assistant", fullContent, chapterName || "general");
     } catch {}
     setLoading(false);
   };

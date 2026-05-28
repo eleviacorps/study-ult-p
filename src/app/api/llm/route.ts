@@ -22,8 +22,10 @@ export async function POST(request: Request) {
     const baseUrl = getServerAiBaseUrl();
     const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
     const apiKey = process.env.AI_API_KEY || process.env.OPENCODE_API_KEY || "";
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) hdrs.Authorization = `Bearer ${apiKey}`;
+
+    const isStream = body.stream === true;
 
     const requestBody: Record<string, unknown> = {
       model,
@@ -31,15 +33,27 @@ export async function POST(request: Request) {
       max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 8192) : 4096,
       temperature: typeof body.temperature === "number" ? body.temperature : 0.25,
       top_p: typeof body.top_p === "number" ? body.top_p : 0.9,
+      stream: isStream,
     };
     if (Array.isArray(body.tools)) requestBody.tools = body.tools;
     if (body.tool_choice) requestBody.tool_choice = body.tool_choice;
 
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
-      headers,
+      headers: hdrs,
       body: JSON.stringify(requestBody),
     });
+
+    if (isStream) {
+      return new Response(res.body, {
+        status: res.status,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
 
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
