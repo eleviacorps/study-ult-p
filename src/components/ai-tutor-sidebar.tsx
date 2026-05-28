@@ -172,9 +172,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
                       : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]"
                   )}>
                     {msg.role === "assistant" ? (
-                      <div className="prose-glass text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
-                        <MarkdownRenderer content={msg.content} />
-                      </div>
+                      <MarkdownRenderer content={msg.content} className="text-xs max-w-none" />
                     ) : (
                       <span style={{ color: "var(--text-secondary)" }}>{msg.content}</span>
                     )}

@@ -294,7 +294,7 @@ export default function TutorPage() {
           )}
         </div>
 
-        <div className="sticky bottom-0 max-lg:pb-[88px] py-3 sm:py-4" style={{ background: "linear-gradient(to top, #09090B, #09090B 80%, transparent)" }}>
+        <div className="sticky bottom-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4" style={{ background: "linear-gradient(to top, #09090B, #09090B 80%, transparent)" }}>
           <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask anything about physics..."
