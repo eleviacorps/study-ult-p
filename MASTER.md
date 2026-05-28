@@ -945,3 +945,30 @@ Validation:
 
 - Read the bundled Next.js 16 upgrade docs for the middleware-to-proxy change.
 - Production build had passed before the rename; build recheck follows this step.
+
+### 2026-05-28 - Step 26 - Tutor Scroll Containment
+
+Intent: Fix mobile Tutor scrolling so only the message timeline scrolls, and restore the reader sidebar Tutor input as a stable drawer footer.
+
+Files changed:
+
+- `src/app/tutor/page.tsx`
+- `src/components/ai-tutor-sidebar.tsx`
+- `src/app/globals.css`
+
+Implementation:
+
+- Made the Tutor page a fixed `100dvh` app screen on mobile.
+- Prevented the mobile app shell from adding bottom padding or page scroll to fixed-height screens.
+- Added `overflow-hidden` to the Tutor layout container so the message pane owns scrolling.
+- Converted the reader Tutor drawer to a three-row grid: header, scrollable messages, pinned input footer.
+- Added safe-area footer padding and backdrop to keep the sidebar input visible above browser controls.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Verify with device screenshots after browser automation is available.
+- Continue with Mermaid/Kroki visual rendering support.

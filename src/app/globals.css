@@ -415,6 +415,12 @@ html[data-mobile="true"] .top-nav-header {
     padding-bottom: calc(env(safe-area-inset-bottom) + 6.5rem);
   }
 
+  .app-main:has(> .app-fixed-screen) {
+    height: 100dvh;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
   .app-main > .h-\[100dvh\] {
     padding-bottom: 0;
   }

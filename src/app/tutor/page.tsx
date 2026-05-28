@@ -218,9 +218,9 @@ export default function TutorPage() {
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col overflow-hidden">
+    <div className="app-fixed-screen h-[100dvh] flex flex-col overflow-hidden max-lg:fixed max-lg:inset-0 max-lg:z-10">
       <Header title="AI Tutor" />
-      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col">
+      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col overflow-hidden">
         <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">
           <div>
             <p className="text-xs opacity-35">Physics tutor</p>
@@ -343,7 +343,7 @@ export default function TutorPage() {
           )}
         </div>
 
-        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/80 border-t border-white/[0.04] pt-2.5 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-[max(env(safe-area-inset-bottom),8px)]">
+        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/80 border-t border-white/[0.04] pt-2.5 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.75rem)] lg:pb-[max(env(safe-area-inset-bottom),8px)]">
           {pending && (
             <div className="flex items-center justify-between px-1 pb-1.5">
               <span className="text-[9px] tracking-wide text-white/35">
