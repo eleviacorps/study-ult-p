@@ -208,7 +208,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             )}
           </div>
 
-          <div className="flex-shrink-0 bg-[#09090B]/98 p-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] border-t border-white/[0.08] backdrop-blur-xl shadow-[0_-16px_40px_rgba(0,0,0,0.45)]">
+          <div className="flex-shrink-0 bg-[#09090B]/98 p-3 max-lg:pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:pb-[calc(env(safe-area-inset-bottom)+0.9rem)] border-t border-white/[0.08] backdrop-blur-xl shadow-[0_-16px_40px_rgba(0,0,0,0.45)]">
             <div className="flex items-center gap-2">
               <input
                 type="text"
