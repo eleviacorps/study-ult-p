@@ -142,7 +142,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
           initial={isMobile ? { x: "100%" } : { width: 0 }}
           animate={isMobile ? { x: 0 } : { width: 340 }}
           exit={isMobile ? { x: "100%" } : { width: 0 }}
-          className="fixed inset-y-0 right-0 h-[100dvh] z-40 bg-[#09090B] border-l border-white/[0.06] flex flex-col overflow-hidden"
+          className="fixed top-0 right-0 bottom-0 z-40 bg-[#09090B] border-l border-white/[0.06] flex flex-col overflow-hidden"
           style={{ width: isMobile ? "100vw" : undefined }}
         >
           <div className="flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/[0.06]">
