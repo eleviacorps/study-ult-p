@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { GalaxyBackground } from "@/components/galaxy-background";
 import { VaultLoader } from "@/components/layout/vault-loader";
 import { LlmProvider } from "@/lib/llm-context";
 import { AuthGate } from "@/components/auth-gate";
@@ -34,6 +35,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex relative">
+        <GalaxyBackground />
         <ErrorBoundary>
           <LlmProvider>
             <VaultLoader />

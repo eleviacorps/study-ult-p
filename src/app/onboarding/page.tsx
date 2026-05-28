@@ -335,7 +335,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-animated-gradient flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4 py-2">
           <div className="flex items-center gap-3">
