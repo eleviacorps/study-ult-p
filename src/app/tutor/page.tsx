@@ -165,10 +165,10 @@ export default function TutorPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <Header title="AI Tutor" />
-      <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4 sm:px-6">
-        <div className="pt-4 flex items-center justify-between gap-3">
+      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col">
+        <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">
           <div>
             <p className="text-xs opacity-35">Physics tutor</p>
           </div>
@@ -191,7 +191,7 @@ export default function TutorPage() {
         </div>
 
         {showHistory && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="glass p-3 mt-3 space-y-2">
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="glass p-3 mt-3 space-y-2 flex-shrink-0">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium">Chat History</p>
               <button onClick={refreshSessions} className="text-[10px] opacity-35 hover:opacity-70">Refresh</button>
@@ -217,7 +217,7 @@ export default function TutorPage() {
           </motion.div>
         )}
 
-        <div ref={chatRef} className="flex-1 overflow-y-auto py-6 space-y-4">
+        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto py-6 space-y-4">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
@@ -226,7 +226,7 @@ export default function TutorPage() {
                   <Bot className="w-4 h-4 text-[#1856FF]" />
                 </div>
               )}
-              <div className={cn("max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 text-sm leading-relaxed",
+              <div className={cn("max-w-[95%] sm:max-w-[90%] p-3 sm:p-4 text-sm leading-relaxed",
                 msg.role === "user"
                   ? "bg-[#1856FF]/15 rounded-2xl rounded-br-md border border-[#1856FF]/20"
                   : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]")}>
@@ -294,7 +294,7 @@ export default function TutorPage() {
           )}
         </div>
 
-        <div className="sticky bottom-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4" style={{ background: "linear-gradient(to top, #09090B, #09090B 80%, transparent)" }}>
+        <div className="flex-shrink-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4">
           <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask anything about physics..."

@@ -166,7 +166,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             ) : (
               messages.map((msg, i) => (
                 <div key={i} className={cn("text-xs leading-relaxed", msg.role === "user" ? "text-right" : "")}>
-                  <div className={cn("inline-block max-w-[90%] p-3",
+                  <div className={cn("inline-block max-w-[95%] p-3",
                     msg.role === "user"
                       ? "bg-[#1856FF]/15 rounded-2xl rounded-br-md border border-[#1856FF]/20"
                       : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]"
