@@ -8,7 +8,7 @@ import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { clearChat, getChatSessionSummary, loadChat, saveChat, syncChatToDB, getSidebarKey } from "@/lib/chat-store";
+import { clearChat, getChatSessionSummary, loadChat, queueChatSyncToDB, saveChat, getSidebarKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 interface AiTutorSidebarProps {
@@ -42,7 +42,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   useEffect(() => {
     if (messages.length > 0) {
       saveChat(sidebarKey, messages);
-      syncChatToDB(sidebarKey, messages, {
+      queueChatSyncToDB(sidebarKey, messages, {
         type: "concept_discussion",
         title: chapterName ? `${chapterName} sidebar tutor` : "Reader sidebar tutor",
         chapter: chapterName || "",

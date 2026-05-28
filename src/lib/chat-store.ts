@@ -24,6 +24,16 @@ interface ChatSyncOptions {
 
 const CHAT_KEY = "studyult-tutor-chat";
 const SIDEBAR_CHAT_KEY = "studyult-tutor-sidebar-chat";
+const CHAT_SYNC_DEBOUNCE_MS = 900;
+const CHAT_SYNC_BATCH_SIZE = 24;
+
+type QueuedChatSync = {
+  messages: ChatMessage[];
+  options: ChatSyncOptions;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+const chatSyncQueue = new Map<string, QueuedChatSync>();
 
 function storageKey(key: string, suffix: string): string {
   return `${key}:${suffix}`;
@@ -98,6 +108,20 @@ export function clearChat(key: string) {
   } catch {}
 }
 
+export function queueChatSyncToDB(key: string, messages: ChatMessage[], options: ChatSyncOptions = {}, delay = CHAT_SYNC_DEBOUNCE_MS) {
+  if (messages.length === 0 || typeof window === "undefined") return;
+
+  const existing = chatSyncQueue.get(key);
+  if (existing) clearTimeout(existing.timer);
+
+  const timer = setTimeout(() => {
+    chatSyncQueue.delete(key);
+    syncChatToDB(key, messages, options).catch(() => {});
+  }, delay);
+
+  chatSyncQueue.set(key, { messages, options, timer });
+}
+
 export async function syncChatToDB(key: string, messages: ChatMessage[], options: ChatSyncOptions = {}): Promise<boolean> {
   if (messages.length === 0) return false;
 
@@ -109,7 +133,7 @@ export async function syncChatToDB(key: string, messages: ChatMessage[], options
   if (syncedCount >= messages.length) return false;
 
   const sessionId = getChatSessionId(key);
-  const pending = messages.slice(syncedCount);
+  const pending = messages.slice(syncedCount, syncedCount + CHAT_SYNC_BATCH_SIZE);
 
   try {
     const res = await fetch("/api/chat", {
@@ -133,8 +157,12 @@ export async function syncChatToDB(key: string, messages: ChatMessage[], options
       }),
     });
     if (res.ok) {
-      localStorage.setItem(storageKey(key, "synced-count"), String(messages.length));
-      maybeSummarizeChat(key, sessionId, messages.length);
+      const nextSyncedCount = syncedCount + pending.length;
+      localStorage.setItem(storageKey(key, "synced-count"), String(nextSyncedCount));
+      maybeSummarizeChat(key, sessionId, nextSyncedCount);
+      if (nextSyncedCount < messages.length) {
+        queueChatSyncToDB(key, messages, options, 120);
+      }
       return true;
     }
     return false;

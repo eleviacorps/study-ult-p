@@ -10,7 +10,7 @@ import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { cn } from "@/lib/cn";
-import { clearChat, getChatSessionSummary, loadChat, saveChat, setChatSession, syncChatToDB, getTutorKey } from "@/lib/chat-store";
+import { clearChat, getChatSessionSummary, loadChat, queueChatSyncToDB, saveChat, setChatSession, getTutorKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 type TutorSession = {
@@ -46,7 +46,6 @@ export default function TutorPage() {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [pending, setPending] = useState<PendingClarification>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
-  const [syncing, setSyncing] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -84,12 +83,11 @@ export default function TutorPage() {
   useEffect(() => {
     if (!mounted) return;
     saveChat(chatKey, messages);
-    setSyncing(true);
-    syncChatToDB(chatKey, messages, {
+    queueChatSyncToDB(chatKey, messages, {
       type: "physics_tutor",
       title: "Physics Tutor",
       subject: "Physics",
-    }).finally(() => setSyncing(false));
+    });
   }, [messages, mounted]);
 
   const refreshSessions = useCallback(async () => {

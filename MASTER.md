@@ -1001,3 +1001,30 @@ Known follow-up:
 
 - Add diagram render caching in IndexedDB for offline Android repeat views.
 - Add a copy/download affordance for generated SVG diagrams.
+
+### 2026-05-28 - Step 28 - Async Chat Database Sync
+
+Intent: Make tutor chat persistence efficient and non-blocking during streaming responses.
+
+Files changed:
+
+- `src/lib/chat-store.ts`
+- `src/app/tutor/page.tsx`
+- `src/components/ai-tutor-sidebar.tsx`
+
+Implementation:
+
+- Added a debounced chat sync queue so UI updates write locally first and sync to Supabase after the message stream settles.
+- Batched chat message syncs in chunks of 24 to avoid oversized write payloads.
+- Automatically schedules follow-up syncs when a session has more pending messages than one batch.
+- Removed per-message sync waiting from the main Tutor page and reader sidebar Tutor.
+- Kept existing idempotent `client_id` upserts so repeated queued syncs do not duplicate messages.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add a shared offline outbox for notes, attempts, analytics events, and chat messages.
+- Add server-side rate limiting for high-frequency sync endpoints.
