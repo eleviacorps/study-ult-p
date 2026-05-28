@@ -123,16 +123,39 @@ export default function GraphPage() {
       addLink(String(link.source), String(link.target), link.type, link.value);
     }
 
+    const titleRank = new Map<string, number>();
+    for (const note of vault.notes) {
+      titleRank.set(note.title, (note.links?.length || 0) + (note.backlinks?.length || 0));
+    }
+
     for (const note of vault.notes) {
       const source = nodeById.get(note.id) || nodeByName.get(normalize(note.title));
       if (!source) continue;
+
       for (const wiki of note.links || []) {
         const target = nodeByName.get(normalize(wiki.target));
         if (target) addLink(source.id, target.id, "wiki-link", 1);
       }
+
       for (const backlink of note.backlinks || []) {
         const target = nodeByName.get(normalize(backlink));
         if (target) addLink(target.id, source.id, "wiki-link", 1);
+      }
+
+      const contentLower = note.content.toLowerCase();
+      let mentionCount = 0;
+      for (const [otherTitle, otherNode] of nodeByName) {
+        if (otherNode.id === source.id) continue;
+        const otherRank = titleRank.get(otherTitle) || 0;
+        if (otherRank > 0) continue;
+        if (mentionCount >= 12) break;
+        if (!note.links?.some((l) => normalize(l.target) === otherTitle)) {
+          const title = otherNode.label.toLowerCase();
+          if (title.length >= 4 && contentLower.includes(title)) {
+            addLink(source.id, otherNode.id, "wiki-link", 0.5);
+            mentionCount++;
+          }
+        }
       }
     }
 
