@@ -36,9 +36,37 @@ export default function TutorPage() {
   const [input, setInput] = useState("");
   const [sessions, setSessions] = useState<TutorSession[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [studentProfile, setStudentProfile] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const [goalRes, aiRes] = await Promise.all([
+          supabase.from("student_goal_profiles").select("*").eq("user_id", user.id).maybeSingle(),
+          supabase.from("student_ai_profiles").select("*").eq("user_id", user.id).maybeSingle(),
+        ]);
+        const merged: any = {};
+        if (goalRes.data) {
+          merged.exam_goals = goalRes.data.exam_goals;
+          merged.preferred_difficulty = goalRes.data.preferred_difficulty;
+          merged.survey = goalRes.data.survey;
+        }
+        if (aiRes.data) {
+          merged.tutor_personality_prompt = aiRes.data.tutor_personality_prompt;
+          merged.generated_learning_profile = aiRes.data.generated_learning_profile;
+        }
+        setStudentProfile(merged);
+      } catch {}
+    };
+    fetchProfile();
   }, []);
 
   // Persist chat to localStorage + DB on every change
@@ -86,6 +114,7 @@ export default function TutorPage() {
       surface: "main_tutor",
       subject: "Physics",
       chatSummary,
+      studentProfile,
     });
   };
 
@@ -223,7 +252,7 @@ export default function TutorPage() {
                       )}
                     </button>
                     {expandedReasoning.has(i) && (
-                      <div className="mt-1.5 p-2.5 rounded-lg bg-[#8B5CF6]/5 border border-[#8B5CF6]/8 text-[11px] opacity-40 leading-relaxed max-h-48 overflow-y-auto">
+                      <div className="mt-1.5 p-2.5 rounded-lg bg-[#1856FF]/5 border border-[#1856FF]/10 text-[11px] opacity-40 leading-relaxed max-h-48 overflow-y-auto">
                         {msg.reasoning}
                       </div>
                     )}

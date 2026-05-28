@@ -20,6 +20,13 @@ type TutorContextOptions = {
   subject?: string;
   readerContext?: string;
   chatSummary?: string;
+  studentProfile?: {
+    exam_goals?: { exam: string; target: string; timeline: string }[];
+    preferred_difficulty?: string;
+    survey?: Record<string, any>;
+    tutor_personality_prompt?: string;
+    generated_learning_profile?: string;
+  };
 };
 
 const STOP_WORDS = new Set([
@@ -171,7 +178,7 @@ function indexIsEarly(id: string): boolean {
   return match ? Number(match[1]) <= 2 : false;
 }
 
-export function buildStudentStateSnapshot(state: StudyState = loadStudyState()) {
+export function buildStudentStateSnapshot(state: StudyState = loadStudyState(), profile?: TutorContextOptions["studentProfile"]) {
   const masteryMap = Object.fromEntries(
     Object.entries(state.topicAccuracy || {})
       .filter(([, value]) => value.total > 0)
@@ -204,10 +211,10 @@ export function buildStudentStateSnapshot(state: StudyState = loadStudyState()) 
     },
     solved_question_embeddings: [],
     concept_relationships: [],
-    exam_goals: [],
-    preferred_difficulty: "adaptive",
-    tutor_personality_prompt: "",
-    generated_learning_profile: "",
+    exam_goals: profile?.exam_goals || [],
+    preferred_difficulty: profile?.preferred_difficulty || "adaptive",
+    tutor_personality_prompt: profile?.tutor_personality_prompt || "",
+    generated_learning_profile: profile?.generated_learning_profile || "",
     adaptive_recommendations: (state.aiTodos || []).filter((todo) => !todo.completed).slice(0, 5),
     streak_data: { current: state.streak, longest: state.longestStreak, last_study_date: state.lastStudyDate },
     study_patterns: { recent_activity: (state.activityLog || []).slice(0, 8) },
@@ -238,6 +245,7 @@ export function buildStructuredTutorContext(
   question: string,
   options: TutorContextOptions
 ): string {
+  const profile = options.studentProfile;
   const rankedRetrievals = [
     ...retrieveReaderContext(question, options),
     ...retrieveNotes(vault, question, options),
@@ -258,6 +266,7 @@ export function buildStructuredTutorContext(
       "If retrieval is thin, answer from general physics knowledge and say what would need verification.",
       "Keep responses concise, use markdown, and use LaTeX for formulas.",
       "Prefer hints first for problem solving unless the student asks for a full solution.",
+      "You know the student's goals, exam targets, learning profile, and preferences from their onboarding data in student_state.exam_goals and student_state.generated_learning_profile. Use this to personalize responses.",
     ],
     interaction: {
       surface: options.surface,
@@ -267,7 +276,7 @@ export function buildStructuredTutorContext(
     memory: {
       session_summary: options.chatSummary || "",
     },
-    student_state: buildStudentStateSnapshot(),
+    student_state: buildStudentStateSnapshot(undefined, profile),
     retrievals,
     concept_relationships: relatedConcepts(vault, rankedRetrievals, options.chapter),
     expected_output_schema: {
