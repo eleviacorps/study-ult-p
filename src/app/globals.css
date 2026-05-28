@@ -403,9 +403,9 @@ html[data-mobile="true"] .top-nav-header {
   display: none;
 }
 
-/* Mobile bottom-nav clearance — applies to every page EXCEPT tutor (h-screen) */
+/* Mobile bottom-nav clearance — applies to scrollable pages only, not 100dvh screens */
 @media (max-width: 1023px) {
-  main > div:not(.h-screen) {
+  main > div:not(.h-\[100dvh\]):not(.h-screen) {
     padding-bottom: 96px;
   }
 }
