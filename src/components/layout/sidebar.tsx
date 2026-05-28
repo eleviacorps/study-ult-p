@@ -7,7 +7,7 @@ import { useVaultStore } from "@/stores/vault-store";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Layers, ClipboardList,
   BarChart3, Share2, Bot, Settings, ChevronLeft, ChevronRight,
-  Atom, Menu, X, FileCheck, Play, Wand2,
+  Atom, Menu, X, FileCheck, Play, Wand2, UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,9 +30,9 @@ const navItems = [
 const mobilePrimaryNav = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/reader", label: "Reader", icon: BookOpen },
-  { href: "/questions", label: "Practice", icon: HelpCircle },
+  { type: "menu", label: "Menu", icon: Menu },
   { href: "/tutor", label: "Tutor", icon: Bot },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Profile", icon: UserRound },
 ];
 
 export function Sidebar() {
@@ -151,22 +151,28 @@ export function Sidebar() {
         </aside>
       )}
 
-      {isMobile && !mobileOpen && (
-        <button onClick={() => setMobileOpen(true)}
-          className="fixed top-[calc(env(safe-area-inset-top)+0.625rem)] left-2.5 z-30 lg:hidden p-2.5 rounded-2xl bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-lg text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] transition-all">
-          <Menu className="w-5 h-5" />
-        </button>
-      )}
-
       {isMobile && (
         <nav className="fixed inset-x-2 bottom-2 z-30 rounded-3xl border border-[var(--glass-border-strong)] bg-[var(--glass-panel)]/95 px-2 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           <div className="grid grid-cols-5 gap-1">
             {mobilePrimaryNav.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+              if (item.type === "menu") {
+                return (
+                  <button
+                    key="menu"
+                    onClick={() => setMobileOpen(true)}
+                    className="min-h-12 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
+                  >
+                    <Menu className="w-4 h-4 text-[var(--text-primary)]/45" />
+                    <span className="leading-none">Menu</span>
+                  </button>
+                );
+              }
+              const link = item as { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+              const isActive = pathname === link.href || pathname?.startsWith(link.href + "/");
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={link.href}
+                  href={link.href}
                   className={cn(
                     "min-h-12 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors",
                     isActive
@@ -174,8 +180,8 @@ export function Sidebar() {
                       : "text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
                   )}
                 >
-                  <item.icon className={cn("w-4 h-4", isActive ? "text-[#1856FF]" : "text-[var(--text-primary)]/45")} />
-                  <span className="leading-none">{item.label}</span>
+                  <link.icon className={cn("w-4 h-4", isActive ? "text-[#1856FF]" : "text-[var(--text-primary)]/45")} />
+                  <span className="leading-none">{link.label}</span>
                 </Link>
               );
             })}
