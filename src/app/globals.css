@@ -391,8 +391,8 @@ select {
 }
 
 @keyframes twinkle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.1; }
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.04; }
 }
 
 .bg-animated-gradient {

@@ -267,92 +267,105 @@ export default function TutorPage() {
           </motion.div>
         )}
 
-        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y py-4 sm:py-6 space-y-4 scroll-region">
-          {messages.map((msg, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
-              {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-xl bg-[#1856FF]/15 flex items-center justify-center flex-shrink-0 mt-1 border border-[#1856FF]/20">
-                  <Bot className="w-4 h-4 text-[#1856FF]" />
+        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y py-4 sm:py-6 space-y-5 scroll-region">
+          {messages.map((msg, i) =>
+            msg.role === "assistant" ? (
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2 pl-0.5">
+                  <div className="w-5 h-5 rounded-lg bg-[#1856FF]/15 flex items-center justify-center border border-[#1856FF]/20">
+                    <Bot className="w-2.5 h-2.5 text-[#1856FF]" />
+                  </div>
+                  <span className="text-[10px] font-medium tracking-wide text-white/25">AI Tutor</span>
                 </div>
-              )}
-              <div className={cn("max-w-[95%] sm:max-w-[90%] p-3 sm:p-4 text-sm leading-relaxed",
-                msg.role === "user"
-                  ? "bg-[#1856FF]/15 rounded-2xl rounded-br-md border border-[#1856FF]/20"
-                  : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]")}>
-                <div className="prose-glass text-sm leading-relaxed min-w-0" style={{ color: "var(--text-primary)" }}>
-                  <MarkdownRenderer content={msg.content} />
-                </div>
+
                 {msg.reasoning && (
-                  <div className="mt-2">
+                  <div className="ml-7">
                     <button onClick={() => setExpandedReasoning((prev) => {
-                      const next = new Set(prev);
-                      next.has(i) ? next.delete(i) : next.add(i);
-                      return next;
-                    })} className="flex items-center gap-1 text-[10px] opacity-30 hover:opacity-60 transition-opacity">
-                      {expandedReasoning.has(i) ? <><ChevronUp className="w-3 h-3" /> Hide thinking</> : <><ChevronDown className="w-3 h-3" /> Show thinking</>}
+                      const next = new Set(prev); next.has(i) ? next.delete(i) : next.add(i); return next;
+                    })} className="text-[9px] tracking-wider uppercase opacity-20 hover:opacity-40 transition-opacity">
+                      {expandedReasoning.has(i) ? "▾ Hide thinking" : "▸ Show thinking"}
                     </button>
                     {expandedReasoning.has(i) && (
-                      <div className="mt-1.5 p-2.5 rounded-lg bg-[#1856FF]/5 border border-[#1856FF]/10 text-[11px] opacity-40 leading-relaxed max-h-48 overflow-y-auto">
+                      <div className="mt-1 p-2.5 rounded-lg bg-[#1856FF]/[0.03] border border-[#1856FF]/[0.08] text-[10px] leading-relaxed opacity-35 max-h-48 overflow-y-auto">
                         {msg.reasoning}
                       </div>
                     )}
                   </div>
                 )}
-              </div>
-            </motion.div>
-          ))}
+
+                <div className="ml-7 max-w-[90%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl rounded-bl-md border border-white/[0.06] bg-[#09090B]">
+                  <div className="prose-glass text-sm leading-relaxed min-w-0" style={{ color: "var(--text-primary)" }}>
+                    <MarkdownRenderer content={msg.content} />
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
+                <div className="ml-auto w-fit max-w-[85%] sm:max-w-[75%] p-2.5 sm:p-3 rounded-2xl rounded-br-md border border-[#1856FF]/20 bg-[#1856FF]/15">
+                  <span className="text-sm leading-relaxed text-white/80 break-words">{msg.content}</span>
+                </div>
+              </motion.div>
+            )
+          )}
           {isAsking && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 pl-11">
-              <div className="flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="w-2 h-2 rounded-full bg-[#1856FF]/40 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 pl-0.5">
+                <div className="w-5 h-5 rounded-lg bg-[#1856FF]/15 flex items-center justify-center border border-[#1856FF]/20">
+                  <Bot className="w-2.5 h-2.5 text-[#1856FF]" />
+                </div>
+                <span className="text-[10px] font-medium tracking-wide text-white/25">AI Tutor</span>
               </div>
-              <span className="text-xs opacity-25">Thinking...</span>
+              <div className="ml-7 flex items-center gap-2.5">
+                <div className="flex gap-1">
+                  {[0, 1, 2].map((j) => (
+                    <div key={j} className="w-1.5 h-1.5 rounded-full bg-[#1856FF]/30 animate-bounce" style={{ animationDelay: `${j * 0.15}s` }} />
+                  ))}
+                </div>
+                <span className="text-[10px] opacity-20">Thinking...</span>
+              </div>
             </motion.div>
           )}
           {messages.length <= 1 && !pending && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-              <button onClick={() => handleQuickAction("explain")} className="glass glass-interactive p-4 text-left">
-                <Brain className="w-4 h-4 text-[#1856FF] mb-2" />
-                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Explain topic</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+              <button onClick={() => handleQuickAction("explain")} className="glass glass-interactive p-3.5 text-left rounded-xl">
+                <Brain className="w-3.5 h-3.5 text-[#1856FF] mb-1.5" />
+                <p className="text-[11px] font-medium text-white/40">Explain topic</p>
               </button>
-              <button onClick={() => handleQuickAction("summarize")} className="glass glass-interactive p-4 text-left">
-                <BookOpen className="w-4 h-4 text-[#1856FF] mb-2" />
-                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Summarize chapter</p>
+              <button onClick={() => handleQuickAction("summarize")} className="glass glass-interactive p-3.5 text-left rounded-xl">
+                <BookOpen className="w-3.5 h-3.5 text-[#1856FF] mb-1.5" />
+                <p className="text-[11px] font-medium text-white/40">Summarize chapter</p>
               </button>
-              <button onClick={() => handleQuickAction("questions")} className="glass glass-interactive p-4 text-left">
-                <FileQuestion className="w-4 h-4 text-[#1856FF] mb-2" />
-                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Generate questions</p>
+              <button onClick={() => handleQuickAction("questions")} className="glass glass-interactive p-3.5 text-left rounded-xl">
+                <FileQuestion className="w-3.5 h-3.5 text-[#1856FF] mb-1.5" />
+                <p className="text-[11px] font-medium text-white/40">Generate questions</p>
               </button>
             </div>
           )}
         </div>
 
-        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/90 border-t border-white/[0.06] pt-3 pb-[max(env(safe-area-inset-bottom),8px)] px-0">
+        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/80 border-t border-white/[0.04] pt-2.5 pb-[max(env(safe-area-inset-bottom),8px)]">
           {pending && (
-            <div className="flex items-center justify-between px-1 pb-2">
-              <span className="text-[10px] text-white/40">
+            <div className="flex items-center justify-between px-1 pb-1.5">
+              <span className="text-[9px] tracking-wide text-white/35">
                 {pending.action === "explain" && "Which topic should I explain?"}
                 {pending.action === "summarize" && "Which chapter should I summarize?"}
                 {pending.action === "questions" && pending.step === "ask_topic" && "Questions about which topic?"}
                 {pending.action === "questions" && pending.step === "ask_count" && "How many questions?"}
               </span>
-              <button onClick={() => { setPending(null); setInput(""); }} className="text-[10px] text-white/30 hover:text-white/60 transition-colors">
+              <button onClick={() => { setPending(null); setInput(""); }} className="text-[9px] text-white/25 hover:text-white/50 transition-colors">
                 Cancel
               </button>
             </div>
           )}
-          <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+          <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.04] rounded-xl p-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.12)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder={
                 pending ? (pending.step === "ask_count" ? "e.g. 5" : "Type your answer...") : "Ask anything about physics..."
               }
-              className="flex-1 bg-transparent text-sm outline-none px-3 min-w-0 text-white/70 placeholder:text-white/20" />
+              className="flex-1 bg-transparent text-sm outline-none px-2.5 min-w-0 text-white/70 placeholder:text-white/15 py-1.5" />
             <button onClick={handleSend} disabled={!input.trim() || isAsking}
-              className="p-2.5 rounded-xl bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
-              <Send className="w-4 h-4" />
+              className="p-2 rounded-lg bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0">
+              <Send className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

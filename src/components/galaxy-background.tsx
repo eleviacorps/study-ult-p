@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-const STARS = 180;
+const STARS = 80;
 
 export function GalaxyBackground() {
   const stars = useMemo(() => {

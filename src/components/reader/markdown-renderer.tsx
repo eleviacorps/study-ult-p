@@ -7,6 +7,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import { cn } from "@/lib/cn";
+import { useEffect, useState } from "react";
 import {
   Lightbulb,
   AlertTriangle,
@@ -16,6 +17,7 @@ import {
   Bookmark,
   LightbulbIcon,
   ScrollText,
+  Loader2,
 } from "lucide-react";
 
 const calloutConfig: Record<
@@ -130,6 +132,48 @@ function processCallouts(content: string): string {
   );
 }
 
+function MermaidBlock({ code }: { code: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/kroki", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+      .then((res) => (res.ok ? res.text() : Promise.reject()))
+      .then((data) => { if (!cancelled) setSvg(data); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [code]);
+
+  if (failed) {
+    return (
+      <div className="my-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-white/30 font-mono whitespace-pre-wrap">
+        {code}
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return (
+      <div className="my-4 h-48 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 text-[#1856FF]/40 animate-spin" />
+        <span className="text-[10px] text-white/20">Rendering diagram...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="my-4 rounded-xl border border-white/[0.06] overflow-x-auto bg-white p-4"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
 interface MarkdownRendererProps {
   content: string;
   className?: string;
@@ -195,6 +239,11 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
             );
           },
           code({ className: codeClass, children, ...props }: any) {
+            const isMermaid = codeClass?.includes("language-mermaid");
+            if (isMermaid) {
+              const codeText = String(children || "").replace(/\n$/, "");
+              return <MermaidBlock code={codeText} />;
+            }
             const isInline = !codeClass;
             if (isInline) {
               return (
