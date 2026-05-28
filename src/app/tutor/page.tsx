@@ -343,7 +343,7 @@ export default function TutorPage() {
           )}
         </div>
 
-        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/80 border-t border-white/[0.04] pt-2.5 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pb-[max(env(safe-area-inset-bottom),8px)]">
+        <div className="flex-shrink-0 backdrop-blur-xl bg-[#09090B]/80 border-t border-white/[0.04] pt-2.5 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] lg:pb-[max(env(safe-area-inset-bottom),8px)]">
           {pending && (
             <div className="flex items-center justify-between px-1 pb-1.5">
               <span className="text-[9px] tracking-wide text-white/35">
