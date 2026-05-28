@@ -6,6 +6,7 @@ import { VaultLoader } from "@/components/layout/vault-loader";
 import { LlmProvider } from "@/lib/llm-context";
 import { AuthGate } from "@/components/auth-gate";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex relative" style={{ backgroundColor: "#09090B" }}>
         <GalaxyBackground />
+        <ServiceWorkerRegister />
         <ErrorBoundary>
           <LlmProvider>
             <VaultLoader />

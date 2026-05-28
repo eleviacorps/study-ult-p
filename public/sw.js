@@ -1,0 +1,62 @@
+const CACHE_NAME = "studyult-vault-v1";
+const DATA_URLS = ["/vault-data.json"];
+
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((names) =>
+      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
+    )
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+
+  if (url.origin === self.location.origin && DATA_URLS.includes(url.pathname)) {
+    event.respondWith(cacheThenNetwork(event.request));
+    return;
+  }
+
+  if (
+    url.origin === self.location.origin &&
+    url.pathname.startsWith("/api/") &&
+    event.request.method === "GET"
+  ) {
+    event.respondWith(networkThenCache(event.request));
+  }
+});
+
+async function cacheThenNetwork(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    fetchAndCache(request).catch(() => {});
+    return cached;
+  }
+  return fetchAndCache(request);
+}
+
+async function networkThenCache(request) {
+  try {
+    const response = await fetchAndCache(request);
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    return cached || new Response(JSON.stringify({ error: "offline" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+async function fetchAndCache(request) {
+  const response = await fetch(request);
+  if (response.ok) {
+    const clone = response.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
+  }
+  return response;
+}
