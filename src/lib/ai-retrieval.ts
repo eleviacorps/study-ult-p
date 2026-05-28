@@ -293,6 +293,7 @@ export async function buildStructuredTutorContext(
     memory: {
       session_summary: options.chatSummary || "",
     },
+    reader_page_context: options.readerContext || null,
     student_state: buildStudentStateSnapshot(undefined, profile),
     retrievals,
     concept_relationships: relatedConcepts(vault, rankedRetrievals, options.chapter),

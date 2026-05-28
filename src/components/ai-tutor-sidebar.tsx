@@ -106,7 +106,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
     <>
       <button
         onClick={() => toggle(!open)}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-30 p-2 bg-[var(--bg-elevated)] border border-r-0 border-[var(--glass-border)] text-white/40 hover:text-white/70 transition-colors"
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-30 p-2 bg-[#09090B] border border-r-0 border-white/[0.06] text-white/40 hover:text-white/70 transition-colors"
         style={{ borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }}
       >
         {open ? <ChevronRight className="w-4 h-4" /> : (
@@ -122,10 +122,10 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
           initial={isMobile ? { x: "100%" } : { width: 0 }}
           animate={isMobile ? { x: 0 } : { width: 340 }}
           exit={isMobile ? { x: "100%" } : { width: 0 }}
-          className="fixed right-0 top-0 h-full z-40 bg-[var(--bg-surface)] border-l border-[var(--glass-border)] flex flex-col"
+          className="fixed right-0 top-0 h-full z-40 bg-[#09090B] border-l border-white/[0.06] flex flex-col"
           style={{ width: isMobile ? "100vw" : undefined }}
         >
-          <div className="flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-[var(--glass-border)]">
+          <div className="flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/[0.06]">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-[#1856FF]" />
               <span className="text-sm font-semibold">AI Tutor</span>
@@ -190,7 +190,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             )}
           </div>
 
-          <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-[var(--glass-border)]">
+          <div className="p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/[0.06]">
             <div className="flex items-center gap-2">
               <input
                 type="text"
