@@ -2,12 +2,16 @@
 
 import { create } from "zustand";
 import type { VaultContent, ChapterMeta, Note, Question, Flashcard, VaultRoot } from "@/types";
-import { idbGet, idbRemove, idbSet } from "@/lib/idb-cache";
+import { idbGet, idbSet, isCacheStale } from "@/lib/idb-cache";
 
 const VAULT_ROOTS_KEY = "studyult-vault-roots";
 const AGENT_NOTES_KEY = "studyult-agent-notes";
 const IDB_CACHE_KEY = "vault-content";
-const VAULT_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
+const VAULT_CACHE_VERSION = "vault-v3";
+const VAULT_CACHE_STALE_MS = 30 * 60 * 1000;
+const VAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+let baseVaultRequest: Promise<VaultContent | null> | null = null;
 
 export function getCustomVaultRoots(): VaultRoot[] {
   if (typeof window === "undefined") return [];
@@ -37,26 +41,75 @@ export function saveAgentNotes(notes: Note[]) {
   localStorage.setItem(AGENT_NOTES_KEY, JSON.stringify(notes));
 }
 
-async function getCachedVault(): Promise<VaultContent | null> {
+function vaultCacheKey(roots: VaultRoot[]): string {
+  if (roots.length === 0) return IDB_CACHE_KEY;
+  return `${IDB_CACHE_KEY}:${btoa(unescape(encodeURIComponent(JSON.stringify(roots))))}`;
+}
+
+async function getCachedVault(cacheKey: string): Promise<{ vault: VaultContent; stale: boolean } | null> {
   try {
-    const entry = await idbGet<VaultContent>(IDB_CACHE_KEY);
+    const entry = await idbGet<VaultContent>(cacheKey, { version: VAULT_CACHE_VERSION });
     if (!entry) return null;
-    if (Date.now() - entry.timestamp > VAULT_CACHE_AGE) {
-      await idbRemove(IDB_CACHE_KEY);
-      return null;
-    }
-    return entry.data;
+    return { vault: entry.data, stale: isCacheStale(entry) };
   } catch {
     return null;
   }
 }
 
-async function setCachedVault(vault: VaultContent) {
+async function setCachedVault(cacheKey: string, vault: VaultContent) {
   try {
-    await idbSet(IDB_CACHE_KEY, vault);
+    await idbSet(cacheKey, vault, {
+      staleMs: VAULT_CACHE_STALE_MS,
+      ttlMs: VAULT_CACHE_TTL_MS,
+      version: VAULT_CACHE_VERSION,
+      metadata: {
+        notes: vault.notes.length,
+        chapters: vault.chapters.length,
+      },
+    });
   } catch {
     // IndexedDB unavailable — ignore
   }
+}
+
+async function fetchBaseVault(customRoots: VaultRoot[], cacheKey: string): Promise<VaultContent | null> {
+  if (baseVaultRequest) return baseVaultRequest;
+
+  baseVaultRequest = (async () => {
+    try {
+      let baseVault: VaultContent | null = null;
+
+      if (customRoots.length === 0) {
+        const staticRes = await fetch("/vault-data.json", { cache: "force-cache" });
+        if (staticRes.ok) baseVault = await staticRes.json();
+      } else {
+        const roots = encodeURIComponent(JSON.stringify(customRoots));
+        const res = await fetch(`/api/vault?roots=${roots}`);
+        if (res.ok) baseVault = await res.json();
+      }
+
+      if (baseVault) await setCachedVault(cacheKey, baseVault);
+      return baseVault;
+    } finally {
+      baseVaultRequest = null;
+    }
+  })();
+
+  return baseVaultRequest;
+}
+
+async function mergeRemoteNotes(vault: VaultContent): Promise<VaultContent> {
+  try {
+    const notesRes = await fetch("/api/notes");
+    if (!notesRes.ok) return vault;
+    const { notes: dbNotes } = await notesRes.json();
+    if (Array.isArray(dbNotes) && dbNotes.length > 0) {
+      return mergeNotesIntoVault(vault, dbNotes);
+    }
+  } catch {
+    // Supabase not configured or offline
+  }
+  return vault;
 }
 
 // Simple slugify for IDs
@@ -444,46 +497,29 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ isLoading: true });
     try {
       const customRoots = getCustomVaultRoots();
-      let baseVault: VaultContent | null = null;
+      const cacheKey = vaultCacheKey(customRoots);
+      const cached = await getCachedVault(cacheKey);
 
-      if (customRoots.length === 0) {
-        const cached = await getCachedVault();
-        if (cached) {
-          baseVault = cached;
-        } else {
-          const staticRes = await fetch("/vault-data.json");
-          if (staticRes.ok) {
-            baseVault = await staticRes.json();
-            if (baseVault) await setCachedVault(baseVault);
-          }
-        }
+      if (cached) {
+        const localVault = mergeAgentNotes(cached.vault);
+        set({ baseVault: cached.vault, vault: localVault, isLoaded: true, isLoading: false });
+
+        mergeRemoteNotes(localVault)
+          .then((vault) => set({ vault }))
+          .catch(() => {});
+
+        if (!cached.stale) return;
       }
 
-      if (!baseVault) {
-        let url = "/api/vault";
-        if (customRoots.length > 0) {
-          url += `?roots=${encodeURIComponent(JSON.stringify(customRoots))}`;
-        }
-        const res = await fetch(url);
-        baseVault = await res.json();
-      }
+      const baseVault = await fetchBaseVault(customRoots, cacheKey);
 
       if (baseVault) {
-        let vault = mergeAgentNotes(baseVault);
+        const localVault = mergeAgentNotes(baseVault);
+        set({ baseVault, vault: localVault, isLoaded: true, isLoading: false });
 
-        try {
-          const notesRes = await fetch("/api/notes");
-          if (notesRes.ok) {
-            const { notes: dbNotes } = await notesRes.json();
-            if (Array.isArray(dbNotes) && dbNotes.length > 0) {
-              vault = mergeNotesIntoVault(vault, dbNotes);
-            }
-          }
-        } catch {
-          // Supabase not configured or offline
-        }
-
-        set({ baseVault, vault, isLoaded: true, isLoading: false });
+        mergeRemoteNotes(localVault)
+          .then((vault) => set({ vault }))
+          .catch(() => {});
       } else {
         set({ isLoaded: true, isLoading: false });
       }
@@ -508,17 +544,11 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
     const state = get();
     if (state.baseVault) {
-      let vault = mergeAgentNotes(state.baseVault);
-      try {
-        const notesRes = await fetch("/api/notes");
-        if (notesRes.ok) {
-          const { notes: dbNotes } = await notesRes.json();
-          if (Array.isArray(dbNotes) && dbNotes.length > 0) {
-            vault = mergeNotesIntoVault(vault, dbNotes);
-          }
-        }
-      } catch {}
-      set({ vault });
+      const localVault = mergeAgentNotes(state.baseVault);
+      set({ vault: localVault });
+      mergeRemoteNotes(localVault)
+        .then((vault) => set({ vault }))
+        .catch(() => {});
     }
 
     fetch("/api/notes", {
@@ -541,17 +571,11 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     // 3. Rebuild vault state without this chapter
     const state = get();
     if (state.baseVault) {
-      let vault = mergeAgentNotes(state.baseVault);
-      try {
-        const notesRes = await fetch("/api/notes");
-        if (notesRes.ok) {
-          const { notes: dbNotes } = await notesRes.json();
-          if (Array.isArray(dbNotes) && dbNotes.length > 0) {
-            vault = mergeNotesIntoVault(vault, dbNotes);
-          }
-        }
-      } catch {}
-      set({ vault });
+      const localVault = mergeAgentNotes(state.baseVault);
+      set({ vault: localVault });
+      mergeRemoteNotes(localVault)
+        .then((vault) => set({ vault }))
+        .catch(() => {});
     }
   },
 

@@ -845,3 +845,30 @@ Known follow-up:
 
 - Add node navigation into notes when tapping selected nodes.
 - Add graph clustering/prerequisite edges from `concept_relationships`.
+
+### 2026-05-28 - Step 22 - Production Vault Cache Upgrade
+
+Intent: Make vault and note loading feel instant on mobile while keeping the architecture scalable and refreshable.
+
+Files changed:
+
+- `src/lib/idb-cache.ts`
+- `src/stores/vault-store.ts`
+
+Implementation:
+
+- Added versioned IndexedDB cache entries with stale and expiry timestamps.
+- Added cache metadata for vault note/chapter counts.
+- Changed vault loading to a stale-while-revalidate flow: cached vault paints immediately, stale data refreshes in the background.
+- Added per-root cache keys so custom vault roots do not collide with the default static vault.
+- Deduped simultaneous base vault fetches through one in-flight request.
+- Made agent note add/remove update local UI state first, then reconcile remote Supabase notes asynchronously.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add service-worker asset prefetching for Android install performance.
+- Add cache invalidation when the static vault manifest version changes.

@@ -21,9 +21,13 @@ function openDB(): Promise<IDBDatabase> {
 type CacheEntry<T> = {
   data: T;
   timestamp: number;
+  staleAt?: number;
+  expiresAt?: number;
+  version?: string;
+  metadata?: Record<string, unknown>;
 };
 
-export async function idbGet<T>(key: string): Promise<CacheEntry<T> | null> {
+export async function idbGet<T>(key: string, options: { allowExpired?: boolean; version?: string } = {}): Promise<CacheEntry<T> | null> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -31,7 +35,16 @@ export async function idbGet<T>(key: string): Promise<CacheEntry<T> | null> {
       const store = tx.objectStore(STORE_NAME);
       const req = store.get(key);
       req.onsuccess = () => {
-        resolve(req.result || null);
+        const entry = req.result as CacheEntry<T> | undefined;
+        if (!entry) {
+          resolve(null);
+        } else if (options.version && entry.version !== options.version) {
+          resolve(null);
+        } else if (!options.allowExpired && entry.expiresAt && Date.now() > entry.expiresAt) {
+          resolve(null);
+        } else {
+          resolve(entry);
+        }
         db.close();
       };
       req.onerror = () => {
@@ -44,13 +57,25 @@ export async function idbGet<T>(key: string): Promise<CacheEntry<T> | null> {
   }
 }
 
-export async function idbSet<T>(key: string, data: T): Promise<void> {
+export async function idbSet<T>(
+  key: string,
+  data: T,
+  options: { ttlMs?: number; staleMs?: number; version?: string; metadata?: Record<string, unknown> } = {}
+): Promise<void> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const entry: CacheEntry<T> = { data, timestamp: Date.now() };
+      const now = Date.now();
+      const entry: CacheEntry<T> = {
+        data,
+        timestamp: now,
+        staleAt: options.staleMs ? now + options.staleMs : undefined,
+        expiresAt: options.ttlMs ? now + options.ttlMs : undefined,
+        version: options.version,
+        metadata: options.metadata,
+      };
       const req = store.put(entry, key);
       req.onsuccess = () => {
         resolve();
@@ -64,6 +89,10 @@ export async function idbSet<T>(key: string, data: T): Promise<void> {
   } catch {
     // IndexedDB unavailable
   }
+}
+
+export function isCacheStale(entry: CacheEntry<unknown>): boolean {
+  return !!entry.staleAt && Date.now() > entry.staleAt;
 }
 
 export async function idbRemove(key: string): Promise<void> {
