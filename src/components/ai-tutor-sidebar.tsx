@@ -94,6 +94,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as string;
       if (detail) {
+        toggle(true);
         doAsk(detail);
       }
     };

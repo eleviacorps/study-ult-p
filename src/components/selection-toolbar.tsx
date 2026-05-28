@@ -37,9 +37,11 @@ export function SelectionToolbar({ onExplain, onSummarize, onManim, onSearchVide
   useEffect(() => {
     document.addEventListener("mouseup", handleSelection);
     document.addEventListener("keyup", handleSelection);
+    document.addEventListener("touchend", handleSelection);
     return () => {
       document.removeEventListener("mouseup", handleSelection);
       document.removeEventListener("keyup", handleSelection);
+      document.removeEventListener("touchend", handleSelection);
     };
   }, [handleSelection]);
 
