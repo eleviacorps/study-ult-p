@@ -819,3 +819,29 @@ Known follow-up:
 
 - Run mobile browser screenshots after starting the dev server.
 - Continue with Graph mobile layout and Obsidian-style note linking.
+
+### 2026-05-28 - Step 21 - Mobile Graph And Obsidian-Style Links
+
+Intent: Fix the graph page on phones and make note connectivity closer to Obsidian by honoring both vault graph links and markdown wikilinks/backlinks.
+
+Files changed:
+
+- `src/app/graph/page.tsx`
+
+Implementation:
+
+- Rebuilt the graph view around a responsive SVG viewport using container dimensions instead of fixed desktop centers.
+- Replaced the off-screen mobile right panel with a bottom sheet that stays above the Android bottom nav.
+- Kept a desktop side panel for wider screens.
+- Merged graph data links, note wikilinks, and backlinks into one deduped force graph.
+- Added better mobile zoom controls, search highlighting, selected-node details, and link counts.
+- Tuned force layout distances, collisions, and initial zoom for phone screens.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add node navigation into notes when tapping selected nodes.
+- Add graph clustering/prerequisite edges from `concept_relationships`.
