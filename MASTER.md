@@ -1100,3 +1100,28 @@ Validation:
 Known follow-up:
 
 - Add delete/rename actions for local and remote chat sessions.
+
+### 2026-05-28 - Step 32 - Diagram Endpoint Security Hardening
+
+Intent: Reduce risk around externally rendered SVG diagrams before running the broader security audit.
+
+Files changed:
+
+- `src/lib/mermaid-security.ts`
+- `src/app/api/diagram/route.ts`
+- `src/app/api/kroki/route.ts`
+
+Implementation:
+
+- Centralized Mermaid source validation and maximum diagram size checks.
+- Added the same validation to the legacy `/api/kroki` endpoint.
+- Added a network timeout to `/api/diagram` Kroki requests.
+- Sanitized returned SVG by removing script tags, inline event handlers, and JavaScript hrefs before client rendering.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Replace regex SVG sanitizing with a strict XML sanitizer dependency before public multi-user launch.

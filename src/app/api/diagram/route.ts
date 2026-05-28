@@ -1,21 +1,7 @@
 import { NextResponse } from "next/server";
+import { isMermaidSource, sanitizeSvg } from "@/lib/mermaid-security";
 
 const KROKI_MERMAID_SVG = "https://kroki.io/mermaid/svg";
-const MAX_DIAGRAM_BYTES = 12000;
-const MERMAID_STARTERS = [
-  "mindmap",
-  "graph ",
-  "flowchart ",
-  "sequenceDiagram",
-  "classDiagram",
-  "stateDiagram",
-  "erDiagram",
-  "journey",
-  "gantt",
-  "pie",
-  "timeline",
-  "gitGraph",
-];
 
 export async function POST(request: Request) {
   try {
@@ -33,6 +19,7 @@ export async function POST(request: Request) {
         Accept: "image/svg+xml",
       },
       body: source,
+      signal: AbortSignal.timeout(15000),
     });
 
     const svg = await res.text();
@@ -40,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "kroki_render_failed", detail: svg.slice(0, 500) }, { status: res.status });
     }
 
-    return new Response(svg, {
+    return new Response(sanitizeSvg(svg), {
       status: 200,
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
@@ -50,10 +37,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "unknown_error" }, { status: 500 });
   }
-}
-
-function isMermaidSource(source: string): boolean {
-  if (!source || new TextEncoder().encode(source).length > MAX_DIAGRAM_BYTES) return false;
-  const firstLine = source.split(/\r?\n/).find((line) => line.trim())?.trim() || "";
-  return MERMAID_STARTERS.some((starter) => firstLine.startsWith(starter));
 }
