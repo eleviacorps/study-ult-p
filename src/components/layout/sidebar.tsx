@@ -180,7 +180,7 @@ export function Sidebar() {
       )}
 
       {isMobile && (
-        <nav className="fixed inset-x-2 bottom-2 z-30 rounded-3xl border border-white/[0.06] bg-[#09090B] px-2 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+        <nav className="fixed inset-x-3 bottom-3 z-30 rounded-[28px] border border-white/[0.08] bg-[#05060A]/92 px-2 py-2 shadow-[0_16px_48px_rgba(0,0,0,0.58)] backdrop-blur-2xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           <div className="grid grid-cols-5 gap-1">
             {mobilePrimaryNav.map((item) => {
               if (item.type === "menu") {
@@ -188,9 +188,9 @@ export function Sidebar() {
                   <button
                     key="menu"
                     onClick={() => setMobileOpen(true)}
-                    className="min-h-12 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
+                    className="min-h-12 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/45 active:bg-[var(--glass-light)]"
                   >
-                    <Menu className="w-4 h-4 text-[var(--text-primary)]/45" />
+                    <Menu className="w-[18px] h-[18px] text-[var(--text-primary)]/50" />
                     <span className="leading-none">Menu</span>
                   </button>
                 );
@@ -200,9 +200,9 @@ export function Sidebar() {
                   <div key="profile" className="relative" ref={profileRef}>
                     <button
                       onClick={() => setProfileOpen(!profileOpen)}
-                      className="min-h-12 w-full rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
+                      className="min-h-12 w-full rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/45 active:bg-[var(--glass-light)]"
                     >
-                      <div className="w-4 h-4 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center text-[6px] font-medium text-white overflow-hidden">
+                      <div className="w-[18px] h-[18px] rounded-full bg-[var(--bg-elevated)] flex items-center justify-center text-[7px] font-medium text-white overflow-hidden">
                         {profile?.avatar_url ? (
                           <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                         ) : (
@@ -266,11 +266,11 @@ export function Sidebar() {
                   className={cn(
                     "min-h-12 rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors",
                     isActive
-                      ? "bg-[#1856FF]/15 text-[#1856FF]"
-                      : "text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
+                      ? "bg-[#1856FF]/18 text-[#1856FF] shadow-[0_0_24px_rgba(24,86,255,0.14)]"
+                      : "text-[var(--text-primary)]/45 active:bg-[var(--glass-light)]"
                   )}
                 >
-                  <link.icon className={cn("w-4 h-4", isActive ? "text-[#1856FF]" : "text-[var(--text-primary)]/45")} />
+                  <link.icon className={cn("w-[18px] h-[18px]", isActive ? "text-[#1856FF]" : "text-[var(--text-primary)]/50")} />
                   <span className="leading-none">{link.label}</span>
                 </Link>
               );

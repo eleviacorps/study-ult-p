@@ -84,12 +84,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           {(() => {
             const shellless = SHELLLESS_ROUTES.some((route) => pathname.startsWith(route));
             if (status === "public" || shellless) {
-              return <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">{children}</main>;
+              return <main className="app-main flex-1 min-h-[100dvh] relative z-0 overflow-x-hidden min-w-0">{children}</main>;
             }
             return (
               <>
                 <Sidebar />
-                <main className="flex-1 min-h-screen relative z-0 overflow-x-hidden min-w-0">{children}</main>
+                <main className="app-main flex-1 min-h-[100dvh] relative z-0 overflow-x-hidden min-w-0">{children}</main>
               </>
             );
           })()}

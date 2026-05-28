@@ -898,3 +898,30 @@ Known follow-up:
 
 - Add streaming responses so first tokens render immediately.
 - Move repeat-response cache to a server-side KV layer when deployed at scale.
+
+### 2026-05-28 - Step 24 - Shared Mobile Shell Polish
+
+Intent: Improve the Android app feel across the whole space-themed UI instead of fixing each screen in isolation.
+
+Files changed:
+
+- `src/components/auth-gate.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/app/globals.css`
+
+Implementation:
+
+- Marked authenticated app roots with `app-main` and moved them to `100dvh`-aware sizing.
+- Added global mobile bottom safe-area clearance for pages that scroll behind the tab bar.
+- Excluded full-height `100dvh` screens from the older page padding rule so Tutor/Graph do not get phantom scroll space.
+- Tuned mobile markdown typography with responsive heading sizes, safer wrapping, and formula overflow handling.
+- Restyled the mobile bottom nav as a more native glass tab bar with stronger touch targets and clearer active state.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Verify actual Android viewport screenshots through the local dev server.
+- Continue per-page UI overhaul for dashboard, analytics, questions, flashcards, and note agent.

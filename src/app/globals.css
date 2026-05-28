@@ -78,11 +78,15 @@
   scrollbar-color: var(--glass-border) transparent;
 }
 
+html {
+  height: 100%;
+}
+
 body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
-  min-height: 100vh;
+  min-height: 100%;
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
@@ -403,5 +407,60 @@ html[data-mobile="true"] .top-nav-header {
 @media (max-width: 1023px) {
   main > div:not(.h-screen) {
     padding-bottom: 96px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-main {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 6.5rem);
+  }
+
+  .app-main > .h-\[100dvh\] {
+    padding-bottom: 0;
+  }
+
+  .prose-glass {
+    font-size: 0.95rem;
+    line-height: 1.72;
+  }
+
+  .prose-glass h1 {
+    font-size: clamp(2rem, 10vw, 3rem);
+    line-height: 1.05;
+    margin-bottom: 1.25rem;
+    overflow-wrap: anywhere;
+  }
+
+  .prose-glass h2 {
+    font-size: clamp(1.45rem, 7vw, 2rem);
+    line-height: 1.15;
+    margin-top: 1.75rem;
+    overflow-wrap: anywhere;
+  }
+
+  .prose-glass h3 {
+    font-size: 1.15rem;
+    line-height: 1.25;
+  }
+
+  .prose-glass p,
+  .prose-glass li,
+  .prose-glass td {
+    overflow-wrap: anywhere;
+  }
+
+  .prose-glass blockquote {
+    padding: 0.85rem 1rem;
+  }
+
+  .prose-glass .katex-display {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .reader-prose {
+    width: 100%;
+    max-width: 100%;
   }
 }
