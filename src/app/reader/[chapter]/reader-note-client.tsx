@@ -156,7 +156,7 @@ export default function ReaderPage() {
           { label: note.title, href: "#" },
         ]}
       />
-      <div className={`flex overflow-x-hidden transition-all duration-300 ${tutorOpen ? 'xl:mr-[340px]' : ''}`}>
+      <div className={`max-w-6xl mx-auto flex overflow-x-hidden transition-all duration-300 ${tutorOpen ? 'xl:mr-[340px]' : ''}`}>
         <aside className="hidden xl:block w-56 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto p-4 space-y-1">
           <p className="text-[10px] uppercase tracking-wider text-white/25 mb-3 px-2">
             On this page
@@ -173,7 +173,7 @@ export default function ReaderPage() {
           ))}
         </aside>
 
-        <main className="flex-1 min-w-0 max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+        <main className="min-w-0 flex-1 px-3 sm:px-6 py-4 sm:py-8">
           <div className="flex items-center justify-end gap-1 mb-3 sticky top-2 z-10">
             <div className="glass flex items-center gap-0.5 p-0.5 rounded-xl border border-white/[0.06]">
               <button
@@ -203,7 +203,7 @@ export default function ReaderPage() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="glass p-4 sm:p-6 md:p-10 overflow-x-hidden rounded-2xl" style={{ fontSize: `${fontSize}px` }}>
+              <div className="glass p-4 sm:p-6 md:p-8 overflow-x-hidden rounded-2xl" style={{ fontSize: `${fontSize}px` }}>
                 <MarkdownRenderer content={note.content} />
               </div>
 
