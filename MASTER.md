@@ -925,3 +925,23 @@ Known follow-up:
 
 - Verify actual Android viewport screenshots through the local dev server.
 - Continue per-page UI overhaul for dashboard, analytics, questions, flashcards, and note agent.
+
+### 2026-05-28 - Step 25 - Next 16 Proxy Convention
+
+Intent: Remove the deprecated Next.js middleware convention warning found during the production build.
+
+Files changed:
+
+- `src/proxy.ts`
+- `src/middleware.ts`
+
+Implementation:
+
+- Renamed the request boundary file from `middleware.ts` to `proxy.ts`.
+- Renamed the exported request handler from `middleware` to `proxy`.
+- Preserved the existing Supabase session update and route matcher behavior.
+
+Validation:
+
+- Read the bundled Next.js 16 upgrade docs for the middleware-to-proxy change.
+- Production build had passed before the rename; build recheck follows this step.
