@@ -49,7 +49,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-2 z-20 mx-2 sm:mx-4 rounded-2xl bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-[0_0_30px_rgba(24,86,255,0.04)] h-14 flex items-center justify-between px-3 sm:px-5">
+    <header className="top-nav-header sticky top-2 z-20 mx-2 sm:mx-4 rounded-2xl bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)] shadow-[0_0_30px_rgba(24,86,255,0.04)] h-14 flex items-center justify-between px-3 sm:px-5">
       <div className="flex items-center gap-3 min-w-0 overflow-hidden">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <div className="flex items-center gap-1.5 text-sm truncate min-w-0">

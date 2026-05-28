@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useVaultStore } from "@/stores/vault-store";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Layers, ClipboardList,
   BarChart3, Share2, Bot, Settings, ChevronLeft, ChevronRight,
   Atom, Menu, X, FileCheck, Play, Wand2, UserRound,
+  User, LogOut, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -39,8 +41,12 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [profile, setProfile] = useState<{ name?: string; avatar_url?: string; username?: string } | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { vault } = useVaultStore();
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
@@ -49,7 +55,30 @@ export function Sidebar() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-mobile", isMobile ? "true" : "false");
+  }, [isMobile]);
+
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      fetch("/api/profile")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => { if (d?.id) setProfile(d); })
+        .catch(() => {});
+    });
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
 
   const sidebarWidth = collapsed ? 60 : 240;
 
@@ -165,6 +194,68 @@ export function Sidebar() {
                     <Menu className="w-4 h-4 text-[var(--text-primary)]/45" />
                     <span className="leading-none">Menu</span>
                   </button>
+                );
+              }
+              if (item.label === "Profile") {
+                return (
+                  <div key="profile" className="relative" ref={profileRef}>
+                    <button
+                      onClick={() => setProfileOpen(!profileOpen)}
+                      className="min-h-12 w-full rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
+                    >
+                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-[6px] font-medium text-white overflow-hidden">
+                        {profile?.avatar_url ? (
+                          <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          profile?.name?.charAt(0)?.toUpperCase() || "S"
+                        )}
+                      </div>
+                      <span className="leading-none">Profile</span>
+                    </button>
+                    <AnimatePresence>
+                      {profileOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                          className="absolute right-0 bottom-full mb-2 w-48 bg-[var(--glass-dropdown)] border border-[var(--glass-border-strong)] rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.3)] overflow-hidden z-50"
+                        >
+                          {profile?.name && (
+                            <div className="px-3 py-2.5 border-b border-[var(--glass-border)]">
+                              <p className="text-xs font-medium text-[var(--text-primary)] truncate">{profile.name}</p>
+                              {profile.username && (
+                                <p className="text-[10px] text-[var(--text-primary)]/40 truncate">@{profile.username}</p>
+                              )}
+                            </div>
+                          )}
+                          <div className="p-1.5">
+                            <button
+                              onClick={() => { setProfileOpen(false); router.push("/settings/profile"); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] hover:bg-[var(--glass-light)] transition-all text-left"
+                            >
+                              <User className="w-3.5 h-3.5 text-[var(--text-primary)]/40" />
+                              Edit Profile
+                            </button>
+                            <button
+                              onClick={() => { setProfileOpen(false); router.push("/settings"); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[var(--text-primary)]/70 hover:text-[var(--text-primary)] hover:bg-[var(--glass-light)] transition-all text-left"
+                            >
+                              <Settings className="w-3.5 h-3.5 text-[var(--text-primary)]/40" />
+                              Settings
+                            </button>
+                            <button
+                              onClick={async () => { const supabase = createClient(); await supabase.auth.signOut(); router.push("/login"); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[#EF4444]/80 hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-all text-left mt-0.5 border-t border-[var(--glass-border)] pt-2.5"
+                            >
+                              <LogOut className="w-3.5 h-3.5" />
+                              Sign Out
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 );
               }
               const link = item as { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
