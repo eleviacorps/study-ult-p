@@ -80,18 +80,16 @@
 
 html {
   height: 100%;
-  overflow: hidden;
 }
 
 body {
   background: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
 }
 
 button,
@@ -407,7 +405,7 @@ html[data-mobile="true"] .top-nav-header {
 
 /* Mobile bottom-nav clearance — applies to scrollable pages only, not fixed-height screens */
 @media (max-width: 1023px) {
-  main > div:not(.h-\[100dvh\]):not(.h-screen):not(.h-full) {
+  main > div:not(.h-\[100dvh\]):not(.h-screen) {
     padding-bottom: 96px;
   }
 }
@@ -417,8 +415,7 @@ html[data-mobile="true"] .top-nav-header {
     padding-bottom: calc(env(safe-area-inset-bottom) + 6.5rem);
   }
 
-  .app-main > .h-\[100dvh\],
-  .app-main > .h-full {
+  .app-main > .h-\[100dvh\] {
     padding-bottom: 0;
   }
 
