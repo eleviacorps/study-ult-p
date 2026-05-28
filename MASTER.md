@@ -1051,3 +1051,27 @@ Validation:
 Known follow-up:
 
 - Move chapter/test/question/flashcard static params to generated manifests too, so route generation is fully manifest-driven.
+
+### 2026-05-28 - Step 30 - Reader Sidebar Input Recovery
+
+Intent: Fix the reader Tutor drawer footer disappearing or being overlapped on mobile.
+
+Files changed:
+
+- `src/components/ai-tutor-sidebar.tsx`
+- `src/app/reader/[chapter]/reader-note-client.tsx`
+
+Implementation:
+
+- Replaced the reader Tutor drawer grid with a fixed-height flex layout.
+- Pinned the input composer as an absolute drawer footer above the safe area.
+- Added extra message-list bottom padding so the last message cannot sit behind the composer.
+- Reduced mobile reader horizontal padding and restored overflow containment on the note card.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Confirm on a physical Android WebView screenshot.
