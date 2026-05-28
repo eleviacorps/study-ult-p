@@ -109,7 +109,7 @@ export default function TutorPage() {
     { icon: FileQuestion, label: "Generate questions", query: "Generate 3 JEE-level practice questions based on the chapter content." },
   ];
 
-  const buildContext = (question: string, chatSummary = ""): string => {
+  const buildContext = async (question: string, chatSummary = ""): Promise<string> => {
     return buildStructuredTutorContext(vault, question, {
       surface: "main_tutor",
       subject: "Physics",
@@ -125,7 +125,7 @@ export default function TutorPage() {
     setInput("");
 
     const chatSummary = await getChatSessionSummary(chatKey);
-    const context = buildContext(userMsg, chatSummary);
+    const context = await buildContext(userMsg, chatSummary);
     const { content, reasoning } = await ask(context, userMsg);
     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
 
@@ -276,7 +276,7 @@ export default function TutorPage() {
               {quickActions.map((action) => (
                 <button key={action.label} onClick={() => {
                   setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  getChatSessionSummary(chatKey).then((chatSummary) => ask(buildContext(action.query, chatSummary), action.query)).then(({ content, reasoning }) => {
+                  getChatSessionSummary(chatKey).then(async (chatSummary) => ask(await buildContext(action.query, chatSummary), action.query)).then(({ content, reasoning }) => {
                     setMessages((prev) => [...prev, { role: "assistant", content, reasoning }]);
                     updateStudyState((state) => {
                       const today = new Date().toISOString().split("T")[0];

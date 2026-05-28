@@ -3,6 +3,7 @@
 import type { Flashcard, Note, Question, VaultContent } from "@/types";
 import { loadStudyState } from "@/lib/study-state";
 import type { StudyState } from "@/lib/study-state";
+import { createClient } from "@/lib/supabase/client";
 
 type RetrievalChunk = {
   id: string;
@@ -240,12 +241,28 @@ function relatedConcepts(vault: VaultContent | null, chunks: RetrievalChunk[], c
   return concepts.slice(0, 5);
 }
 
-export function buildStructuredTutorContext(
+async function fetchStudentProfile(): Promise<TutorContextOptions["studentProfile"] | undefined> {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return undefined;
+    const [goalsRes, aiRes] = await Promise.all([
+      supabase.from("student_goal_profiles").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("student_ai_profiles").select("*").eq("user_id", user.id).maybeSingle(),
+    ]);
+    if (!goalsRes.data && !aiRes.data) return undefined;
+    return { ...goalsRes.data, ...aiRes.data } as TutorContextOptions["studentProfile"];
+  } catch {
+    return undefined;
+  }
+}
+
+export async function buildStructuredTutorContext(
   vault: VaultContent | null,
   question: string,
   options: TutorContextOptions
-): string {
-  const profile = options.studentProfile;
+): Promise<string> {
+  const profile = options.studentProfile || await fetchStudentProfile();
   const rankedRetrievals = [
     ...retrieveReaderContext(question, options),
     ...retrieveNotes(vault, question, options),

@@ -59,7 +59,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
     setLoading(true);
     try {
       const chatSummary = await getChatSessionSummary(sidebarKey);
-      const sysContext = buildStructuredTutorContext(null, q, {
+      const sysContext = await buildStructuredTutorContext(null, q, {
         surface: "reader_sidebar",
         chapter: chapterName,
         readerContext: contextRef.current,
