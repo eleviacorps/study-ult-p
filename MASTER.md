@@ -1028,3 +1028,26 @@ Known follow-up:
 
 - Add a shared offline outbox for notes, attempts, analytics events, and chat messages.
 - Add server-side rate limiting for high-frequency sync endpoints.
+
+### 2026-05-28 - Step 29 - Build Trace Cleanup
+
+Intent: Remove the remaining Turbopack warning where reader note static params pulled filesystem parsing into the app route graph.
+
+Files changed:
+
+- `src/app/reader/[chapter]/[note]/page.tsx`
+
+Implementation:
+
+- Replaced runtime `getVault()` static-param generation with the generated `public/reader-params.json` manifest.
+- Kept the existing prebuild script as the single filesystem parser entry point for static vault manifests.
+- Avoided tracing `src/lib/vault-parser.ts` through the reader note Server Component.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+- Ran `npm run build` successfully with no Turbopack filesystem trace warning.
+
+Known follow-up:
+
+- Move chapter/test/question/flashcard static params to generated manifests too, so route generation is fully manifest-driven.
