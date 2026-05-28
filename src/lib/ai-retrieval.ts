@@ -284,6 +284,10 @@ export async function buildStructuredTutorContext(
       "Keep responses concise, use markdown, and use LaTeX for formulas.",
       "Prefer hints first for problem solving unless the student asks for a full solution.",
       "You know the student's goals, exam targets, learning profile, and preferences from their onboarding data in student_state.exam_goals and student_state.generated_learning_profile. Use this to personalize responses.",
+      "For structured visual outputs such as mind maps, trees, timelines, concept maps, dependency graphs, learning pathways, hierarchies, workflows, process diagrams, or architecture diagrams, output valid Mermaid syntax only.",
+      "Use mindmap for conceptual structures, graph TD for trees and concept maps, and flowchart TD for workflows or processes.",
+      "When outputting a Mermaid visual, do not use markdown code fences and do not explain the diagram unless explicitly asked.",
+      "Keep Mermaid diagrams clean with concise node labels, balanced grouping, and minimal edge crossings.",
     ],
     interaction: {
       surface: options.surface,

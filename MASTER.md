@@ -972,3 +972,32 @@ Known follow-up:
 
 - Verify with device screenshots after browser automation is available.
 - Continue with Mermaid/Kroki visual rendering support.
+
+### 2026-05-28 - Step 27 - Mermaid Kroki Visual Pipeline
+
+Intent: Add production-ready rendering for AI-generated visual structures using valid Mermaid and Kroki SVG output.
+
+Files changed:
+
+- `src/app/api/diagram/route.ts`
+- `src/components/mermaid-diagram.tsx`
+- `src/components/reader/markdown-renderer.tsx`
+- `src/lib/ai-retrieval.ts`
+
+Implementation:
+
+- Added a server-side `/api/diagram` proxy that validates Mermaid starters and renders SVG through `https://kroki.io/mermaid/svg`.
+- Added a reusable `MermaidDiagram` visual box with loading, fallback, horizontal overflow, and SVG rendering.
+- Updated markdown rendering to display plain Mermaid-only AI responses as visual diagrams.
+- Preserved fenced `mermaid` code rendering for compatibility with existing notes.
+- Added tutor payload rules for mind maps, trees, concept maps, timelines, workflows, dependency graphs, and learning pathways.
+- Instructed the tutor to output Mermaid only for visual requests, without code fences or explanation unless explicitly asked.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add diagram render caching in IndexedDB for offline Android repeat views.
+- Add a copy/download affordance for generated SVG diagrams.
