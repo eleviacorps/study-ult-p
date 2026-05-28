@@ -81,7 +81,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
             onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1 p-1 rounded-xl hover:bg-[var(--glass-light)] transition-all"
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-[10px] font-medium text-white overflow-hidden shadow-[0_0_12px_rgba(24,86,255,0.2)]">
+            <div className="w-7 h-7 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center text-[10px] font-medium text-white overflow-hidden">
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
               ) : (

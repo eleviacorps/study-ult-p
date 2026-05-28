@@ -7,7 +7,7 @@ import { useVaultStore } from "@/stores/vault-store";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Layers, ClipboardList,
   BarChart3, Share2, Bot, Settings, ChevronLeft, ChevronRight,
-  Atom, Menu, X, FileCheck, Play, Wand2, UserRound,
+  Menu, X, FileCheck, Play, Wand2, UserRound,
   User, LogOut, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -91,8 +91,8 @@ export function Sidebar() {
     )}>
       <div className="flex items-center h-14 px-4 border-b border-[var(--glass-border)] flex-shrink-0 justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center flex-shrink-0 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
-            <Atom className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img src="/app-logo.png" alt="StudyUlt" className="w-full h-full object-cover" />
           </div>
           {(!collapsed || isMobile) && (
             <span className="font-semibold text-sm text-[var(--text-primary)]">StudyUlt</span>
@@ -203,7 +203,7 @@ export function Sidebar() {
                       onClick={() => setProfileOpen(!profileOpen)}
                       className="min-h-12 w-full rounded-2xl flex flex-col items-center justify-center gap-1 text-[10px] transition-colors text-[var(--text-primary)]/38 active:bg-[var(--glass-light)]"
                     >
-                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-[6px] font-medium text-white overflow-hidden">
+                      <div className="w-4 h-4 rounded-full bg-[var(--bg-elevated)] flex items-center justify-center text-[6px] font-medium text-white overflow-hidden">
                         {profile?.avatar_url ? (
                           <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                         ) : (

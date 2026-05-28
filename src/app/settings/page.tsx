@@ -90,8 +90,8 @@ export default function SettingsPage() {
           </div>
 
           <button onClick={() => router.push("/settings/profile")} className="w-full glass glass-interactive p-5 flex items-center gap-4 text-left">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#1856FF]/20 to-[#8B5CF6]/20 flex items-center justify-center flex-shrink-0">
-              <User className="w-5 h-5 text-[#1856FF]" />
+            <div className="w-10 h-10 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0">
+              <User className="w-5 h-5 text-[var(--text-muted)]" />
             </div>
             <div className="flex-1">
               <h3 className="text-sm font-medium">Profile</h3>

@@ -118,7 +118,7 @@ export default function ProfileSettingsPage() {
           {/* Avatar */}
           <div className="glass p-5 flex items-center gap-5">
             <div className="relative group cursor-pointer" onClick={handleAvatarPick}>
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#1856FF] to-[#8B5CF6] flex items-center justify-center text-2xl font-bold overflow-hidden">
+              <div className="w-20 h-20 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center text-2xl font-bold overflow-hidden">
                 {(avatarFile || avatarUrl) ? (
                   <img src={avatarFile || avatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
