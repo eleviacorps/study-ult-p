@@ -173,7 +173,7 @@ export default function ReaderPage() {
           ))}
         </aside>
 
-        <main className="w-full min-w-0 flex-1 px-2 sm:px-6 py-3 sm:py-8 overflow-x-hidden">
+        <main className="w-full min-w-0 flex-1 px-3 sm:px-6 py-3 sm:py-8 overflow-x-hidden">
           <div className="flex items-center justify-end gap-1 mb-3 sticky top-2 z-10">
             <div className="glass flex items-center gap-0.5 p-0.5 rounded-xl border border-white/[0.06]">
               <button
@@ -203,7 +203,7 @@ export default function ReaderPage() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="glass p-3 sm:p-6 md:p-8 overflow-x-hidden rounded-2xl" style={{ fontSize: `${fontSize}px` }}>
+              <div className="glass p-4 sm:p-6 md:p-8 rounded-2xl" style={{ fontSize: `${fontSize}px` }}>
                 <MarkdownRenderer content={note.content} className="reader-prose" />
               </div>
 

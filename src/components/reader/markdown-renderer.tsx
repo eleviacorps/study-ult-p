@@ -139,7 +139,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   const processed = processCallouts(content);
 
   return (
-      <div className={cn("prose-glass max-w-full overflow-x-hidden", className)}>
+      <div className={cn("prose-glass max-w-full", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
