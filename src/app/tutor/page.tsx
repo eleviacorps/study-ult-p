@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
-import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp, Plus, History } from "lucide-react";
+import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp, Plus, History, X } from "lucide-react";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
@@ -20,6 +20,13 @@ type TutorSession = {
   updated_at?: string;
   last_message_at?: string;
 };
+
+type PendingClarification = {
+  action: "explain" | "summarize" | "questions";
+  step: "ask_topic" | "ask_count";
+  topic?: string;
+  count?: number;
+} | null;
 
 export default function TutorPage() {
   const { vault } = useVaultStore();
@@ -37,6 +44,10 @@ export default function TutorPage() {
   const [sessions, setSessions] = useState<TutorSession[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [studentProfile, setStudentProfile] = useState<any>(null);
+  const [pending, setPending] = useState<PendingClarification>(null);
+  const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -71,43 +82,35 @@ export default function TutorPage() {
 
   // Persist chat to localStorage + DB on every change
   useEffect(() => {
-    if (mounted) {
-      saveChat(chatKey, messages);
-      syncChatToDB(chatKey, messages, {
-        type: "physics_tutor",
-        title: "Physics Tutor",
-        subject: "Physics",
-      });
-    }
+    if (!mounted) return;
+    saveChat(chatKey, messages);
+    setSyncing(true);
+    syncChatToDB(chatKey, messages, {
+      type: "physics_tutor",
+      title: "Physics Tutor",
+      subject: "Physics",
+    }).finally(() => setSyncing(false));
   }, [messages, mounted]);
-  const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
-  const chatRef = useRef<HTMLDivElement>(null);
 
-  const refreshSessions = async () => {
+  const refreshSessions = useCallback(async () => {
     try {
       const res = await fetch("/api/chat?sessions=1");
       if (!res.ok) return;
       const data = await res.json();
       const next = Array.isArray(data.sessions)
-        ? data.sessions.filter((session: TutorSession) => session.type === "physics_tutor")
+        ? data.sessions.filter((s: TutorSession) => s.type === "physics_tutor")
         : [];
       setSessions(next);
     } catch {}
-  };
+  }, []);
 
   useEffect(() => {
     if (mounted) refreshSessions();
-  }, [mounted]);
+  }, [mounted, refreshSessions]);
 
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
-
-  const quickActions = [
-    { icon: Brain, label: "Explain topic", query: "Explain the concept of electric field in simple terms." },
-    { icon: BookOpen, label: "Summarize chapter", query: "Summarize all important concepts from the current chapter." },
-    { icon: FileQuestion, label: "Generate questions", query: "Generate 3 JEE-level practice questions based on the chapter content." },
-  ];
 
   const buildContext = async (question: string, chatSummary = ""): Promise<string> => {
     return buildStructuredTutorContext(vault, question, {
@@ -118,12 +121,8 @@ export default function TutorPage() {
     });
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isAsking) return;
-    const userMsg = input;
+  const sendToAI = async (userMsg: string) => {
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
-    setInput("");
-
     const chatSummary = await getChatSessionSummary(chatKey);
     const context = await buildContext(userMsg, chatSummary);
 
@@ -155,7 +154,39 @@ export default function TutorPage() {
       state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
     });
     addPoints(3, "Tutor Chat", userMsg.substring(0, 50));
-    refreshSessions();
+    await new Promise((r) => setTimeout(r, 300));
+    await refreshSessions();
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || isAsking) return;
+    if (pending) {
+      if (pending.step === "ask_topic") {
+        setPending({ ...pending, topic: input.trim(), step: pending.action === "questions" ? "ask_count" : "ask_topic" });
+        setInput("");
+        if (pending.action === "explain" || pending.action === "summarize") {
+          const full = pending.action === "explain"
+            ? `Explain this topic in detail: ${input.trim()}`
+            : `Summarize this chapter: ${input.trim()}`;
+          setPending(null);
+          await sendToAI(full);
+        }
+        return;
+      }
+      if (pending.step === "ask_count") {
+        const count = parseInt(input.trim()) || 3;
+        setInput("");
+        setPending(null);
+        await sendToAI(`Generate ${count} JEE-level practice questions about ${pending.topic || "the current chapter"}.`);
+        return;
+      }
+    }
+    await sendToAI(input.trim());
+    setInput("");
+  };
+
+  const handleQuickAction = (action: "explain" | "summarize" | "questions") => {
+    setPending({ action, step: "ask_topic" });
   };
 
   const startNewChat = () => {
@@ -164,6 +195,7 @@ export default function TutorPage() {
     setMessages([greeting]);
     setExpandedReasoning(new Set());
     setShowHistory(false);
+    setPending(null);
   };
 
   const loadSession = async (sessionId: string) => {
@@ -173,28 +205,29 @@ export default function TutorPage() {
       const data = await res.json();
       const nextMessages = Array.isArray(data.messages)
         ? data.messages
-            .filter((message: any) => message.role === "user" || message.role === "assistant")
-            .map((message: any) => ({ role: message.role, content: message.content }))
+            .filter((m: any) => m.role === "user" || m.role === "assistant")
+            .map((m: any) => ({ role: m.role, content: m.content }))
         : [];
       setChatSession(chatKey, sessionId, nextMessages.length);
       saveChat(chatKey, nextMessages);
       setMessages(nextMessages.length > 0 ? nextMessages : [{ role: "assistant", content: "Hi! Ask me anything about physics." }]);
       setExpandedReasoning(new Set());
       setShowHistory(false);
+      setPending(null);
     } catch {}
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col overflow-hidden">
+    <div className="h-[100dvh] flex flex-col">
       <Header title="AI Tutor" />
-      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col">
+      <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col overflow-hidden">
         <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">
           <div>
             <p className="text-xs opacity-35">Physics tutor</p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowHistory((value) => !value)}
+              onClick={() => setShowHistory((v) => !v)}
               className="p-2 rounded-xl glass-interactive opacity-60 hover:opacity-100"
               title="Chat history"
             >
@@ -211,7 +244,7 @@ export default function TutorPage() {
         </div>
 
         {showHistory && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="glass p-3 mt-3 space-y-2 flex-shrink-0">
+          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="glass p-3 mt-3 space-y-2 flex-shrink-0 overflow-hidden">
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium">Chat History</p>
               <button onClick={refreshSessions} className="text-[10px] opacity-35 hover:opacity-70">Refresh</button>
@@ -291,36 +324,51 @@ export default function TutorPage() {
               <span className="text-xs opacity-25">Thinking...</span>
             </motion.div>
           )}
-          {messages.length <= 1 && (
+          {messages.length <= 1 && !pending && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-              {quickActions.map((action) => (
-                <button key={action.label} onClick={async () => {
-                  setMessages((prev) => [...prev, { role: "user", content: action.query }]);
-                  const chatSummary = await getChatSessionSummary(chatKey);
-                  const ctx = await buildContext(action.query, chatSummary);
-                  setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-                  let fullContent = "";
-                  try {
-                    for await (const token of askStream(ctx, action.query)) {
-                      fullContent += token;
-                      setMessages((prev) => {
-                        const updated = [...prev];
-                        updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-                        return updated;
-                      });
-                    }
-                  } catch {}
-                  updateStudyState((state) => {
-                    const today = new Date().toISOString().split("T")[0];
-                    state.lastStudyDate = today;
-                    state.studyMinutes[today] = (state.studyMinutes[today] || 0) + 3;
-                  });
-                  addPoints(3, action.label, action.query.substring(0, 50));
-                }} className="glass glass-interactive p-4 text-left">
-                  <action.icon className="w-4 h-4 text-[#1856FF] mb-2" />
-                  <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{action.label}</p>
+              <button onClick={() => handleQuickAction("explain")} className="glass glass-interactive p-4 text-left">
+                <Brain className="w-4 h-4 text-[#1856FF] mb-2" />
+                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Explain topic</p>
+              </button>
+              <button onClick={() => handleQuickAction("summarize")} className="glass glass-interactive p-4 text-left">
+                <BookOpen className="w-4 h-4 text-[#1856FF] mb-2" />
+                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Summarize chapter</p>
+              </button>
+              <button onClick={() => handleQuickAction("questions")} className="glass glass-interactive p-4 text-left">
+                <FileQuestion className="w-4 h-4 text-[#1856FF] mb-2" />
+                <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Generate questions</p>
+              </button>
+            </div>
+          )}
+
+          {pending && (
+            <div className="glass p-4 mt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-white/50">
+                  {pending.action === "explain" && "Which topic would you like me to explain?"}
+                  {pending.action === "summarize" && "Which chapter would you like me to summarize?"}
+                  {pending.action === "questions" && pending.step === "ask_topic" && "Which topic should the questions be about?"}
+                  {pending.action === "questions" && pending.step === "ask_count" && "How many questions do you want?"}
+                </p>
+                <button onClick={() => setPending(null)} className="p-1 rounded-lg hover:bg-white/5">
+                  <X className="w-3.5 h-3.5 opacity-40" />
                 </button>
-              ))}
+              </div>
+              <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-xl p-1.5">
+                <input
+                  type={pending.step === "ask_count" ? "number" : "text"}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+                  placeholder={pending.step === "ask_count" ? "e.g. 5" : "Type your answer..."}
+                  autoFocus
+                  className="flex-1 bg-transparent text-sm outline-none px-2 min-w-0 text-white/70 placeholder:text-white/20"
+                />
+                <button onClick={handleSend} disabled={!input.trim() || isAsking}
+                  className="p-2 rounded-lg bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0">
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -328,7 +376,7 @@ export default function TutorPage() {
         <div className="flex-shrink-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4">
           <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Ask anything about physics..."
+              placeholder={pending ? "Type your answer..." : "Ask anything about physics..."}
               className="flex-1 bg-transparent text-sm outline-none px-3 min-w-0 text-white/70 placeholder:text-white/20" />
             <button onClick={handleSend} disabled={!input.trim() || isAsking}
               className="p-2.5 rounded-xl bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0 shadow-[0_0_20px_rgba(24,86,255,0.2)]">

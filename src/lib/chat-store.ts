@@ -98,46 +98,49 @@ export function clearChat(key: string) {
   } catch {}
 }
 
-export function syncChatToDB(key: string, messages: ChatMessage[], options: ChatSyncOptions = {}) {
-  if (messages.length === 0) return;
+export async function syncChatToDB(key: string, messages: ChatMessage[], options: ChatSyncOptions = {}): Promise<boolean> {
+  if (messages.length === 0) return false;
 
   let syncedCount = 0;
   try {
     syncedCount = Number(localStorage.getItem(storageKey(key, "synced-count")) || "0");
   } catch {}
 
-  if (syncedCount >= messages.length) return;
+  if (syncedCount >= messages.length) return false;
 
   const sessionId = getChatSessionId(key);
   const pending = messages.slice(syncedCount);
 
-  fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      session: {
-        id: sessionId,
-        type: options.type || "concept_discussion",
-        title: options.title || inferTitle(messages),
-        subject: options.subject || "",
-        chapter: options.chapter || "",
-        scope: options.scope || {},
-      },
-      messages: pending.map((message, index) => ({
-        session_id: sessionId,
-        client_id: `${sessionId}-${syncedCount + index}`,
-        role: message.role,
-        content: message.content,
-      })),
-    }),
-  })
-    .then((res) => {
-      if (res.ok) {
-        localStorage.setItem(storageKey(key, "synced-count"), String(messages.length));
-        maybeSummarizeChat(key, sessionId, messages.length);
-      }
-    })
-    .catch(() => {});
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session: {
+          id: sessionId,
+          type: options.type || "concept_discussion",
+          title: options.title || inferTitle(messages),
+          subject: options.subject || "",
+          chapter: options.chapter || "",
+          scope: options.scope || {},
+        },
+        messages: pending.map((message, index) => ({
+          session_id: sessionId,
+          client_id: `${sessionId}-${syncedCount + index}`,
+          role: message.role,
+          content: message.content,
+        })),
+      }),
+    });
+    if (res.ok) {
+      localStorage.setItem(storageKey(key, "synced-count"), String(messages.length));
+      maybeSummarizeChat(key, sessionId, messages.length);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function maybeSummarizeChat(key: string, sessionId: string, messageCount: number) {
