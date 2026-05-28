@@ -791,3 +791,31 @@ Known follow-up:
 
 - Avoid fetching the summary on every send by caching it with invalidation after new summaries.
 - Add visible summary previews in chat history.
+
+### 2026-05-28 - Step 20 - Mobile Reader And Tutor Scroll Fixes
+
+Intent: Fix the Android UX issues seen in the space-themed screenshots: cramped reader content and unreliable chat scrolling/input spacing.
+
+Files changed:
+
+- `src/app/reader/[chapter]/reader-note-client.tsx`
+- `src/components/reader/markdown-renderer.tsx`
+- `src/app/tutor/page.tsx`
+- `src/components/ai-tutor-sidebar.tsx`
+
+Implementation:
+
+- Expanded the usable reader width on phones by reducing outer/card padding and enforcing full-width reader layout.
+- Made markdown tables horizontally scroll inside their own container instead of squeezing columns into unreadable widths.
+- Added mobile-friendly table cell padding and `overscroll-x` containment.
+- Switched Tutor page and reader Tutor drawer to `100dvh` height for Android WebView viewport behavior.
+- Added scroll containment and extra bottom safe-area padding so chat input and messages do not fight the bottom navigation.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Run mobile browser screenshots after starting the dev server.
+- Continue with Graph mobile layout and Obsidian-style note linking.

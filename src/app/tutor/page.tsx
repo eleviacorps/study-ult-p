@@ -165,7 +165,7 @@ export default function TutorPage() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <Header title="AI Tutor" />
       <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col">
         <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">
@@ -217,7 +217,7 @@ export default function TutorPage() {
           </motion.div>
         )}
 
-        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto py-6 space-y-4">
+        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-4 sm:py-6 pb-6 space-y-4">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
@@ -294,7 +294,7 @@ export default function TutorPage() {
           )}
         </div>
 
-        <div className="flex-shrink-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4">
+        <div className="flex-shrink-0 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:pt-4">
           <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask anything about physics..."

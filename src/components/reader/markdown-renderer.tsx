@@ -168,21 +168,21 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
           table({ children }) {
             return (
-              <div className="overflow-x-auto my-4 rounded-xl border border-white/[0.04]">
-                <table className="min-w-full">{children}</table>
+              <div className="overflow-x-auto overscroll-x-contain my-4 rounded-xl border border-white/[0.04] max-w-full">
+                <table className="min-w-[560px] sm:min-w-full">{children}</table>
               </div>
             );
           },
           th({ children }) {
             return (
-              <th className="bg-white/[0.03] px-4 py-3 text-left text-xs font-semibold text-white/60 uppercase tracking-wider border-b border-white/[0.04]">
+              <th className="bg-white/[0.03] px-3 sm:px-4 py-3 text-left text-xs font-semibold text-white/60 uppercase tracking-wider border-b border-white/[0.04]">
                 {children}
               </th>
             );
           },
           td({ children }) {
             return (
-              <td className="px-4 py-2.5 text-sm text-white/50 border-b border-white/[0.02]">
+              <td className="px-3 sm:px-4 py-2.5 text-sm text-white/50 border-b border-white/[0.02] align-top">
                 {children}
               </td>
             );

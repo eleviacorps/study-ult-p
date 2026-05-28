@@ -122,7 +122,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
           initial={isMobile ? { x: "100%" } : { width: 0 }}
           animate={isMobile ? { x: 0 } : { width: 340 }}
           exit={isMobile ? { x: "100%" } : { width: 0 }}
-          className="fixed right-0 top-0 h-full z-40 bg-[#09090B] border-l border-white/[0.06] flex flex-col"
+          className="fixed right-0 top-0 h-[100dvh] z-40 bg-[#09090B] border-l border-white/[0.06] flex flex-col overflow-hidden"
           style={{ width: isMobile ? "100vw" : undefined }}
         >
           <div className="flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-white/[0.06]">
@@ -144,7 +144,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             </button>
           </div>
 
-          <div ref={messagesRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+          <div ref={messagesRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pb-6 space-y-3">
             {messages.length === 0 ? (
               <div className="text-center py-8">
                 <Bot className="w-8 h-8 text-[#1856FF]/30 mx-auto mb-3" />
@@ -188,7 +188,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             )}
           </div>
 
-          <div className="p-3 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/[0.06]">
+          <div className="p-3 max-lg:pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/[0.06]">
             <div className="flex items-center gap-2">
               <input
                 type="text"
