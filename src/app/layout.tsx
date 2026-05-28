@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   title: "StudyUlt — AI Educational OS",
   description:
     "Premium AI-powered JEE preparation platform with Obsidian vault integration, interactive flashcards, mock tests, and knowledge graphs.",
+  icons: {
+    icon: "/app-logo.png",
+    apple: "/app-logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -31,10 +35,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      style={{ backgroundColor: "#09090B" }}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex relative">
+      <body className="min-h-full flex relative" style={{ backgroundColor: "#09090B" }}>
         <GalaxyBackground />
         <ErrorBoundary>
           <LlmProvider>

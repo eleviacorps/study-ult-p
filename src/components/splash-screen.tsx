@@ -30,7 +30,13 @@ export function SplashScreen() {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#09090B] flex flex-col items-center justify-center overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.6 }}
+      className="fixed inset-0 z-[100] bg-[#09090B] flex flex-col items-center justify-center overflow-hidden"
+    >
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div
           className="absolute inset-0 opacity-40"
@@ -62,7 +68,7 @@ export function SplashScreen() {
         transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
         className="relative"
       >
-        <img src="/app-logo.png" alt="" className="w-20 h-20 sm:w-24 sm:h-24" />
+        <img src="/splash-screen-logo.png" alt="" className="w-20 h-20 sm:w-24 sm:h-24" />
       </motion.div>
 
       <motion.p
@@ -87,6 +93,6 @@ export function SplashScreen() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
