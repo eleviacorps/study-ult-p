@@ -165,7 +165,7 @@ export default function TutorPage() {
   };
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden">
       <Header title="AI Tutor" />
       <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col">
         <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">

@@ -9,7 +9,7 @@ import { SplashScreen } from "@/components/splash-screen";
 
 const PUBLIC_ROUTES = ["/login", "/auth/callback"];
 const SHELLLESS_ROUTES = ["/login", "/auth/callback", "/onboarding"];
-const MIN_SPLASH_MS = 5000;
+const MIN_SPLASH_MS = 2000;
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

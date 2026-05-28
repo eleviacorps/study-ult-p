@@ -5,6 +5,8 @@ import type { VaultContent, ChapterMeta, Note, Question, Flashcard, VaultRoot } 
 
 const VAULT_ROOTS_KEY = "studyult-vault-roots";
 const AGENT_NOTES_KEY = "studyult-agent-notes";
+const VAULT_CACHE_KEY = "studyult-vault-cache";
+const VAULT_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 export function getCustomVaultRoots(): VaultRoot[] {
   if (typeof window === "undefined") return [];
@@ -32,6 +34,29 @@ export function getAgentNotes(): Note[] {
 
 export function saveAgentNotes(notes: Note[]) {
   localStorage.setItem(AGENT_NOTES_KEY, JSON.stringify(notes));
+}
+
+function getCachedVault(): VaultContent | null {
+  try {
+    const raw = localStorage.getItem(VAULT_CACHE_KEY);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw);
+    if (Date.now() - timestamp > VAULT_CACHE_AGE) {
+      localStorage.removeItem(VAULT_CACHE_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedVault(vault: VaultContent) {
+  try {
+    localStorage.setItem(VAULT_CACHE_KEY, JSON.stringify({ data: vault, timestamp: Date.now() }));
+  } catch {
+    // localStorage full or unavailable — ignore
+  }
 }
 
 // Simple slugify for IDs
@@ -422,9 +447,15 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       let baseVault: VaultContent | null = null;
 
       if (customRoots.length === 0) {
-        const staticRes = await fetch("/vault-data.json");
-        if (staticRes.ok) {
-          baseVault = await staticRes.json();
+        const cached = getCachedVault();
+        if (cached) {
+          baseVault = cached;
+        } else {
+          const staticRes = await fetch("/vault-data.json");
+          if (staticRes.ok) {
+            baseVault = await staticRes.json();
+            if (baseVault) setCachedVault(baseVault);
+          }
         }
       }
 
