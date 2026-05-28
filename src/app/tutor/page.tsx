@@ -250,7 +250,7 @@ export default function TutorPage() {
                 msg.role === "user"
                   ? "bg-[#1856FF]/15 rounded-2xl rounded-br-md border border-[#1856FF]/20"
                   : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]")}>
-                <div className="prose-glass text-sm leading-relaxed max-w-none" style={{ color: "var(--text-primary)" }}>
+                <div className="prose-glass text-sm leading-relaxed min-w-0" style={{ color: "var(--text-primary)" }}>
                   <MarkdownRenderer content={msg.content} />
                 </div>
                 {msg.reasoning && (

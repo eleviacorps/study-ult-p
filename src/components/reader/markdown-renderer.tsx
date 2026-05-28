@@ -139,7 +139,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   const processed = processCallouts(content);
 
   return (
-      <div className={cn("prose-glass max-w-full", className)}>
+      <div className={cn("prose-glass max-w-full min-w-0 break-words", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
@@ -169,7 +169,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           table({ children }) {
             return (
               <div className="overflow-x-auto overscroll-x-contain my-4 rounded-xl border border-white/[0.04] max-w-full">
-                <table className="min-w-[560px] sm:min-w-full">{children}</table>
+                <table className="min-w-[400px] sm:min-w-full">{children}</table>
               </div>
             );
           },
