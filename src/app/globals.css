@@ -8,12 +8,12 @@
   --bg-elevated: #151821;
   --bg-overlay: #1A1D29;
 
-  --glass-light: rgba(255, 255, 255, 0.03);
-  --glass-medium: rgba(255, 255, 255, 0.05);
-  --glass-heavy: rgba(255, 255, 255, 0.08);
+  --glass-light: rgba(255, 255, 255, 0.06);
+  --glass-medium: rgba(255, 255, 255, 0.09);
+  --glass-heavy: rgba(255, 255, 255, 0.13);
   --glass-border: rgba(255, 255, 255, 0.06);
   --glass-border-strong: rgba(255, 255, 255, 0.10);
-  --glass-panel: rgba(15, 17, 23, 0.8);
+  --glass-panel: rgba(15, 17, 23, 0.85);
   --glass-dropdown: #0F1117;
 
   --accent-primary: #1856FF;
@@ -43,12 +43,12 @@
   --bg-elevated: #EDE4D5;
   --bg-overlay: #E8DECA;
 
-  --glass-light: rgba(17, 17, 17, 0.04);
-  --glass-medium: rgba(17, 17, 17, 0.06);
-  --glass-heavy: rgba(17, 17, 17, 0.10);
+  --glass-light: rgba(17, 17, 17, 0.07);
+  --glass-medium: rgba(17, 17, 17, 0.10);
+  --glass-heavy: rgba(17, 17, 17, 0.14);
   --glass-border: rgba(17, 17, 17, 0.08);
   --glass-border-strong: rgba(17, 17, 17, 0.12);
-  --glass-panel: rgba(245, 240, 232, 0.85);
+  --glass-panel: rgba(245, 240, 232, 0.90);
   --glass-dropdown: #F5F0E8;
 
   --accent-primary: #2563EB;
