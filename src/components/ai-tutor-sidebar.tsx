@@ -164,7 +164,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             </button>
           </div>
 
-          <div ref={messagesRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 pb-[calc(env(safe-area-inset-bottom)+6.75rem)] space-y-3 scroll-region">
+          <div ref={messagesRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3 scroll-region">
             {messages.length === 0 ? (
               <div className="text-center py-8">
                 <Bot className="w-8 h-8 text-[#1856FF]/30 mx-auto mb-3" />
@@ -208,7 +208,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             )}
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-[#09090B]/98 p-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] border-t border-white/[0.08] backdrop-blur-xl shadow-[0_-16px_40px_rgba(0,0,0,0.45)]">
+          <div className="flex-shrink-0 bg-[#09090B]/98 p-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] border-t border-white/[0.08] backdrop-blur-xl shadow-[0_-16px_40px_rgba(0,0,0,0.45)]">
             <div className="flex items-center gap-2">
               <input
                 type="text"

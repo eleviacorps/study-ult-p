@@ -131,22 +131,40 @@ function processCallouts(content: string): string {
   );
 }
 
+const MERMAID_KEYWORDS = [
+  "mindmap",
+  "graph ",
+  "flowchart ",
+  "sequenceDiagram",
+  "classDiagram",
+  "stateDiagram",
+  "erDiagram",
+  "journey",
+  "gantt",
+  "pie",
+  "timeline",
+  "gitGraph",
+];
+
 function isMermaidSource(value: string): boolean {
   const firstLine = value.trim().split(/\r?\n/).find(Boolean)?.trim() || "";
-  return [
-    "mindmap",
-    "graph ",
-    "flowchart ",
-    "sequenceDiagram",
-    "classDiagram",
-    "stateDiagram",
-    "erDiagram",
-    "journey",
-    "gantt",
-    "pie",
-    "timeline",
-    "gitGraph",
-  ].some((starter) => firstLine.startsWith(starter));
+  return MERMAID_KEYWORDS.some((starter) => firstLine.startsWith(starter));
+}
+
+function findMermaidBlock(content: string): string | null {
+  const lines = content.split(/\r?\n/);
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (MERMAID_KEYWORDS.some((k) => trimmed.startsWith(k))) {
+      start = i;
+      break;
+    }
+  }
+  if (start === -1) return null;
+  let end = start + 1;
+  while (end < lines.length && lines[end].trim() !== "") end++;
+  return lines.slice(start, end).join("\n");
 }
 
 interface MarkdownRendererProps {
@@ -165,6 +183,11 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       </div>
     );
   }
+
+  const mermaidBlock = findMermaidBlock(content);
+  const finalContent = mermaidBlock
+    ? content.replace(mermaidBlock, "```mermaid\n" + mermaidBlock + "\n```")
+    : content;
 
   return (
       <div className={cn("prose-glass max-w-full min-w-0 break-words", className)}>
@@ -266,7 +289,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
         }}
       >
-        {processed}
+        {processCallouts(finalContent)}
       </ReactMarkdown>
     </div>
   );
