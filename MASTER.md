@@ -872,3 +872,29 @@ Known follow-up:
 
 - Add service-worker asset prefetching for Android install performance.
 - Add cache invalidation when the static vault manifest version changes.
+
+### 2026-05-28 - Step 23 - AI Tutor Latency And Context Fix
+
+Intent: Improve AI response time without silently dropping tutor context.
+
+Files changed:
+
+- `src/lib/llm-context.tsx`
+- `src/app/api/llm/route.ts`
+
+Implementation:
+
+- Removed the client-side 8,000 character truncation of structured tutor context.
+- Reduced default completion size from 32k output tokens to a practical 4k client request and 8k server cap.
+- Added deterministic low-temperature/top-p defaults server-side for faster, more focused tutoring.
+- Added short-lived session response caching keyed by a SHA-256 digest of the full message payload.
+- Preserved the full structured context sent by the caller instead of deleting context to gain speed.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add streaming responses so first tokens render immediately.
+- Move repeat-response cache to a server-side KV layer when deployed at scale.
