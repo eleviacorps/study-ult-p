@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Loader2 } from "lucide-react";
+import { SplashScreen } from "@/components/splash-screen";
 
 const PUBLIC_ROUTES = ["/login", "/auth/callback"];
 const SHELLLESS_ROUTES = ["/login", "/auth/callback", "/onboarding"];
@@ -57,11 +57,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   if (status === "loading") {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-[var(--bg-base)] z-50">
-        <Loader2 className="w-6 h-6 animate-spin opacity-30" />
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   const shellless = SHELLLESS_ROUTES.some((route) => pathname.startsWith(route));
