@@ -5,12 +5,12 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
 import { useLlm } from "@/lib/llm-context";
-import { Bot, Send, Brain, BookOpen, FileQuestion, ChevronDown, ChevronUp, Plus, History, X } from "lucide-react";
+import { Bot, Send, Brain, BookOpen, FileQuestion, Plus, History, GitBranch } from "lucide-react";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
 import { cn } from "@/lib/cn";
-import { clearChat, getChatSessionSummary, loadChat, queueChatSyncToDB, saveChat, setChatSession, getTutorKey } from "@/lib/chat-store";
+import { clearChat, getChatSessionSummary, listLocalChatSessions, loadChat, loadLocalChatSession, queueChatSyncToDB, saveChat, setChatSession, getTutorKey } from "@/lib/chat-store";
 import type { ChatMessage } from "@/lib/chat-store";
 
 type TutorSession = {
@@ -22,7 +22,7 @@ type TutorSession = {
 };
 
 type PendingClarification = {
-  action: "explain" | "summarize" | "questions";
+  action: "explain" | "summarize" | "questions" | "visualize";
   step: "ask_topic" | "ask_count";
   topic?: string;
   count?: number;
@@ -95,11 +95,20 @@ export default function TutorPage() {
       const res = await fetch("/api/chat?sessions=1");
       if (!res.ok) return;
       const data = await res.json();
-      const next = Array.isArray(data.sessions)
+      const remote = Array.isArray(data.sessions)
         ? data.sessions.filter((s: TutorSession) => s.type === "physics_tutor")
         : [];
-      setSessions(next);
-    } catch {}
+      const local = listLocalChatSessions(chatKey).filter((s) => s.type === "physics_tutor");
+      const seen = new Set<string>();
+      const merged = [...local, ...remote].filter((session) => {
+        if (seen.has(session.id)) return false;
+        seen.add(session.id);
+        return true;
+      });
+      setSessions(merged);
+    } catch {
+      setSessions(listLocalChatSessions(chatKey).filter((s) => s.type === "physics_tutor"));
+    }
   }, []);
 
   useEffect(() => {
@@ -162,10 +171,12 @@ export default function TutorPage() {
       if (pending.step === "ask_topic") {
         setPending({ ...pending, topic: input.trim(), step: pending.action === "questions" ? "ask_count" : "ask_topic" });
         setInput("");
-        if (pending.action === "explain" || pending.action === "summarize") {
+        if (pending.action === "explain" || pending.action === "summarize" || pending.action === "visualize") {
           const full = pending.action === "explain"
             ? `Explain this topic in detail: ${input.trim()}`
-            : `Summarize this chapter: ${input.trim()}`;
+            : pending.action === "summarize"
+              ? `Summarize this chapter: ${input.trim()}`
+              : `Create a clean Mermaid mindmap visual for this concept: ${input.trim()}. Output valid Mermaid syntax only.`;
           setPending(null);
           await sendToAI(full);
         }
@@ -183,7 +194,7 @@ export default function TutorPage() {
     setInput("");
   };
 
-  const handleQuickAction = (action: "explain" | "summarize" | "questions") => {
+  const handleQuickAction = (action: "explain" | "summarize" | "questions" | "visualize") => {
     setPending({ action, step: "ask_topic" });
   };
 
@@ -201,18 +212,30 @@ export default function TutorPage() {
       const res = await fetch(`/api/chat?session_id=${encodeURIComponent(sessionId)}`);
       if (!res.ok) return;
       const data = await res.json();
-      const nextMessages = Array.isArray(data.messages)
+      let nextMessages = Array.isArray(data.messages)
         ? data.messages
             .filter((m: any) => m.role === "user" || m.role === "assistant")
             .map((m: any) => ({ role: m.role, content: m.content }))
         : [];
+      if (nextMessages.length === 0) {
+        nextMessages = loadLocalChatSession(chatKey, sessionId);
+      }
       setChatSession(chatKey, sessionId, nextMessages.length);
       saveChat(chatKey, nextMessages);
       setMessages(nextMessages.length > 0 ? nextMessages : [{ role: "assistant", content: "Hi! Ask me anything about physics." }]);
       setExpandedReasoning(new Set());
       setShowHistory(false);
       setPending(null);
-    } catch {}
+    } catch {
+      const nextMessages = loadLocalChatSession(chatKey, sessionId);
+      if (nextMessages.length === 0) return;
+      setChatSession(chatKey, sessionId, nextMessages.length);
+      saveChat(chatKey, nextMessages);
+      setMessages(nextMessages);
+      setExpandedReasoning(new Set());
+      setShowHistory(false);
+      setPending(null);
+    }
   };
 
   return (
@@ -337,6 +360,10 @@ export default function TutorPage() {
                 <FileQuestion className="w-3.5 h-3.5 text-[#1856FF] mb-1.5" />
                 <p className="text-[11px] font-medium text-white/40">Generate questions</p>
               </button>
+              <button onClick={() => handleQuickAction("visualize")} className="glass glass-interactive p-3.5 text-left rounded-xl sm:col-span-3">
+                <GitBranch className="w-3.5 h-3.5 text-[#06B6D4] mb-1.5" />
+                <p className="text-[11px] font-medium text-white/40">Visualize as mind map</p>
+              </button>
             </div>
           )}
         </div>
@@ -349,6 +376,7 @@ export default function TutorPage() {
                 {pending.action === "summarize" && "Which chapter should I summarize?"}
                 {pending.action === "questions" && pending.step === "ask_topic" && "Questions about which topic?"}
                 {pending.action === "questions" && pending.step === "ask_count" && "How many questions?"}
+                {pending.action === "visualize" && "What should I visualize?"}
               </span>
               <button onClick={() => { setPending(null); setInput(""); }} className="text-[9px] text-white/25 hover:text-white/50 transition-colors">
                 Cancel

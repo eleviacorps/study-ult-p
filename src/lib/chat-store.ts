@@ -22,6 +22,14 @@ interface ChatSyncOptions {
   scope?: Record<string, unknown>;
 }
 
+export type LocalChatSession = {
+  id: string;
+  title: string;
+  type: ChatSessionType;
+  updated_at: string;
+  message_count: number;
+};
+
 const CHAT_KEY = "studyult-tutor-chat";
 const SIDEBAR_CHAT_KEY = "studyult-tutor-sidebar-chat";
 const CHAT_SYNC_DEBOUNCE_MS = 900;
@@ -37,6 +45,14 @@ const chatSyncQueue = new Map<string, QueuedChatSync>();
 
 function storageKey(key: string, suffix: string): string {
   return `${key}:${suffix}`;
+}
+
+function sessionMessagesKey(key: string, sessionId: string): string {
+  return storageKey(key, `session:${sessionId}:messages`);
+}
+
+function sessionsIndexKey(key: string): string {
+  return storageKey(key, "sessions-index");
 }
 
 function createId(): string {
@@ -96,6 +112,20 @@ export function loadChat(key: string): ChatMessage[] {
 export function saveChat(key: string, messages: ChatMessage[]) {
   try {
     localStorage.setItem(key, JSON.stringify(messages));
+    if (messages.length > 0) {
+      const sessionId = getChatSessionId(key);
+      const now = new Date().toISOString();
+      const existing = listLocalChatSessions(key).filter((session) => session.id !== sessionId);
+      const nextSession: LocalChatSession = {
+        id: sessionId,
+        title: inferTitle(messages),
+        type: key === CHAT_KEY ? "physics_tutor" : "concept_discussion",
+        updated_at: now,
+        message_count: messages.length,
+      };
+      localStorage.setItem(sessionMessagesKey(key, sessionId), JSON.stringify(messages));
+      localStorage.setItem(sessionsIndexKey(key), JSON.stringify([nextSession, ...existing].slice(0, 50)));
+    }
   } catch {
     // localStorage full or unavailable
   }
@@ -106,6 +136,26 @@ export function clearChat(key: string) {
     localStorage.removeItem(key);
     resetChatSession(key);
   } catch {}
+}
+
+export function listLocalChatSessions(key: string): LocalChatSession[] {
+  try {
+    const raw = localStorage.getItem(sessionsIndexKey(key));
+    const sessions = raw ? JSON.parse(raw) : [];
+    return Array.isArray(sessions) ? sessions : [];
+  } catch {
+    return [];
+  }
+}
+
+export function loadLocalChatSession(key: string, sessionId: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(sessionMessagesKey(key, sessionId));
+    const messages = raw ? JSON.parse(raw) : [];
+    return Array.isArray(messages) ? messages : [];
+  } catch {
+    return [];
+  }
 }
 
 export function queueChatSyncToDB(key: string, messages: ChatMessage[], options: ChatSyncOptions = {}, delay = CHAT_SYNC_DEBOUNCE_MS) {

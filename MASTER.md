@@ -1075,3 +1075,28 @@ Validation:
 Known follow-up:
 
 - Confirm on a physical Android WebView screenshot.
+
+### 2026-05-28 - Step 31 - Tutor History And Visualizer Access
+
+Intent: Make Tutor history work immediately and expose the Mermaid visualizer through the Tutor UI.
+
+Files changed:
+
+- `src/lib/chat-store.ts`
+- `src/app/tutor/page.tsx`
+
+Implementation:
+
+- Added a local chat session index with per-session message snapshots.
+- Merged local Tutor sessions with Supabase sessions in the history drawer.
+- Added local fallback loading when a remote session has not synced yet or Supabase is unavailable.
+- Added a `Visualize as mind map` quick action that asks for a topic and sends a Mermaid-only visual request.
+- Kept the existing Kroki renderer path so visualizer responses show as rendered SVG boxes.
+
+Validation:
+
+- Ran `npx tsc --noEmit` successfully.
+
+Known follow-up:
+
+- Add delete/rename actions for local and remote chat sessions.
