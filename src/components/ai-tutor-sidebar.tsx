@@ -126,7 +126,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
         >
           <div className="flex items-center justify-between p-4 pt-[calc(env(safe-area-inset-top)+1rem)] border-b border-[var(--glass-border)]">
             <div className="flex items-center gap-2">
-              <Bot className="w-4 h-4 text-[#8B5CF6]" />
+              <Bot className="w-4 h-4 text-[#1856FF]" />
               <span className="text-sm font-semibold">AI Tutor</span>
               {messages.length > 0 && (
                 <button
@@ -146,7 +146,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
           <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.length === 0 ? (
               <div className="text-center py-8">
-                <Bot className="w-8 h-8 text-[#8B5CF6]/30 mx-auto mb-3" />
+                <Bot className="w-8 h-8 text-[#1856FF]/30 mx-auto mb-3" />
                 <p className="text-xs text-white/30">
                   Ask me anything about {chapterName || "this chapter"}
                 </p>
@@ -167,8 +167,8 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
                 <div key={i} className={cn("text-xs leading-relaxed", msg.role === "user" ? "text-right" : "")}>
                   <div className={cn("inline-block max-w-[90%] p-3",
                     msg.role === "user"
-                      ? "bg-[#1856FF]/15 border border-[#1856FF]/20"
-                      : "bg-white/[0.03] border border-white/[0.06]"
+                      ? "bg-[#1856FF]/15 rounded-2xl rounded-br-md border border-[#1856FF]/20"
+                      : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]"
                   )}>
                     {msg.role === "assistant" ? (
                       <div className="prose-glass text-xs leading-relaxed" style={{ color: "var(--text-primary)" }}>
@@ -183,7 +183,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             )}
             {loading && (
               <div className="flex items-center gap-2 pl-2">
-                <Loader2 className="w-3 h-3 animate-spin text-[#8B5CF6]" />
+                <Loader2 className="w-3 h-3 animate-spin text-[#1856FF]" />
                 <span className="text-[10px] text-white/20">Thinking...</span>
               </div>
             )}
@@ -197,13 +197,12 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder="Ask about this chapter..."
-                className="flex-1 min-h-11 px-3 py-2 bg-white/[0.03] border border-white/[0.06] text-sm outline-none focus:border-[#1856FF]/30"
-                style={{ color: "var(--text-primary)" }}
+                className="flex-1 min-h-11 px-3 py-2 bg-[#09090B] border border-white/[0.06] rounded-xl text-sm outline-none focus:border-[#1856FF]/30 text-white/70 placeholder:text-white/20"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || loading}
-                className="min-h-11 min-w-11 p-2 bg-[#1856FF]/15 text-[#1856FF] disabled:opacity-20 border border-[#1856FF]/20 flex items-center justify-center"
+                className="min-h-11 min-w-11 p-2.5 rounded-xl bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex items-center justify-center shadow-[0_0_20px_rgba(24,86,255,0.2)]"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>

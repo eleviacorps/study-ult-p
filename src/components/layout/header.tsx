@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sun, Moon, Settings, LogOut, User, ChevronDown } from "lucide-react";
-import { useThemeStore } from "@/stores/theme-store";
+import { Settings, LogOut, User, ChevronDown } from "lucide-react";
 import { GlobalSearch } from "@/components/global-search";
 import { cn } from "@/lib/cn";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +15,6 @@ interface HeaderProps {
 
 export function Header({ title, breadcrumbs }: HeaderProps) {
   const router = useRouter();
-  const { theme, toggle } = useThemeStore();
   const [profile, setProfile] = useState<{ name?: string; avatar_url?: string; username?: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -68,13 +66,7 @@ export function Header({ title, breadcrumbs }: HeaderProps) {
       <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <GlobalSearch />
 
-        <button
-          onClick={toggle}
-          className="p-2 rounded-xl hover:bg-[var(--glass-light)] transition-all text-[var(--text-primary)]/60 hover:text-[var(--text-primary)]"
-          title={`Switch to ${theme === "dark" ? "cream" : "dark"} theme`}
-        >
-          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </button>
+
 
         <div className="relative" ref={menuRef}>
           <button

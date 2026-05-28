@@ -11,7 +11,7 @@ import { SelectionToolbar } from "@/components/selection-toolbar";
 import { useLlm } from "@/lib/llm-context";
 import { addPoints } from "@/lib/study-state";
 import type { Note } from "@/types";
-import { Bot, Loader2, X } from "lucide-react";
+import { Bot, Loader2, X, ZoomIn, ZoomOut } from "lucide-react";
 
 export default function ReaderPage() {
   const params = useParams<{ chapter: string; note: string }>();
@@ -20,6 +20,14 @@ export default function ReaderPage() {
   const [note, setNote] = useState<Note | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
   const [tutorOpen, setTutorOpen] = useState(false);
+  const [fontSize, setFontSize] = useState(() => {
+    if (typeof window === "undefined") return 16;
+    return Number(localStorage.getItem("studyult-reader-font-size")) || 16;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("studyult-reader-font-size", String(fontSize));
+  }, [fontSize]);
 
   const handleSelectionExplain = useCallback(async (text: string) => {
     if (!config.enabled) return;
@@ -166,6 +174,27 @@ export default function ReaderPage() {
         </aside>
 
         <main className="flex-1 min-w-0 max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8">
+          <div className="flex items-center justify-end gap-1 mb-3 sticky top-2 z-10">
+            <div className="glass flex items-center gap-0.5 p-0.5 rounded-xl border border-white/[0.06]">
+              <button
+                onClick={() => setFontSize((s) => Math.max(12, s - 2))}
+                disabled={fontSize <= 12}
+                className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] disabled:opacity-20 transition-all"
+                title="Zoom out"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] text-white/30 w-8 text-center font-mono">{fontSize}</span>
+              <button
+                onClick={() => setFontSize((s) => Math.min(24, s + 2))}
+                disabled={fontSize >= 24}
+                className="p-1.5 rounded-lg text-white/40 hover:text-white/70 hover:bg-white/[0.06] disabled:opacity-20 transition-all"
+                title="Zoom in"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
           <AnimatePresence mode="wait">
             <motion.article
               key={note.id}
@@ -174,7 +203,7 @@ export default function ReaderPage() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="glass p-4 sm:p-6 md:p-10 overflow-x-hidden rounded-2xl">
+              <div className="glass p-4 sm:p-6 md:p-10 overflow-x-hidden rounded-2xl" style={{ fontSize: `${fontSize}px` }}>
                 <MarkdownRenderer content={note.content} />
               </div>
 

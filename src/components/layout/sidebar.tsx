@@ -85,31 +85,30 @@ export function Sidebar() {
   const panel = (
     <div className={cn(
       "flex flex-col h-full",
-      "bg-[var(--glass-panel)] backdrop-blur-xl border border-[var(--glass-border-strong)]",
-      "shadow-[0_0_40px_rgba(24,86,255,0.06)]",
+      "bg-[#09090B] border border-white/[0.06]",
       isMobile ? "rounded-r-3xl" : "rounded-3xl"
     )}>
-      <div className="flex items-center h-14 px-4 border-b border-[var(--glass-border)] flex-shrink-0 justify-between">
+      <div className="flex items-center h-14 px-4 border-b border-white/[0.06] flex-shrink-0 justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
             <img src="/app-logo.png" alt="StudyUlt" className="w-full h-full object-cover" />
           </div>
           {(!collapsed || isMobile) && (
-            <span className="font-semibold text-sm text-[var(--text-primary)]">StudyUlt</span>
+            <span className="font-semibold text-sm text-white/80">StudyUlt</span>
           )}
         </div>
         {isMobile ? (
-          <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-xl hover:bg-[var(--glass-light)] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 transition-all">
+          <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-xl hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition-all">
             <X className="w-4 h-4" />
           </button>
         ) : (
-          <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-xl hover:bg-[var(--glass-light)] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/70 transition-all hidden lg:flex">
+          <button onClick={() => setCollapsed(!collapsed)} className="p-1.5 rounded-xl hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition-all hidden lg:flex">
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 bg-[#09090B]">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
           return (
@@ -130,7 +129,7 @@ export function Sidebar() {
       </nav>
 
       {vault?.chapters && (!collapsed || isMobile) && (
-        <div className="border-t border-[var(--glass-border)] p-3 max-h-40 overflow-y-auto flex-shrink-0">
+        <div className="border-t border-white/[0.06] p-3 max-h-40 overflow-y-auto flex-shrink-0 bg-[#09090B]">
           <p className="text-[10px] uppercase tracking-widest text-[var(--text-primary)]/30 mb-2 px-3 font-medium">Chapters</p>
           <div className="space-y-0.5">
             {vault.chapters.slice(0, 6).map((ch) => (
@@ -181,7 +180,7 @@ export function Sidebar() {
       )}
 
       {isMobile && (
-        <nav className="fixed inset-x-2 bottom-2 z-30 rounded-3xl border border-[var(--glass-border-strong)] bg-[var(--glass-panel)]/95 px-2 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+        <nav className="fixed inset-x-2 bottom-2 z-30 rounded-3xl border border-white/[0.06] bg-[#09090B] px-2 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           <div className="grid grid-cols-5 gap-1">
             {mobilePrimaryNav.map((item) => {
               if (item.type === "menu") {

@@ -193,12 +193,14 @@ export default function TutorPage() {
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
               {msg.role === "assistant" && (
-                <div className="w-8 h-8 rounded-xl bg-[#8B5CF6]/15 flex items-center justify-center flex-shrink-0 mt-1">
-                  <Bot className="w-4 h-4 text-[#8B5CF6]" />
+                <div className="w-8 h-8 rounded-xl bg-[#1856FF]/15 flex items-center justify-center flex-shrink-0 mt-1 border border-[#1856FF]/20">
+                  <Bot className="w-4 h-4 text-[#1856FF]" />
                 </div>
               )}
-              <div className={cn("max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl text-sm leading-relaxed",
-                msg.role === "user" ? "bg-[#1856FF]/15 border border-[#1856FF]/20" : "glass")}>
+              <div className={cn("max-w-[85%] sm:max-w-[80%] p-3 sm:p-4 text-sm leading-relaxed",
+                msg.role === "user"
+                  ? "bg-[#1856FF]/15 rounded-2xl rounded-br-md border border-[#1856FF]/20"
+                  : "bg-[#09090B] rounded-2xl rounded-bl-md border border-white/[0.06]")}>
                 <div className="prose-glass text-sm leading-relaxed max-w-none" style={{ color: "var(--text-primary)" }}>
                   <MarkdownRenderer content={msg.content} />
                 </div>
@@ -234,7 +236,7 @@ export default function TutorPage() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 pl-11">
               <div className="flex gap-1">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="w-2 h-2 rounded-full bg-[#8B5CF6]/40 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                  <div key={i} className="w-2 h-2 rounded-full bg-[#1856FF]/40 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
                 ))}
               </div>
               <span className="text-xs opacity-25">Thinking...</span>
@@ -255,7 +257,7 @@ export default function TutorPage() {
                     addPoints(3, action.label, action.query.substring(0, 50));
                   });
                 }} className="glass glass-interactive p-4 text-left">
-                  <action.icon className="w-4 h-4 text-[#8B5CF6] mb-2" />
+                  <action.icon className="w-4 h-4 text-[#1856FF] mb-2" />
                   <p className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>{action.label}</p>
                 </button>
               ))}
@@ -263,14 +265,13 @@ export default function TutorPage() {
           )}
         </div>
 
-        <div className="sticky bottom-0 py-3 sm:py-4" style={{ background: "linear-gradient(to top, var(--bg-base), var(--bg-base) 80%, transparent)" }}>
-          <div className="flex items-center gap-2 glass p-2">
+        <div className="sticky bottom-0 py-3 sm:py-4" style={{ background: "linear-gradient(to top, #09090B, #09090B 80%, transparent)" }}>
+          <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.06] rounded-2xl p-2 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Ask anything about physics..."
-              className="flex-1 bg-transparent text-sm outline-none px-2 min-w-0"
-              style={{ color: "var(--text-secondary)" }} />
+              className="flex-1 bg-transparent text-sm outline-none px-3 min-w-0 text-white/70 placeholder:text-white/20" />
             <button onClick={handleSend} disabled={!input.trim() || isAsking}
-              className="p-2 rounded-xl bg-[#1856FF]/15 text-[#1856FF] disabled:opacity-20 hover:bg-[#1856FF]/25 flex-shrink-0">
+              className="p-2.5 rounded-xl bg-[#1856FF] text-white disabled:opacity-20 hover:bg-[#1856FF]/80 transition-all flex-shrink-0 shadow-[0_0_20px_rgba(24,86,255,0.2)]">
               <Send className="w-4 h-4" />
             </button>
           </div>

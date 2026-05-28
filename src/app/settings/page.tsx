@@ -2,30 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Bell, Palette, Sun, Moon, ChevronRight, Trash2, AlertTriangle, FolderOpen, Plus, X, User } from "lucide-react";
+import { Bot, Bell, ChevronRight, Trash2, AlertTriangle, FolderOpen, Plus, X, User } from "lucide-react";
 import { Header } from "@/components/layout/header";
-import { cn } from "@/lib/cn";
 import { getCustomVaultRoots, saveCustomVaultRoots } from "@/stores/vault-store";
 import type { VaultRoot } from "@/types";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [theme, setTheme] = useState<"dark" | "cream">("dark");
   const [vaultRoots, setVaultRoots] = useState<VaultRoot[]>([]);
   const [newRootPath, setNewRootPath] = useState("");
   const [newRootSubject, setNewRootSubject] = useState("");
 
   useEffect(() => {
     setVaultRoots(getCustomVaultRoots());
-    const stored = localStorage.getItem("studyult-theme") as "dark" | "cream";
-    if (stored === "dark" || stored === "cream") setTheme(stored);
   }, []);
-
-  const applyTheme = (nextTheme: "dark" | "cream") => {
-    setTheme(nextTheme);
-    localStorage.setItem("studyult-theme", nextTheme);
-    document.documentElement.setAttribute("data-theme", nextTheme);
-  };
 
   const addVaultRoot = () => {
     if (!newRootPath.trim() || !newRootSubject.trim()) return;
@@ -65,30 +55,6 @@ export default function SettingsPage() {
         </p>
 
         <div className="space-y-4">
-          <div className="glass p-5">
-            <div className="flex items-center gap-4">
-              <Palette className="w-5 h-5 flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-              <div className="flex-1">
-                <h3 className="text-sm font-medium">Theme</h3>
-                <p className="text-xs opacity-50" style={{ color: "var(--text-muted)" }}>Switch between dark and cream</p>
-              </div>
-              <div className="flex items-center gap-1 p-1 rounded-xl bg-white/[0.04]">
-                <button
-                  onClick={() => applyTheme("dark")}
-                  className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all", theme === "dark" ? "bg-[#1856FF]/20 text-[#1856FF]" : "opacity-40 hover:opacity-70")}
-                >
-                  <Moon className="w-3.5 h-3.5" /> Dark
-                </button>
-                <button
-                  onClick={() => applyTheme("cream")}
-                  className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all", theme === "cream" ? "bg-[#F59E0B]/20 text-[#D97706]" : "opacity-40 hover:opacity-70")}
-                >
-                  <Sun className="w-3.5 h-3.5" /> Cream
-                </button>
-              </div>
-            </div>
-          </div>
-
           <button onClick={() => router.push("/settings/profile")} className="w-full glass glass-interactive p-5 flex items-center gap-4 text-left">
             <div className="w-10 h-10 rounded-2xl bg-[var(--bg-elevated)] flex items-center justify-center flex-shrink-0">
               <User className="w-5 h-5 text-[var(--text-muted)]" />
