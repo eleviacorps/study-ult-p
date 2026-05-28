@@ -2,10 +2,11 @@
 
 import { create } from "zustand";
 import type { VaultContent, ChapterMeta, Note, Question, Flashcard, VaultRoot } from "@/types";
+import { idbGet, idbRemove, idbSet } from "@/lib/idb-cache";
 
 const VAULT_ROOTS_KEY = "studyult-vault-roots";
 const AGENT_NOTES_KEY = "studyult-agent-notes";
-const VAULT_CACHE_KEY = "studyult-vault-cache";
+const IDB_CACHE_KEY = "vault-content";
 const VAULT_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 export function getCustomVaultRoots(): VaultRoot[] {
@@ -36,26 +37,25 @@ export function saveAgentNotes(notes: Note[]) {
   localStorage.setItem(AGENT_NOTES_KEY, JSON.stringify(notes));
 }
 
-function getCachedVault(): VaultContent | null {
+async function getCachedVault(): Promise<VaultContent | null> {
   try {
-    const raw = localStorage.getItem(VAULT_CACHE_KEY);
-    if (!raw) return null;
-    const { data, timestamp } = JSON.parse(raw);
-    if (Date.now() - timestamp > VAULT_CACHE_AGE) {
-      localStorage.removeItem(VAULT_CACHE_KEY);
+    const entry = await idbGet<VaultContent>(IDB_CACHE_KEY);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > VAULT_CACHE_AGE) {
+      await idbRemove(IDB_CACHE_KEY);
       return null;
     }
-    return data;
+    return entry.data;
   } catch {
     return null;
   }
 }
 
-function setCachedVault(vault: VaultContent) {
+async function setCachedVault(vault: VaultContent) {
   try {
-    localStorage.setItem(VAULT_CACHE_KEY, JSON.stringify({ data: vault, timestamp: Date.now() }));
+    await idbSet(IDB_CACHE_KEY, vault);
   } catch {
-    // localStorage full or unavailable — ignore
+    // IndexedDB unavailable — ignore
   }
 }
 
@@ -447,14 +447,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       let baseVault: VaultContent | null = null;
 
       if (customRoots.length === 0) {
-        const cached = getCachedVault();
+        const cached = await getCachedVault();
         if (cached) {
           baseVault = cached;
         } else {
           const staticRes = await fetch("/vault-data.json");
           if (staticRes.ok) {
             baseVault = await staticRes.json();
-            if (baseVault) setCachedVault(baseVault);
+            if (baseVault) await setCachedVault(baseVault);
           }
         }
       }

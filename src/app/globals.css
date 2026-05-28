@@ -398,3 +398,10 @@ select {
 html[data-mobile="true"] .top-nav-header {
   display: none;
 }
+
+/* Mobile bottom-nav clearance — applies to every page EXCEPT tutor (h-screen) */
+@media (max-width: 1023px) {
+  main > div:not(.h-screen) {
+    padding-bottom: 96px;
+  }
+}
