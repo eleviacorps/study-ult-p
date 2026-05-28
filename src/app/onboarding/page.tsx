@@ -365,8 +365,8 @@ export default function OnboardingPage() {
           </div>
         </header>
 
-        <div className="grid flex-1 gap-6 py-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <section className={cn("lg:sticky lg:top-6", step > 0 && "hidden lg:block")}>
+        <div className="flex flex-1 flex-col justify-center gap-6 py-6 lg:flex-row lg:items-center">
+          <section className={cn("hidden lg:flex lg:basis-[0.85fr] lg:grow lg:flex-col lg:justify-center", step > 0 && "lg:hidden")}>
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
               <div>
                 <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Build your learning state.</h1>
@@ -389,7 +389,7 @@ export default function OnboardingPage() {
             </motion.div>
           </section>
 
-          <section className="flex flex-col">
+          <section className="flex flex-col justify-center lg:basis-[1.15fr] lg:grow">
             <form onSubmit={handleSubmit} className="contents">
               <div className="glass p-4 sm:p-5">
                 <div className="mb-4 flex items-center gap-2">
