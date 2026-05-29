@@ -5,20 +5,23 @@ import { X, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 
 type MermaidDiagramProps = {
   source: string;
+  onRetry?: (source: string) => void;
 };
 
-export function MermaidDiagram({ source }: MermaidDiagramProps) {
+export function MermaidDiagram({ source, onRetry }: MermaidDiagramProps) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [zoom, setZoom] = useState(1);
   const cleanedSource = useMemo(() => source.trim(), [source]);
   const contentRef = useRef<HTMLDivElement>(null);
+  const retriedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     setSvg("");
     setError("");
+    retriedRef.current = false;
 
     fetch("/api/diagram", {
       method: "POST",
@@ -31,11 +34,20 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
         if (!cancelled) setSvg(text);
       })
       .catch(() => {
-        if (!cancelled) setError("Diagram could not be rendered.");
+        if (!cancelled) {
+          setError("Diagram could not be rendered.");
+        }
       });
 
     return () => { cancelled = true; };
   }, [cleanedSource]);
+
+  useEffect(() => {
+    if (error && onRetry && !retriedRef.current) {
+      retriedRef.current = true;
+      onRetry(cleanedSource);
+    }
+  }, [error, onRetry, cleanedSource]);
 
   const zoomIn = () => setZoom(z => Math.min(5, +(z * 1.4).toFixed(2)));
   const zoomOut = () => setZoom(z => Math.max(0.25, +(z / 1.4).toFixed(2)));
@@ -82,18 +94,24 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
     <div className="my-3 overflow-hidden rounded-xl border border-white/[0.06] bg-[#05060A]/50">
       <div className="flex items-center justify-between px-2.5 py-1.5">
         <span className="text-[9px] font-medium uppercase tracking-[0.15em] text-white/25">map</span>
-        <button onClick={() => setExpanded(true)} className="p-1 rounded-md text-white/20 hover:text-white/60 hover:bg-white/[0.04] transition-all">
+        <button disabled={!!error} onClick={() => setExpanded(true)} className="p-1 rounded-md text-white/20 hover:text-white/60 hover:bg-white/[0.04] transition-all disabled:opacity-0">
           <Maximize2 className="w-3 h-3" />
         </button>
       </div>
       <div
-        onClick={() => setExpanded(true)}
+        onClick={() => !error && setExpanded(true)}
         className="min-h-24 overflow-x-auto bg-white/[0.01] p-2.5 cursor-pointer transition-colors hover:bg-white/[0.02] active:bg-white/[0.03]"
       >
         {svg ? (
           <div className="mermaid-svg min-w-fit [&_svg]:max-w-full [&_svg]:h-auto" dangerouslySetInnerHTML={{ __html: svg }} />
         ) : error ? (
-          <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-white/30">{cleanedSource}</pre>
+          <div className="flex items-center gap-2 text-xs text-white/30 min-h-8">
+            {onRetry ? (
+              <><span className="w-2 h-2 rounded-full bg-[#1856FF] animate-pulse" />Fixing diagram...</>
+            ) : (
+              <pre className="overflow-x-auto whitespace-pre-wrap">{cleanedSource}</pre>
+            )}
+          </div>
         ) : (
           <div className="h-24 skeleton" />
         )}

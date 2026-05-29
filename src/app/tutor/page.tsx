@@ -198,6 +198,10 @@ export default function TutorPage() {
     setPending({ action, step: "ask_topic" });
   };
 
+  const handleMermaidRetry = useCallback((source: string) => {
+    sendToAI(`The mermaid diagram above had invalid syntax. Generate a corrected version using basic valid mermaid syntax only for the same concept. Wrap it in a \`\`\`mermaid code block:\n\n${source}`);
+  }, []);
+
   const startNewChat = () => {
     const greeting = { role: "assistant" as const, content: "Hi! Ask me anything about physics." };
     clearChat(chatKey);
@@ -316,7 +320,7 @@ export default function TutorPage() {
 
                 <div className="ml-7 max-w-[90%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl rounded-bl-md border border-white/[0.06] bg-[#09090B]">
                   <div className="prose-glass text-sm leading-relaxed min-w-0" style={{ color: "var(--text-primary)" }}>
-                    <MarkdownRenderer content={msg.content} />
+                    <MarkdownRenderer content={msg.content} onMermaidRetry={handleMermaidRetry} />
                   </div>
                 </div>
               </motion.div>
