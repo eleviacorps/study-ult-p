@@ -26,6 +26,12 @@ import {
   RefreshCw,
   Play,
   Trash2,
+  FolderOpen,
+  Plus,
+  Search,
+  BookOpen,
+  Library,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import * as bridge from "@/lib/note-agent/agent-bridge";
@@ -44,6 +50,19 @@ function toolLabel(name: string): string {
     final_report: "Report",
   };
   return labels[name] || name;
+}
+
+interface BankFile {
+  id: number;
+  title: string;
+  subject: string;
+  chapter: string;
+  tags: string[];
+  filename: string;
+  description: string;
+  created_at: string;
+  created_by: string;
+  content?: string;
 }
 
 export default function NoteAgentPage() {
@@ -65,7 +84,29 @@ export default function NoteAgentPage() {
   const [examPreset, setExamPreset] = useState<ExamPreset>(getDefaultPreset);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Subscribe to bridge — survives component remount (module singleton)
+  // Bank state
+  const [inputMode, setInputMode] = useState<"upload" | "bank" | "admin">("upload");
+  const [bankFiles, setBankFiles] = useState<BankFile[]>([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("");
+  const [bankSubjects, setBankSubjects] = useState<string[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  // Admin upload form
+  const [adminTitle, setAdminTitle] = useState("");
+  const [adminSubject, setAdminSubject] = useState("");
+  const [adminChapter, setAdminChapter] = useState("");
+  const [adminTags, setAdminTags] = useState("");
+  const [adminFilename, setAdminFilename] = useState("");
+  const [adminDescription, setAdminDescription] = useState("");
+  const [adminContent, setAdminContent] = useState("");
+  const [adminUploading, setAdminUploading] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [adminSuccess, setAdminSuccess] = useState("");
+  const adminFileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const unsub = bridge.subscribe((state) => {
       setPhase(state.phase);
@@ -80,7 +121,6 @@ export default function NoteAgentPage() {
       }
     });
 
-    // Check for saved session on mount
     (async () => {
       const saved = await bridge.restoreSavedState();
       if (saved && saved.files.length > 0) {
@@ -95,6 +135,56 @@ export default function NoteAgentPage() {
 
     return unsub;
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/profile");
+        if (res.ok) {
+          const profile = await res.json();
+          setIsAdmin(profile?.role === "admin");
+        }
+      } catch { /* ignore */ }
+      setProfileLoaded(true);
+    })();
+  }, []);
+
+  const fetchBankFiles = useCallback(async (q?: string) => {
+    setBankLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (subjectFilter) params.set("subject", subjectFilter);
+      const res = await fetch(`/api/md-bank?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBankFiles(data);
+        const subjects = [...new Set(data.map((f: BankFile) => f.subject).filter(Boolean))] as string[];
+        setBankSubjects(subjects);
+      }
+    } catch { /* ignore */ }
+    setBankLoading(false);
+  }, [subjectFilter]);
+
+  useEffect(() => {
+    if (inputMode === "bank") fetchBankFiles();
+  }, [inputMode, fetchBankFiles]);
+
+  const loadBankFile = async (file: BankFile) => {
+    if (!file.content) {
+      try {
+        const res = await fetch(`/api/md-bank?id=${file.id}`);
+        if (res.ok) {
+          const full = await res.json();
+          file.content = full.content;
+        }
+      } catch { return; }
+    }
+    setInputContent(file.content || "");
+    setChapterName(file.chapter || file.title);
+    setInputFileName(file.filename);
+    setInputMode("upload");
+  };
 
   const getProviderConfig = (): AgentConfig | null => {
     return {};
@@ -137,16 +227,12 @@ export default function NoteAgentPage() {
     setSteps([]);
     setAllToolCalls([]);
 
-    // Load skill files with exam preset substitution
     let skillContext = "";
     try {
       const skill = await loadSkill(examPreset);
       skillContext = skill.combined;
-    } catch {
-      // fall back to built-in prompt
-    }
+    } catch { /* fall back */ }
 
-    // Seed vault notes for AI reference
     const vaultNotes: { path: string; content: string }[] = [];
     if (vault) {
       for (const note of vault.notes) {
@@ -177,7 +263,6 @@ export default function NoteAgentPage() {
     setInputContent(resumeData.inputContent || inputContent);
     setChapterName(resumeData.chapterName || chapterName);
 
-    // If it was a running session, try to restart
     if (resumeData.phase === "running") {
       const config = getProviderConfig();
       if (!config) {
@@ -194,7 +279,6 @@ export default function NoteAgentPage() {
       }
       bridge.start(config, NOTE_AGENT_TOOLS, vaultNotes, resumeData.chapterName || chapterName, chapterPath, resumeData.messages, examPreset.variables);
     } else {
-      // Restore the completed state
       setPhase(resumeData.phase);
       setSteps(resumeData.steps);
       setFiles(resumeData.files);
@@ -280,6 +364,42 @@ export default function NoteAgentPage() {
 
   const totalToolCalls = allToolCalls.length;
 
+  const handleAdminUpload = async () => {
+    if (!adminTitle || !adminContent || !adminFilename) {
+      setAdminError("Title, content, and filename are required");
+      return;
+    }
+    setAdminUploading(true);
+    setAdminError("");
+    setAdminSuccess("");
+    try {
+      const res = await fetch("/api/md-bank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: adminTitle,
+          subject: adminSubject,
+          chapter: adminChapter,
+          tags: adminTags.split(",").map((t) => t.trim()).filter(Boolean),
+          content: adminContent,
+          filename: adminFilename.endsWith(".md") ? adminFilename : `${adminFilename}.md`,
+          description: adminDescription,
+        }),
+      });
+      if (res.ok) {
+        setAdminSuccess(`"${adminTitle}" uploaded to bank`);
+        setAdminTitle(""); setAdminSubject(""); setAdminChapter("");
+        setAdminTags(""); setAdminFilename(""); setAdminDescription(""); setAdminContent("");
+      } else {
+        const err = await res.json();
+        setAdminError(err.error || "Upload failed");
+      }
+    } catch {
+      setAdminError("Network error");
+    }
+    setAdminUploading(false);
+  };
+
   // Resume prompt
   if (resumeData) {
     return (
@@ -287,7 +407,7 @@ export default function NoteAgentPage() {
         <Header breadcrumbs={[{ label: "Note Agent", href: "/note-agent" }]} />
         <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto">
           <div className="glass p-6 text-center">
-            <RefreshCw className="w-10 h-10 mx-auto mb-3 text-[#8B5CF6]" />
+            <RefreshCw className="w-10 h-10 mx-auto mb-3 text-[#1856FF]" />
             <h2 className="text-lg font-semibold mb-2">Previous Session Found</h2>
             <p className="text-sm opacity-50 mb-1">
               {resumeData.chapterName} &middot; {resumeData.files.length} files generated
@@ -298,7 +418,7 @@ export default function NoteAgentPage() {
             <div className="flex gap-3 justify-center">
               <button
                 onClick={resumeSession}
-                className="px-5 py-2 bg-[#8B5CF6] hover:bg-[#8B5CF6]/90 text-white text-sm flex items-center gap-2 transition-all"
+                className="px-5 py-2 bg-[#1856FF] hover:bg-[#1856FF]/90 text-white text-sm flex items-center gap-2 transition-all"
               >
                 <Play className="w-4 h-4" /> {resumeData.phase === "running" ? "Continue" : "View Results"}
               </button>
@@ -321,7 +441,7 @@ export default function NoteAgentPage() {
       <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-2xl font-bold">Note Agent</h1>
-          <span className="text-[10px] px-2 py-1 bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/20">
+          <span className="text-[10px] px-2 py-1 bg-[#1856FF]/10 text-[#1856FF] border border-[#1856FF]/20">
             AI Studio
           </span>
         </div>
@@ -329,119 +449,370 @@ export default function NoteAgentPage() {
           Upload raw markdown notes and let AI transform them into structured study materials
         </p>
 
-        {/* Input Section */}
-        <div className="glass p-5 mb-4">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Upload className="w-4 h-4 text-[#8B5CF6]" /> Input
-          </h2>
-
-          <div className="space-y-4">
-            {/* File Drop Zone */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
+        {/* Mode Tabs */}
+        <div className="flex gap-1 mb-4 p-1 bg-white/[0.03] border border-white/[0.08] w-fit">
+          <button
+            onClick={() => setInputMode("upload")}
+            className={cn(
+              "px-4 py-2 text-xs flex items-center gap-2 transition-all",
+              inputMode === "upload" ? "bg-[#1856FF]/15 text-[#1856FF]" : "opacity-40 hover:opacity-70"
+            )}
+          >
+            <Upload className="w-3 h-3" /> Upload File
+          </button>
+          <button
+            onClick={() => setInputMode("bank")}
+            className={cn(
+              "px-4 py-2 text-xs flex items-center gap-2 transition-all",
+              inputMode === "bank" ? "bg-[#1856FF]/15 text-[#1856FF]" : "opacity-40 hover:opacity-70"
+            )}
+          >
+            <Library className="w-3 h-3" /> From Bank
+          </button>
+          {profileLoaded && isAdmin && (
+            <button
+              onClick={() => setInputMode("admin")}
               className={cn(
-                "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
-                inputContent
-                  ? "border-[#10B981]/30 bg-[#10B981]/3"
-                  : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]"
+                "px-4 py-2 text-xs flex items-center gap-2 transition-all",
+                inputMode === "admin" ? "bg-[#1856FF]/15 text-[#1856FF]" : "opacity-40 hover:opacity-70"
               )}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".md"
-                className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0] || null)}
-              />
-              {inputContent ? (
-                <div className="flex items-center justify-center gap-2">
-                  <FileText className="w-5 h-5 text-[#10B981]" />
-                  <span className="text-sm text-[#10B981]">{inputFileName}</span>
-                  <span className="text-[10px] opacity-30">({inputContent.length} chars)</span>
-                </div>
-              ) : (
-                <div>
-                  <Upload className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm opacity-40">Drop a .md file here or click to browse</p>
-                </div>
-              )}
-            </div>
+              <Shield className="w-3 h-3" /> Add to Bank
+            </button>
+          )}
+        </div>
 
-            {/* Exam Preset */}
-            <div>
-              <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
-                Exam Target
-              </label>
-              <select
-                value={examPreset.id}
-                onChange={(e) => {
-                  const p = EXAM_PRESETS.find((x) => x.id === e.target.value);
-                  if (p) setExamPreset(p);
-                }}
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#8B5CF6]/30 appearance-none cursor-pointer"
-                style={{ color: "var(--text-primary)" }}
-              >
-                <optgroup label="Indian Exams">
-                  {EXAM_PRESETS.filter((p) => p.group === "indian").map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="International Exams">
-                  {EXAM_PRESETS.filter((p) => p.group === "international").map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
+        {/* Upload Input Section */}
+        {inputMode === "upload" && (
+          <div className="glass p-5 mb-4">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <Upload className="w-4 h-4 text-[#1856FF]" /> Input
+            </h2>
 
-            {/* Chapter Name */}
-            <div>
-              <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
-                Chapter Name
-              </label>
-              <input
-                type="text"
-                value={chapterName}
-                onChange={(e) => setChapterName(e.target.value)}
-                placeholder="e.g. Electrostatics"
-                className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#8B5CF6]/30"
-                style={{ color: "var(--text-primary)" }}
-              />
-            </div>
-
-            {/* Start / Abort Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={runAgent}
-                disabled={phase === "running" || !inputContent || !chapterName}
-                className="flex-1 py-2.5 bg-[#8B5CF6] hover:bg-[#8B5CF6]/90 disabled:opacity-30 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
-              >
-                {phase === "running" ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Running...</>
-                ) : (
-                  <><Wand2 className="w-4 h-4" /> Generate Notes</>
+            <div className="space-y-4">
+              {/* File Drop Zone */}
+              <div
+                onDrop={handleDrop}
+                onDragOver={(e) => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
+                  inputContent
+                    ? "border-[#10B981]/30 bg-[#10B981]/3"
+                    : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.15]"
                 )}
-              </button>
-              {phase === "running" && (
-                <button
-                  onClick={() => bridge.abort()}
-                  className="px-4 py-2.5 bg-[#EF4444]/10 text-[#EF4444] text-sm border border-[#EF4444]/20"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".md"
+                  className="hidden"
+                  onChange={(e) => handleFile(e.target.files?.[0] || null)}
+                />
+                {inputContent ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <FileText className="w-5 h-5 text-[#10B981]" />
+                    <span className="text-sm text-[#10B981]">{inputFileName}</span>
+                    <span className="text-[10px] opacity-30">({inputContent.length} chars)</span>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm opacity-40">Drop a .md file here or click to browse</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Exam Preset */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
+                  Exam Target
+                </label>
+                <select
+                  value={examPreset.id}
+                  onChange={(e) => {
+                    const p = EXAM_PRESETS.find((x) => x.id === e.target.value);
+                    if (p) setExamPreset(p);
+                  }}
+                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30 appearance-none cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
                 >
-                  Stop
+                  <optgroup label="Indian Exams">
+                    {EXAM_PRESETS.filter((p) => p.group === "indian").map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="International Exams">
+                    {EXAM_PRESETS.filter((p) => p.group === "international").map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+
+              {/* Chapter Name */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
+                  Chapter Name
+                </label>
+                <input
+                  type="text"
+                  value={chapterName}
+                  onChange={(e) => setChapterName(e.target.value)}
+                  placeholder="e.g. Electrostatics"
+                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </div>
+
+              {/* Start / Abort Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={runAgent}
+                  disabled={phase === "running" || !inputContent || !chapterName}
+                  className="flex-1 py-2.5 bg-[#1856FF] hover:bg-[#1856FF]/90 disabled:opacity-30 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
+                >
+                  {phase === "running" ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Running...</>
+                  ) : (
+                    <><Wand2 className="w-4 h-4" /> Generate Notes</>
+                  )}
                 </button>
+                {phase === "running" && (
+                  <button
+                    onClick={() => bridge.abort()}
+                    className="px-4 py-2.5 bg-[#EF4444]/10 text-[#EF4444] text-sm border border-[#EF4444]/20"
+                  >
+                    Stop
+                  </button>
+                )}
+              </div>
+
+              {error && (
+                <div className="p-3 bg-[#EF4444]/5 border border-[#EF4444]/10 flex items-start gap-2">
+                  <XCircle className="w-4 h-4 text-[#EF4444] mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-[#EF4444]/80">{error}</p>
+                </div>
               )}
             </div>
+          </div>
+        )}
 
-            {error && (
-              <div className="p-3 bg-[#EF4444]/5 border border-[#EF4444]/10 flex items-start gap-2">
-                <XCircle className="w-4 h-4 text-[#EF4444] mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-[#EF4444]/80">{error}</p>
+        {/* Bank Section */}
+        {inputMode === "bank" && (
+          <div className="glass p-5 mb-4">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <Library className="w-4 h-4 text-[#1856FF]" /> .md File Bank
+            </h2>
+
+            <div className="flex gap-2 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
+                <input
+                  type="text"
+                  value={bankSearch}
+                  onChange={(e) => setBankSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") fetchBankFiles(bankSearch); }}
+                  placeholder="Search bank files..."
+                  className="w-full pl-9 pr-4 py-2 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </div>
+              {bankSubjects.length > 0 && (
+                <select
+                  value={subjectFilter}
+                  onChange={(e) => setSubjectFilter(e.target.value)}
+                  className="px-3 py-2 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30 appearance-none cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  <option value="">All Subjects</option>
+                  {bankSubjects.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={() => fetchBankFiles(bankSearch)}
+                className="px-3 py-2 bg-[#1856FF]/15 text-[#1856FF] text-sm hover:bg-[#1856FF]/25 transition-all"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {bankLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin opacity-30" />
+              </div>
+            ) : bankFiles.length === 0 ? (
+              <div className="text-center py-12">
+                <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-sm opacity-30">No files in the bank yet</p>
+              </div>
+            ) : (
+              <div className="grid gap-2 max-h-[400px] overflow-y-auto">
+                {bankFiles.map((file) => (
+                  <button
+                    key={file.id}
+                    onClick={() => loadBankFile(file)}
+                    className="w-full text-left p-3 border border-white/[0.05] hover:border-[#1856FF]/20 hover:bg-[#1856FF]/3 transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{file.title}</p>
+                        {file.description && (
+                          <p className="text-[11px] opacity-30 truncate mt-0.5">{file.description}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1.5">
+                          {file.subject && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-[#1856FF]/8 text-[#1856FF]/60">{file.subject}</span>
+                          )}
+                          {file.chapter && (
+                            <span className="text-[10px] opacity-30">{file.chapter}</span>
+                          )}
+                          {file.tags?.length > 0 && file.tags.slice(0, 3).map((tag) => (
+                            <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-white/[0.04] opacity-40">{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <FolderOpen className="w-4 h-4 opacity-20 group-hover:opacity-40 transition-opacity flex-shrink-0 mt-1" />
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </div>
-        </div>
+        )}
+
+        {/* Admin Upload Section */}
+        {inputMode === "admin" && (
+          <div className="glass p-5 mb-4">
+            <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-[#1856FF]" /> Add to .md Bank
+            </h2>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Title *</label>
+                  <input
+                    type="text"
+                    value={adminTitle}
+                    onChange={(e) => setAdminTitle(e.target.value)}
+                    placeholder="e.g. Electrostatics Notes"
+                    className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Subject</label>
+                  <input
+                    type="text"
+                    value={adminSubject}
+                    onChange={(e) => setAdminSubject(e.target.value)}
+                    placeholder="e.g. Physics"
+                    className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Chapter</label>
+                  <input
+                    type="text"
+                    value={adminChapter}
+                    onChange={(e) => setAdminChapter(e.target.value)}
+                    placeholder="e.g. Electrostatics"
+                    className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Filename *</label>
+                  <input
+                    type="text"
+                    value={adminFilename}
+                    onChange={(e) => setAdminFilename(e.target.value)}
+                    placeholder="e.g. electrostatics-notes.md"
+                    className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Tags (comma separated)</label>
+                <input
+                  type="text"
+                  value={adminTags}
+                  onChange={(e) => setAdminTags(e.target.value)}
+                  placeholder="e.g. electrostatics, coulomb, physics"
+                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Description</label>
+                <input
+                  type="text"
+                  value={adminDescription}
+                  onChange={(e) => setAdminDescription(e.target.value)}
+                  placeholder="Brief description of this file"
+                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Content *</label>
+                <div
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file && file.name.endsWith(".md")) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setAdminContent((ev.target?.result as string) || "");
+                      reader.readAsText(file);
+                    }
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  <textarea
+                    value={adminContent}
+                    onChange={(e) => setAdminContent(e.target.value)}
+                    placeholder="Paste markdown content here, or drop a .md file on this area..."
+                    className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30 min-h-[200px] font-mono resize-y"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                  <p className="text-[10px] opacity-20 mt-1">Drop a .md file on the textarea to load it</p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleAdminUpload}
+                disabled={adminUploading || !adminTitle || !adminContent || !adminFilename}
+                className="w-full py-2.5 bg-[#1856FF] hover:bg-[#1856FF]/90 disabled:opacity-30 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all"
+              >
+                {adminUploading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
+                ) : (
+                  <><Plus className="w-4 h-4" /> Upload to Bank</>
+                )}
+              </button>
+
+              {adminError && (
+                <div className="p-3 bg-[#EF4444]/5 border border-[#EF4444]/10 flex items-start gap-2">
+                  <XCircle className="w-4 h-4 text-[#EF4444] mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-[#EF4444]/80">{adminError}</p>
+                </div>
+              )}
+              {adminSuccess && (
+                <div className="p-3 bg-[#10B981]/5 border border-[#10B981]/10 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#10B981] mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-[#10B981]/80">{adminSuccess}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Progress Section */}
         <AnimatePresence>
@@ -454,7 +825,7 @@ export default function NoteAgentPage() {
             >
               <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
                 {phase === "running" ? (
-                  <><Loader2 className="w-4 h-4 animate-spin text-[#8B5CF6]" /> Processing</>
+                  <><Loader2 className="w-4 h-4 animate-spin text-[#1856FF]" /> Processing</>
                 ) : phase === "done" ? (
                   <><CheckCircle2 className="w-4 h-4 text-[#10B981]" /> Complete</>
                 ) : (
@@ -467,12 +838,11 @@ export default function NoteAgentPage() {
                 )}
               </h2>
 
-              {/* Phase bar */}
               {phase === "running" && (
                 <div className="mb-4">
                   <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
                     <motion.div
-                      className="h-full bg-[#8B5CF6]"
+                      className="h-full bg-[#1856FF]"
                       initial={{ width: "0%" }}
                       animate={{ width: `${Math.min((turn / 20) * 100, 90)}%` }}
                       transition={{ duration: 0.5 }}
@@ -481,13 +851,12 @@ export default function NoteAgentPage() {
                 </div>
               )}
 
-              {/* Tool call log */}
               {allToolCalls.length > 0 && (
                 <div className="mb-4 max-h-48 overflow-y-auto space-y-1">
                   {allToolCalls.map((tc, i) => (
                     <div key={i} className="flex items-center gap-2 text-[11px]">
                       {tc.status === "running" ? (
-                        <Loader2 className="w-3 h-3 animate-spin text-[#8B5CF6]" />
+                        <Loader2 className="w-3 h-3 animate-spin text-[#1856FF]" />
                       ) : tc.status === "done" ? (
                         <CheckCircle2 className="w-3 h-3 text-[#10B981]" />
                       ) : (
@@ -501,7 +870,6 @@ export default function NoteAgentPage() {
                 </div>
               )}
 
-              {/* Step details */}
               {steps.length > 0 && (
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {steps.map((step, i) => (
@@ -540,7 +908,7 @@ export default function NoteAgentPage() {
                             <div className="p-3 pt-0 space-y-2">
                               {step.toolCalls.map((tc, j) => (
                                 <div key={j} className="p-2 bg-white/[0.02] text-[11px]">
-                                  <p className="text-[#8B5CF6] font-medium mb-1">{toolLabel(tc.name)}</p>
+                                  <p className="text-[#1856FF] font-medium mb-1">{toolLabel(tc.name)}</p>
                                   <pre className="text-[10px] opacity-40 whitespace-pre-wrap max-h-24 overflow-y-auto">
                                     {JSON.stringify(tc.args, null, 2)}
                                   </pre>
@@ -599,7 +967,7 @@ export default function NoteAgentPage() {
                   </button>
                   <button
                     onClick={downloadAll}
-                    className="px-3 py-1.5 text-[10px] bg-[#8B5CF6]/15 text-[#8B5CF6] hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/20 flex items-center gap-1 transition-all"
+                    className="px-3 py-1.5 text-[10px] bg-[#1856FF]/15 text-[#1856FF] hover:bg-[#1856FF]/25 border border-[#1856FF]/20 flex items-center gap-1 transition-all"
                   >
                     <Download className="w-3 h-3" /> Download
                   </button>
@@ -619,7 +987,7 @@ export default function NoteAgentPage() {
                         ) : (
                           <ChevronRight className="w-3 h-3 opacity-30" />
                         )}
-                        <FileText className="w-3 h-3 text-[#8B5CF6]/50" />
+                        <FileText className="w-3 h-3 text-[#1856FF]/50" />
                         <span>{f.path}</span>
                       </span>
                       <span className="text-[10px] opacity-20">{f.content.length} chars</span>
