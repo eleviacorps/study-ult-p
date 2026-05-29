@@ -516,6 +516,7 @@ create table if not exists md_bank (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+create unique index if not exists idx_md_bank_filename on md_bank(filename);
 create index if not exists idx_md_bank_subject on md_bank(subject);
 create index if not exists idx_md_bank_chapter on md_bank(chapter);
 create index if not exists idx_md_bank_tags on md_bank using gin(tags);

@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("md_bank")
-    .insert({
+    .upsert({
       title,
       subject: subject || "",
       chapter: chapter || "",
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       filename,
       description: description || "",
       created_by: user.id,
-    })
+    }, { onConflict: "filename", ignoreDuplicates: false })
     .select()
     .single();
 
