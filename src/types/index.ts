@@ -18,6 +18,7 @@ export interface Note {
   path: string;
   chapter: string;
   subject: string;
+  author: string;
   tags: string[];
   content: string;
   links: WikiLink[];

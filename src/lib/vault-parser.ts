@@ -178,6 +178,7 @@ function parseNotes(roots: VaultRoot[]): Note[] {
       path: relative,
       chapter,
       subject,
+      author: "",
       tags,
       content,
       links,

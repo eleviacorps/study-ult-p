@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 type IncomingNote = {
   chapter: string;
   subject: string;
+  author: string;
   path: string;
   title: string;
   content: string;
@@ -25,7 +26,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("user_notes")
-    .select("chapter,subject,path,title,content,tags,content_hash")
+    .select("chapter,subject,author,path,title,content,tags,content_hash")
     .eq("user_id", user.id)
     .order("chapter", { ascending: true });
 
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         chapter: note.chapter,
         subject: note.subject || "",
+        author: note.author || "",
         path: note.path,
         title: note.title,
         content: note.content,

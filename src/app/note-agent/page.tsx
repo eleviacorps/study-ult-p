@@ -55,6 +55,7 @@ function toolLabel(name: string): string {
 interface BankFile {
   id: number;
   title: string;
+  author: string;
   subject: string;
   chapter: string;
   tags: string[];
@@ -82,6 +83,8 @@ export default function NoteAgentPage() {
   const [allToolCalls, setAllToolCalls] = useState<{ name: string; status: "running" | "done" | "error"; desc: string }[]>([]);
   const [resumeData, setResumeData] = useState<AgentUIState | null>(null);
   const [examPreset, setExamPreset] = useState<ExamPreset>(getDefaultPreset);
+  const [subjectName, setSubjectName] = useState("");
+  const [noteAuthor, setNoteAuthor] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Bank state
@@ -96,6 +99,7 @@ export default function NoteAgentPage() {
 
   // Admin upload form
   const [adminTitle, setAdminTitle] = useState("");
+  const [adminAuthor, setAdminAuthor] = useState("");
   const [adminSubject, setAdminSubject] = useState("");
   const [adminChapter, setAdminChapter] = useState("");
   const [adminTags, setAdminTags] = useState("");
@@ -310,8 +314,9 @@ export default function NoteAgentPage() {
         title,
         path: f.path,
         chapter: chapterName,
-        subject: parts[0] || "",
-        tags: [chapterName, parts[0]].filter(Boolean),
+        subject: subjectName,
+        author: noteAuthor,
+        tags: [chapterName, subjectName].filter(Boolean),
         content: f.content,
         links: [],
         backlinks: [],
@@ -378,6 +383,7 @@ export default function NoteAgentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: adminTitle,
+          author: adminAuthor,
           subject: adminSubject,
           chapter: adminChapter,
           tags: adminTags.split(",").map((t) => t.trim()).filter(Boolean),
@@ -388,8 +394,7 @@ export default function NoteAgentPage() {
       });
       if (res.ok) {
         setAdminSuccess(`"${adminTitle}" uploaded to bank`);
-        setAdminTitle(""); setAdminSubject(""); setAdminChapter("");
-        setAdminTags(""); setAdminFilename(""); setAdminDescription(""); setAdminContent("");
+        setAdminTitle(""); setAdminAuthor(""); setAdminSubject(""); setAdminChapter("");
       } else {
         const err = await res.json();
         setAdminError(err.error || "Upload failed");
@@ -565,6 +570,36 @@ export default function NoteAgentPage() {
                 />
               </div>
 
+              {/* Subject */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  value={subjectName}
+                  onChange={(e) => setSubjectName(e.target.value)}
+                  placeholder="e.g. Physics"
+                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </div>
+
+              {/* Author / Institution */}
+              <div>
+                <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
+                  Author / Institution
+                </label>
+                <input
+                  type="text"
+                  value={noteAuthor}
+                  onChange={(e) => setNoteAuthor(e.target.value)}
+                  placeholder="e.g. NCERT, Allen, HC Verma"
+                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                  style={{ color: "var(--text-primary)" }}
+                />
+              </div>
+
               {/* Start / Abort Buttons */}
               <div className="flex gap-3">
                 <button
@@ -649,34 +684,56 @@ export default function NoteAgentPage() {
                 <p className="text-sm opacity-30">No files in the bank yet</p>
               </div>
             ) : (
-              <div className="grid gap-2 max-h-[400px] overflow-y-auto">
-                {bankFiles.map((file) => (
-                  <button
-                    key={file.id}
-                    onClick={() => loadBankFile(file)}
-                    className="w-full text-left p-3 border border-white/[0.05] hover:border-[#1856FF]/20 hover:bg-[#1856FF]/3 transition-all group"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{file.title}</p>
-                        {file.description && (
-                          <p className="text-[11px] opacity-30 truncate mt-0.5">{file.description}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          {file.subject && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-[#1856FF]/8 text-[#1856FF]/60">{file.subject}</span>
-                          )}
-                          {file.chapter && (
-                            <span className="text-[10px] opacity-30">{file.chapter}</span>
-                          )}
-                          {file.tags?.length > 0 && file.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-white/[0.04] opacity-40">{tag}</span>
-                          ))}
+              <div className="max-h-[400px] overflow-y-auto space-y-4">
+                {Object.entries(
+                  bankFiles.reduce((acc, f) => {
+                    const s = f.subject || "Uncategorized";
+                    const a = f.author || "Unknown";
+                    if (!acc[s]) acc[s] = {};
+                    if (!acc[s][a]) acc[s][a] = [];
+                    acc[s][a].push(f);
+                    return acc;
+                  }, {} as Record<string, Record<string, BankFile[]>>)
+                ).map(([subject, authors]) => (
+                  <div key={subject}>
+                    <h4 className="text-xs font-semibold text-[#1856FF]/70 mb-2 flex items-center gap-2">
+                      <BookOpen className="w-3.5 h-3.5" /> {subject}
+                    </h4>
+                    <div className="space-y-2 pl-3">
+                      {Object.entries(authors).map(([author, files]) => (
+                        <div key={author}>
+                          <p className="text-[10px] opacity-30 uppercase tracking-wider mb-1 pl-1">{author}</p>
+                          <div className="space-y-1">
+                            {files.map((file) => (
+                              <button
+                                key={file.id}
+                                onClick={() => loadBankFile(file)}
+                                className="w-full text-left p-2.5 border border-white/[0.05] hover:border-[#1856FF]/20 hover:bg-[#1856FF]/3 transition-all group"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium truncate">{file.title}</p>
+                                    {file.description && (
+                                      <p className="text-[11px] opacity-30 truncate mt-0.5">{file.description}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 mt-1.5">
+                                      {file.chapter && (
+                                        <span className="text-[10px] opacity-30">{file.chapter}</span>
+                                      )}
+                                      {file.tags?.length > 0 && file.tags.slice(0, 3).map((tag) => (
+                                        <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-white/[0.04] opacity-40">{tag}</span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <FolderOpen className="w-4 h-4 opacity-20 group-hover:opacity-40 transition-opacity flex-shrink-0 mt-1" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                      <FolderOpen className="w-4 h-4 opacity-20 group-hover:opacity-40 transition-opacity flex-shrink-0 mt-1" />
+                      ))}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -704,6 +761,19 @@ export default function NoteAgentPage() {
                   />
                 </div>
                 <div>
+                  <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Author / Institution</label>
+                  <input
+                    type="text"
+                    value={adminAuthor}
+                    onChange={(e) => setAdminAuthor(e.target.value)}
+                    placeholder="e.g. NCERT, Allen, HC Verma"
+                    className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
                   <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Subject</label>
                   <input
                     type="text"
@@ -714,8 +784,6 @@ export default function NoteAgentPage() {
                     style={{ color: "var(--text-primary)" }}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">Chapter</label>
                   <input

@@ -25,17 +25,19 @@ export async function GET(request: Request) {
   }
 
   const subject = searchParams.get("subject");
+  const author = searchParams.get("author");
   const chapter = searchParams.get("chapter");
   const q = searchParams.get("q");
 
   let query = supabase
     .from("md_bank")
-    .select("id, title, subject, chapter, tags, filename, description, created_at, created_by")
+    .select("id, title, author, subject, chapter, tags, filename, description, created_at, created_by")
     .order("created_at", { ascending: false });
 
   if (subject) query = query.eq("subject", subject);
+  if (author) query = query.eq("author", author);
   if (chapter) query = query.eq("chapter", chapter);
-  if (q) query = query.or(`title.ilike.%${q}%,subject.ilike.%${q}%,chapter.ilike.%${q}%,description.ilike.%${q}%`);
+  if (q) query = query.or(`title.ilike.%${q}%,subject.ilike.%${q}%,author.ilike.%${q}%,chapter.ilike.%${q}%,description.ilike.%${q}%`);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { title, subject, chapter, tags, content, filename, description } = body;
+  const { title, author, subject, chapter, tags, content, filename, description } = body;
 
   if (!title || !content || !filename) {
     return NextResponse.json(
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
     .from("md_bank")
     .upsert({
       title,
+      author: author || "",
       subject: subject || "",
       chapter: chapter || "",
       tags: tags || [],

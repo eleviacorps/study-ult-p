@@ -17,6 +17,9 @@ export default function ReaderChapterPage() {
   const chapterName = decodeURIComponent(params.chapter);
 
   const chapterNotes = vault ? vault.notes.filter((n) => n.chapter === chapterName && !n.path.match(/[/\\](questions|flashcards|quizzes)[/\\]/)) : [];
+  const firstNote = chapterNotes[0];
+  const subject = firstNote?.subject || "";
+  const author = firstNote?.author || "";
 
   if (!isLoaded || !vault) {
     return (
@@ -88,6 +91,8 @@ export default function ReaderChapterPage() {
       <Header
         breadcrumbs={[
           { label: "Reader", href: "/reader" },
+          ...(subject ? [{ label: subject, href: "/reader" }] : []),
+          ...(author ? [{ label: author, href: "/reader" }] : []),
           { label: chapterName, href: "#" },
         ]}
       />
@@ -100,7 +105,7 @@ export default function ReaderChapterPage() {
             <div>
               <h1 className="text-2xl font-bold mb-1">{chapterName}</h1>
               <p className="text-sm text-white/35 mb-8">
-                {chapterNotes.length} topics
+                {(subject ? subject + (author ? ` · ${author}` : "") + " · " : "") + chapterNotes.length + " topics"}
               </p>
             </div>
             <button

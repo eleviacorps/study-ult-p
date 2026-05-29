@@ -1,16 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import Link from "next/link";
-import { Trash2, AlertTriangle } from "lucide-react";
+import { Trash2, AlertTriangle, BookOpen, GraduationCap } from "lucide-react";
 
 export default function ReaderRootPage() {
   const { vault, isLoaded, removeChapter } = useVaultStore();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const subjectAuthorChapters = useMemo(() => {
+    if (!vault) return [];
+    const map: Record<string, Record<string, { chapter: string; noteCount: number }[]>> = {};
+    for (const ch of vault.chapters) {
+      const subject = ch.subject || "General";
+      const author = ""; // static vault chapters have no author
+      if (!map[subject]) map[subject] = {};
+      if (!map[subject][author]) map[subject][author] = [];
+      const noteCount = vault.notes.filter((n) => n.chapter === ch.name && !n.path.match(/[/\\](questions|flashcards|quizzes)[/\\]/)).length;
+      map[subject][author].push({ chapter: ch.name, noteCount });
+    }
+    for (const note of vault.notes) {
+      const subject = note.subject || "General";
+      const author = note.author || "Other";
+      if (!map[subject]) map[subject] = {};
+      if (!map[subject][author]) map[subject][author] = [];
+      const existing = map[subject][author].find((c) => c.chapter === note.chapter);
+      if (!existing) {
+        map[subject][author].push({ chapter: note.chapter, noteCount: 1 });
+      }
+    }
+    return Object.entries(map).map(([subject, authors]) => ({
+      subject,
+      authors: Object.entries(authors).map(([author, chapters]) => ({
+        author: author || "General",
+        chapters,
+      })),
+    }));
+  }, [vault]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -26,7 +56,7 @@ export default function ReaderRootPage() {
       <div className="p-6 lg:p-8 max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Knowledge Vault</h1>
         <p className="text-sm text-white/35 mb-8">
-          Explore your physics chapters and topics
+          Browse study materials by subject, author, and chapter
         </p>
 
         {!isLoaded || !vault ? (
@@ -36,60 +66,71 @@ export default function ReaderRootPage() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {vault.chapters.map((ch, i) => {
-              const noteCount = vault.notes.filter((n) => n.chapter === ch.name && !n.path.match(/[/\\](questions|flashcards|quizzes)[/\\]/)).length;
-              return (
-                <motion.div
-                  key={ch.name}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="group relative"
-                >
-                  <Link
-                    href={`/reader/${encodeURIComponent(ch.name)}`}
-                    className="glass glass-interactive p-5 block"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold">{ch.name}</h3>
-                      <span className="text-[10px] text-white/25">
-                        {noteCount} notes
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/30 mb-3">
-                      JEE Main: {ch.weightage.jeeMain} &bull; Advanced:{" "}
-                      {ch.weightage.jeeAdvanced}
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex-1 h-1 rounded-full bg-white/[0.05] overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-[#1856FF]/50"
-                          style={{
-                            width: `${Math.floor(Math.random() * 50 + 20)}%`,
-                          }}
-                        />
+          <div className="space-y-8">
+            {subjectAuthorChapters.map(({ subject, authors }) => (
+              <div key={subject}>
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2 text-[#1856FF]/80">
+                  <BookOpen className="w-4 h-4" /> {subject}
+                </h2>
+                <div className="space-y-4 pl-4">
+                  {authors.map(({ author, chapters }) => (
+                    <div key={author}>
+                      <h3 className="text-xs font-medium uppercase tracking-wider opacity-40 mb-2 flex items-center gap-1.5">
+                        <GraduationCap className="w-3 h-3" /> {author}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {chapters.map((ch, i) => (
+                          <motion.div
+                            key={ch.chapter}
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.04 }}
+                            className="group relative"
+                          >
+                            <Link
+                              href={`/reader/${encodeURIComponent(ch.chapter)}`}
+                              className="glass glass-interactive p-5 block"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-semibold">{ch.chapter}</h3>
+                                <span className="text-[10px] text-white/25">
+                                  {ch.noteCount} notes
+                                </span>
+                              </div>
+                              <p className="text-xs text-white/30 mb-3">
+                                {author || "General"} &bull; {subject}
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex-1 h-1 rounded-full bg-white/[0.05] overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-[#1856FF]/50"
+                                    style={{ width: `${Math.floor(Math.random() * 50 + 20)}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] text-white/20">
+                                  {Math.floor(Math.random() * 50 + 20)}%
+                                </span>
+                              </div>
+                            </Link>
+                            <button
+                              onClick={(e) => { e.preventDefault(); setDeleteTarget(ch.chapter); }}
+                              className="absolute top-2 right-2 p-1.5 text-[#EF4444]/0 group-hover:text-[#EF4444]/50 hover:text-[#EF4444]/80 hover:bg-[#EF4444]/5 transition-all rounded-md"
+                              title="Delete chapter"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </motion.div>
+                        ))}
                       </div>
-                      <span className="text-[10px] text-white/20">
-                        {Math.floor(Math.random() * 50 + 20)}%
-                      </span>
                     </div>
-                  </Link>
-                  <button
-                    onClick={(e) => { e.preventDefault(); setDeleteTarget(ch.name); }}
-                    className="absolute top-2 right-2 p-1.5 text-[#EF4444]/0 group-hover:text-[#EF4444]/50 hover:text-[#EF4444]/80 hover:bg-[#EF4444]/5 transition-all rounded-md"
-                    title="Delete chapter"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </motion.div>
-              );
-            })}
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Delete confirmation */}
       <AnimatePresence>
         {deleteTarget && (
           <motion.div
