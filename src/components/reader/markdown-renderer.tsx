@@ -131,24 +131,11 @@ function processCallouts(content: string): string {
   );
 }
 
-const MERMAID_KEYWORDS = [
-  "mindmap",
-  "graph ",
-  "flowchart ",
-  "sequenceDiagram",
-  "classDiagram",
-  "stateDiagram",
-  "erDiagram",
-  "journey",
-  "gantt",
-  "pie",
-  "timeline",
-  "gitGraph",
-];
+import { MERMAID_STARTERS } from "@/lib/mermaid-security";
 
 function isMermaidSource(value: string): boolean {
   const firstLine = value.trim().split(/\r?\n/).find(Boolean)?.trim() || "";
-  return MERMAID_KEYWORDS.some((starter) => firstLine.startsWith(starter));
+  return MERMAID_STARTERS.some((starter) => firstLine.startsWith(starter));
 }
 
 function findMermaidBlock(content: string): string | null {
@@ -156,7 +143,7 @@ function findMermaidBlock(content: string): string | null {
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (MERMAID_KEYWORDS.some((k) => trimmed.startsWith(k))) {
+    if (MERMAID_STARTERS.some((k) => trimmed.startsWith(k))) {
       start = i;
       break;
     }

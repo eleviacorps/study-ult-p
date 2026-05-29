@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { deflateSync } from "node:zlib";
 import { isMermaidSource, sanitizeSvg } from "@/lib/mermaid-security";
 
-const KROKI_MERMAID_SVG = "https://kroki.io/mermaid/svg";
+const KROKI_BASE = "https://kroki.io";
+
+function encodeDeflateBase64(source: string): string {
+  const compressed = deflateSync(Buffer.from(source, "utf-8"), { level: 9 });
+  return compressed.toString("base64url");
+}
 
 export async function POST(request: Request) {
   try {
@@ -12,15 +18,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "invalid_mermaid_source" }, { status: 400 });
     }
 
-    const res = await fetch(KROKI_MERMAID_SVG, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        Accept: "image/svg+xml",
-      },
-      body: source,
-      signal: AbortSignal.timeout(15000),
-    });
+    const encoded = encodeDeflateBase64(source);
+    const url = `${KROKI_BASE}/mermaid/svg/${encoded}`;
+
+    let res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+
+    if (!res.ok) {
+      res = await fetch(`${KROKI_BASE}/mermaid/svg`, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        body: source,
+        signal: AbortSignal.timeout(15000),
+      });
+    }
 
     const svg = await res.text();
     if (!res.ok) {

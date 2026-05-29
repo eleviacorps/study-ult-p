@@ -1,19 +1,32 @@
 export const MAX_MERMAID_BYTES = 12000;
 
-const MERMAID_STARTERS = [
+export const MERMAID_STARTERS = [
   "mindmap",
   "graph ",
   "flowchart ",
   "sequenceDiagram",
   "classDiagram",
   "stateDiagram",
+  "stateDiagram-v2",
   "erDiagram",
   "journey",
   "gantt",
   "pie",
   "timeline",
   "gitGraph",
-];
+  "quadrantChart",
+  "xychart-beta",
+  "requirementDiagram",
+  "block",
+  "packet",
+  "C4Context",
+  "C4Container",
+  "C4Component",
+  "C4Deployment",
+  "C4Dynamic",
+  "info",
+  "showLegend",
+] as const;
 
 export function isMermaidSource(source: string): boolean {
   if (!source || new TextEncoder().encode(source).length > MAX_MERMAID_BYTES) return false;
