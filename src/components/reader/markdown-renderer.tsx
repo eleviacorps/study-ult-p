@@ -170,17 +170,16 @@ function findMermaidBlock(content: string): string | null {
 interface MarkdownRendererProps {
   content: string;
   className?: string;
-  onMermaidRetry?: (source: string) => void;
 }
 
-export function MarkdownRenderer({ content, className, onMermaidRetry }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   const processed = processCallouts(content);
   const trimmed = processed.trim();
 
   if (isMermaidSource(trimmed)) {
     return (
       <div className={cn("prose-glass max-w-full min-w-0 break-words", className)}>
-        <MermaidDiagram source={trimmed} onRetry={onMermaidRetry} />
+        <MermaidDiagram source={trimmed} />
       </div>
     );
   }
@@ -250,7 +249,7 @@ export function MarkdownRenderer({ content, className, onMermaidRetry }: Markdow
             const isMermaid = codeClass?.includes("language-mermaid");
             if (isMermaid) {
               const codeText = String(children || "").replace(/\n$/, "");
-              return <MermaidDiagram source={codeText} onRetry={onMermaidRetry} />;
+              return <MermaidDiagram source={codeText} />;
             }
             const isInline = !codeClass;
             if (isInline) {
