@@ -88,20 +88,14 @@ function storeGet<T>(store: IDBObjectStore, key: string): Promise<T | undefined>
   });
 }
 
-function storePut<T>(store: IDBObjectStore, value: T): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const req = store.put(value);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+/** Synchronous batch put — does NOT await individual requests. Awaits transaction only. */
+function putAll(store: IDBObjectStore, values: unknown[]): void {
+  for (const v of values) store.put(v);
 }
 
-function storeDelete(store: IDBObjectStore, key: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const req = store.delete(key);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+/** Synchronous batch delete — does NOT await individual requests. Awaits transaction only. */
+function deleteAll(store: IDBObjectStore, keys: string[]): void {
+  for (const k of keys) store.delete(k);
 }
 
 function storeGetAll<T>(store: IDBObjectStore, query?: IDBValidKey): Promise<T[]> {
@@ -117,6 +111,14 @@ function storeGetAllKeys(store: IDBObjectStore, query?: IDBValidKey): Promise<ID
     const req = query !== undefined ? store.getAllKeys(query) : store.getAllKeys();
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => resolve([]);
+  });
+}
+
+function txComplete(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(new Error("transaction aborted"));
   });
 }
 
@@ -157,8 +159,8 @@ async function loadIndexRecord(): Promise<IndexRecord | null> {
 async function saveIndexRecord(rec: IndexRecord): Promise<void> {
   const db = await openDB();
   const tx = db.transaction(STORE_INDEX, "readwrite");
-  await storePut(tx.objectStore(STORE_INDEX), rec);
-  await new Promise<void>((resolve) => { tx.oncomplete = () => resolve(); });
+  tx.objectStore(STORE_INDEX).put(rec);
+  await txComplete(tx);
   db.close();
 }
 
@@ -178,9 +180,10 @@ async function loadIDF(): Promise<{ idf: IDFIndex; totalChunks: number }> {
 
 async function rebuildIDF(): Promise<void> {
   const db = await openDB();
-  const tx = db.transaction(STORE_CHUNKS, "readonly");
-  const store = tx.objectStore(STORE_CHUNKS);
-  const all = await storeGetAll<ChunkEntry>(store);
+  const all = await (() => {
+    const tx = db.transaction(STORE_CHUNKS, "readonly");
+    return storeGetAll<ChunkEntry>(tx.objectStore(STORE_CHUNKS));
+  })();
   db.close();
 
   const allTokens = all.map((c) => c.tokens);
@@ -216,57 +219,45 @@ export async function addDocument(
   try {
     const contentHash = await computeContentHash(content);
 
-    // ── Check existing doc ──
-    const docTx = db.transaction(STORE_DOCS, "readonly");
-    const existing = await storeGet<DocRecord>(docTx.objectStore(STORE_DOCS), path);
-    docTx.commit();
+    // ── Check existing doc (separate read-only transaction) ──
+    const existing = await (() => {
+      const tx = db.transaction(STORE_DOCS, "readonly");
+      return storeGet<DocRecord>(tx.objectStore(STORE_DOCS), path);
+    })();
 
-    if (existing) {
-      if (existing.contentHash === contentHash) {
-        db.close();
-        return;
-      }
-      // Content changed — delete old chunks
-      const delTx = db.transaction([STORE_CHUNKS, STORE_DOCS], "readwrite");
-      for (const cid of existing.chunkIds) {
-        await storeDelete(delTx.objectStore(STORE_CHUNKS), cid);
-      }
-      await storeDelete(delTx.objectStore(STORE_DOCS), path);
-      await new Promise<void>((resolve) => { delTx.oncomplete = () => resolve(); });
-    }
-
-    // ── Chunk the document ──
-    const chunks = chunkDocument(content, MAX_CHUNK_TOKENS, OVERLAP_TOKENS);
-    if (chunks.length === 0) {
+    if (existing && existing.contentHash === contentHash) {
       db.close();
       return;
     }
 
-    // ── Embed ──
+    // ── If content changed, delete old chunks (separate write transaction) ──
+    if (existing) {
+      const tx = db.transaction([STORE_CHUNKS, STORE_DOCS], "readwrite");
+      deleteAll(tx.objectStore(STORE_CHUNKS), existing.chunkIds);
+      tx.objectStore(STORE_DOCS).delete(path);
+      await txComplete(tx);
+    }
+
+    // ── Chunk the document (no DB work here — safe) ──
+    const chunks = chunkDocument(content, MAX_CHUNK_TOKENS, OVERLAP_TOKENS);
+    if (chunks.length === 0) { db.close(); return; }
+
+    // ── Embed (no DB work here — safe) ──
     const chunkTexts = chunks.map((c) => c.content);
     let embeddings: Float32Array[] | null = null;
     let tfVectors: SparseVector[] | null = null;
 
     if (resolvedMode === "provider") {
       embeddings = await embedTexts(chunkTexts, "passage");
-      if (!embeddings) {
-        // Provider temporarily failed — degrade to TF-IDF for this batch
-        tfVectors = chunkTexts.map((t) => computeTF(t));
-      }
+      if (!embeddings) tfVectors = chunkTexts.map((t) => computeTF(t));
     } else {
       tfVectors = chunkTexts.map((t) => computeTF(t));
     }
 
-    // ── Build chunk entries ──
+    // ── Build chunk entries (async hash, no DB) ──
     const chunkEntries: ChunkEntry[] = [];
-    const allTokens: string[][] = [];
-
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const tokens = extractTokens(chunk.content);
-      const chunkHash = await computeContentHash(chunk.content);
-      allTokens.push(tokens);
-
       chunkEntries.push({
         chunkId: `${path}#${chunk.index}`,
         path,
@@ -275,43 +266,32 @@ export async function addDocument(
         chunkIndex: chunk.index,
         chunkTotal: chunk.total,
         content: chunk.content,
-        contentHash: chunkHash,
+        contentHash: await computeContentHash(chunk.content),
         embedding: embeddings?.[i] || null,
         vector: tfVectors ? Array.from(tfVectors[i].entries()) : null,
-        tokens,
+        tokens: extractTokens(chunk.content),
       });
     }
 
-    // ── Write to IndexedDB ──
-    const writeTx = db.transaction([STORE_CHUNKS, STORE_DOCS, STORE_INDEX], "readwrite");
-    const chunkStore = writeTx.objectStore(STORE_CHUNKS);
-    for (const entry of chunkEntries) {
-      await storePut(chunkStore, entry);
-    }
-
+    // ── Single write transaction — all puts synchronous ──
     const now = Date.now();
-    await storePut(writeTx.objectStore(STORE_DOCS), {
-      path,
-      chapter,
-      type,
-      content,
-      contentHash,
+    const idxRec = await loadIndexRecord();
+    const tx = db.transaction([STORE_CHUNKS, STORE_DOCS, STORE_INDEX], "readwrite");
+    putAll(tx.objectStore(STORE_CHUNKS), chunkEntries);
+    tx.objectStore(STORE_DOCS).put({
+      path, chapter, type, content, contentHash,
       chunkIds: chunkEntries.map((c) => c.chunkId),
       createdAt: existing?.createdAt || now,
       updatedAt: now,
-    } satisfies DocRecord);
-
-    // Update doc count in index
-    const idxRec = await loadIndexRecord();
-    await storePut(writeTx.objectStore(STORE_INDEX), {
+    });
+    tx.objectStore(STORE_INDEX).put({
       id: "global",
       embeddingMode: resolvedMode,
       totalChunks: (idxRec?.totalChunks || 0) + chunks.length,
       totalDocs: (idxRec?.totalDocs || 0) + (existing ? 0 : 1),
       idf: idxRec?.idf || null,
-    } satisfies IndexRecord);
-
-    await new Promise<void>((resolve) => { writeTx.oncomplete = () => resolve(); });
+    });
+    await txComplete(tx);
     db.close();
 
     // ── Async post-processing ──
@@ -321,7 +301,6 @@ export async function addDocument(
   } catch (err) {
     db.close();
     console.error("[RAG] addDocument error:", err);
-    throw err;
   }
 }
 
@@ -430,34 +409,30 @@ export async function searchDocumentsByContent(
 export async function deleteDocument(path: string): Promise<void> {
   try {
     const db = await openDB();
-    const tx = db.transaction(STORE_DOCS, "readonly");
-    const doc = await storeGet<DocRecord>(tx.objectStore(STORE_DOCS), path);
-    tx.commit();
+    const doc = await (() => {
+      const tx = db.transaction(STORE_DOCS, "readonly");
+      return storeGet<DocRecord>(tx.objectStore(STORE_DOCS), path);
+    })();
 
     if (!doc) { db.close(); return; }
 
-    const delTx = db.transaction([STORE_CHUNKS, STORE_DOCS, STORE_INDEX], "readwrite");
-    for (const cid of doc.chunkIds) {
-      await storeDelete(delTx.objectStore(STORE_CHUNKS), cid);
-    }
-    await storeDelete(delTx.objectStore(STORE_DOCS), path);
-
     const idxRec = await loadIndexRecord();
-    await storePut(delTx.objectStore(STORE_INDEX), {
+    const tx = db.transaction([STORE_CHUNKS, STORE_DOCS, STORE_INDEX], "readwrite");
+    deleteAll(tx.objectStore(STORE_CHUNKS), doc.chunkIds);
+    tx.objectStore(STORE_DOCS).delete(path);
+    tx.objectStore(STORE_INDEX).put({
       id: "global",
       embeddingMode: idxRec?.embeddingMode || "tfidf",
       totalChunks: Math.max(0, (idxRec?.totalChunks || 0) - doc.chunkIds.length),
       totalDocs: Math.max(0, (idxRec?.totalDocs || 0) - 1),
       idf: idxRec?.idf || null,
-    } satisfies IndexRecord);
-
-    await new Promise<void>((resolve) => { delTx.oncomplete = () => resolve(); });
+    });
+    await txComplete(tx);
     db.close();
 
     rebuildIDF().catch(() => {});
   } catch (err) {
     console.error("[RAG] deleteDocument error:", err);
-    throw err;
   }
 }
 
