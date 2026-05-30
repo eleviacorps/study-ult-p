@@ -75,15 +75,24 @@ async function seedVectorStore(vaultNotes: { path: string; content: string }[], 
 }
 
 async function injectRagContext(msgs: Record<string, unknown>[], chapter: string): Promise<void> {
-  const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
-  const query = typeof lastAssistant?.content === "string" ? lastAssistant.content : "";
+  const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant" && typeof m.content === "string");
+  const query = lastAssistant?.content as string || "";
   if (!query) return;
 
   const results = await searchDocuments(query, chapter, 3);
   if (results.length === 0) return;
 
   const context = results.map((r) => `--- ${r.path} ---\n${r.excerpt}`).join("\n\n");
-  msgs.push({ role: "system", content: `Relevant context from generated files:\n${context}` });
+
+  // Append to the system prompt instead of pushing a new message
+  // (API requires tool messages to be followed by assistant, not system)
+  const sysMsg = msgs.find((m) => m.role === "system");
+  if (sysMsg && typeof sysMsg.content === "string") {
+    let base = sysMsg.content;
+    // Strip any previous RAG context block
+    base = base.replace(/\n\n\[RAG context\][\s\S]*$/, "");
+    sysMsg.content = base + `\n\n[RAG context]\n${context}`;
+  }
 }
 
 async function runAgentTurn(
