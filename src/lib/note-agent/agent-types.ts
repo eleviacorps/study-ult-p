@@ -26,6 +26,7 @@ export interface WorkerStartMessage {
   chapterName: string;
   chapterPath: string;
   examVars: Record<string, string>;
+  apiConfig: { baseUrl: string; model: string; apiKey: string };
 }
 
 export interface WorkerAbortMessage {

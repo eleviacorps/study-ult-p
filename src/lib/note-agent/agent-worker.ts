@@ -31,6 +31,7 @@ interface StartMessage {
   chapterName: string;
   chapterPath: string;
   examVars: Record<string, string>;
+  apiConfig: { baseUrl: string; model: string; apiKey: string };
 }
 
 interface AbortMessage {
@@ -100,18 +101,32 @@ async function runAgentTurn(
   tools: ToolDef[],
   handler: (name: string, args: Record<string, unknown>) => Promise<string>,
   config: AgentConfig,
+  apiConfig: { baseUrl: string; model: string; apiKey: string },
 ): Promise<{ newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string }> {
   void config;
-  const res = await fetch("/api/llm", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messages,
-      tools: tools.length > 0 ? tools : undefined,
-      tool_choice: tools.length > 0 ? "auto" : undefined,
-      max_tokens: 65536,
-    }),
-  });
+
+  const useDirect = apiConfig.baseUrl && apiConfig.apiKey;
+  const body = {
+    model: useDirect ? apiConfig.model : undefined,
+    messages,
+    tools: tools.length > 0 ? tools : undefined,
+    tool_choice: tools.length > 0 ? "auto" : undefined,
+    max_tokens: 65536,
+    temperature: 0.25,
+    top_p: 0.9,
+  };
+
+  const hdrs: Record<string, string> = { "Content-Type": "application/json" };
+  if (useDirect) hdrs.Authorization = `Bearer ${apiConfig.apiKey}`;
+
+  const res = await fetch(
+    useDirect ? `${apiConfig.baseUrl}/v1/chat/completions` : "/api/llm",
+    {
+      method: "POST",
+      headers: hdrs,
+      body: JSON.stringify(useDirect ? body : { messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 65536 }),
+    },
+  );
 
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -353,7 +368,7 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
   abortFlag = false;
 
-  const { config, messages: initialMessages, tools, vaultNotes, chapterName, chapterPath } = msg;
+  const { config, messages: initialMessages, tools, vaultNotes, chapterName, chapterPath, apiConfig } = msg;
 
   // Seed workspace with vault notes for reference
   workspace = new Map<string, string>();
@@ -388,7 +403,7 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     await injectRagContext(messages, chapterPath);
 
     try {
-      const result = await runAgentTurn(messages, tools, toolHandler, config);
+      const result = await runAgentTurn(messages, tools, toolHandler, config, apiConfig);
       messages.length = 0;
       messages.push(...result.newMessages);
 

@@ -127,7 +127,7 @@ export function getState(): AgentUIState {
   return currentState;
 }
 
-export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path: string; content: string }[], chapterName: string, chapterPath: string, initialMessages: Record<string, unknown>[], examVars?: Record<string, string>) {
+export async function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path: string; content: string }[], chapterName: string, chapterPath: string, initialMessages: Record<string, unknown>[], examVars?: Record<string, string>) {
   const w = ensureWorker();
 
   // Make sure it's connected (re-attach handler if worker was recreated)
@@ -146,6 +146,18 @@ export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path:
   notify();
   saveToDB(DB_KEY, currentState).catch(() => {});
 
+  // Fetch LLM config from server so the worker can call the provider directly (no serverless timeout)
+  const apiConfig = { baseUrl: "", model: "", apiKey: "" };
+  try {
+    const res = await fetch("/api/llm/config");
+    if (res.ok) {
+      const cfg = await res.json();
+      apiConfig.baseUrl = cfg.baseUrl || "";
+      apiConfig.model = cfg.model || "";
+      apiConfig.apiKey = cfg.apiKey || "";
+    }
+  } catch { /* fallback: worker will use server proxy */ }
+
   w.postMessage({
     type: "start",
     config,
@@ -155,6 +167,7 @@ export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path:
     chapterPath,
     messages: initialMessages,
     examVars: examVars || {},
+    apiConfig,
   });
 }
 
