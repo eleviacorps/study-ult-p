@@ -148,8 +148,23 @@ async function runAgentTurn(
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
-    // write_file content is kept in full in messages — the LLM needs to see real content.
-    // Content is also stored in workspace + RAG for persistence.
+    // Strip write_file content from API messages to avoid 504 timeouts.
+    // The LLM gets a 500-char preview and can read full content via read_file.
+    // Use truncation (not a placeholder) so the LLM never learns to copy a fixed string.
+    for (const m of newMsgs) {
+      if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
+        for (const tc2 of m.tool_calls as ToolCall[]) {
+          if (tc2.function?.name !== "write_file") continue;
+          try {
+            const a = JSON.parse(tc2.function.arguments);
+            if (a.content && typeof a.content === "string" && a.content.length > 500) {
+              a.content = a.content.slice(0, 500) + "...";
+              tc2.function.arguments = JSON.stringify(a);
+            }
+          } catch {}
+        }
+      }
+    }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response };
   }
 
