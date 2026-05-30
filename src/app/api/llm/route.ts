@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+export const maxDuration = 60;
+
 const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
 const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
 
