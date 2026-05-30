@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 
+import { addDocument, searchDocuments, getDocument } from "./rag-store";
+
 interface ToolDef {
   type: "function";
   function: { name: string; description: string; parameters: Record<string, unknown> };
@@ -61,17 +63,27 @@ type WorkerOutMessage = WorkerProgressUpdate | WorkerDoneUpdate | WorkerErrorUpd
 
 let workspace = new Map<string, string>();
 let abortFlag = false;
+let ragChapterPath = "";
 
-function sanitizePath(name: string): string {
-  return name.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-/]/g, "").replace(/_+/g, "_");
+async function seedVectorStore(vaultNotes: { path: string; content: string }[], chapterPath: string): Promise<void> {
+  for (const n of vaultNotes) {
+    if (n.path.startsWith(chapterPath)) {
+      const type = n.path.includes("/questions/") ? "questions" : n.path.includes("/notes/") ? "notes" : "other";
+      await addDocument(n.path, n.content, chapterPath, type).catch(() => {});
+    }
+  }
 }
 
-function trimContext(msgs: Record<string, unknown>[]): void {
-  if (msgs.length < 10) return;
-  const head = msgs.slice(0, 2);
-  const tail = msgs.slice(-6);
-  msgs.length = 0;
-  msgs.push(...head, ...tail);
+async function injectRagContext(msgs: Record<string, unknown>[], chapter: string): Promise<void> {
+  const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
+  const query = typeof lastAssistant?.content === "string" ? lastAssistant.content : "";
+  if (!query) return;
+
+  const results = await searchDocuments(query, chapter, 3);
+  if (results.length === 0) return;
+
+  const context = results.map((r) => `--- ${r.path} ---\n${r.excerpt}`).join("\n\n");
+  msgs.push({ role: "system", content: `Relevant context from generated files:\n${context}` });
 }
 
 async function runAgentTurn(
@@ -144,6 +156,8 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       const path = args.path as string;
       const content = args.content as string;
       workspace.set(path, content);
+      const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
+      addDocument(path, content, ragChapterPath, type).catch(() => {});
       return JSON.stringify({ success: true, path, bytes: content.length });
     }
 
@@ -321,21 +335,31 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     workspace.set(n.path, n.content);
   }
 
+  ragChapterPath = chapterPath;
+
   const MAX_TURNS = 50;
   const messages = structuredClone(initialMessages);
   let currentTurn = 0;
 
+  seedVectorStore(vaultNotes, chapterPath);
+
+  function getChapterFiles(): [string, string][] {
+    const files: [string, string][] = [];
+    for (const [path, content] of workspace.entries()) {
+      if (path.startsWith(chapterPath) && path.endsWith(".md")) {
+        files.push([path, content]);
+      }
+    }
+    return files;
+  }
+
   while (currentTurn < MAX_TURNS) {
     if (abortFlag) {
-      const fileList: [string, string][] = [];
-      for (const [path, content] of workspace.entries()) {
-        if (path.startsWith(chapterPath) && path.endsWith(".md")) {
-          fileList.push([path, content]);
-        }
-      }
-      self.postMessage({ type: "done", messages, steps: [], turn: currentTurn, workspace: fileList } );
+      self.postMessage({ type: "done", messages, steps: [], turn: currentTurn, workspace: getChapterFiles() } );
       return;
     }
+
+    await injectRagContext(messages, chapterPath);
 
     try {
       const result = await runAgentTurn(messages, tools, toolHandler, config);
@@ -343,18 +367,19 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       messages.push(...result.newMessages);
 
       if (result.finished) {
-        const fileList: [string, string][] = [];
-        for (const [path, content] of workspace.entries()) {
-          if (path.startsWith(chapterPath) && path.endsWith(".md")) {
-            fileList.push([path, content]);
-          }
-        }
-        self.postMessage({ type: "done", messages, steps: result.steps, turn: currentTurn + 1, workspace: fileList } );
+        self.postMessage({ type: "done", messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() } );
         return;
       }
 
       currentTurn++;
-      trimContext(messages);
+
+      // Sliding window: keep system prompts + recent context
+      if (messages.length > 8) {
+        const tail = messages.slice(-6);
+        messages.length = 0;
+        messages.push(initialMessages[0], initialMessages[1], ...tail);
+      }
+
       self.postMessage({ type: "progress", messages, steps: result.steps, turn: currentTurn } satisfies WorkerProgressUpdate);
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {

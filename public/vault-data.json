@@ -79,6 +79,7 @@
       "path": "core.md",
       "chapter": "core.md",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Physics",
         "Physics",
@@ -256,6 +257,7 @@
       "path": "Physics\\core.md",
       "chapter": "core.md",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Physics",
         "Physics",
@@ -564,6 +566,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\core.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Electric Charges and Fields",
         "Physics",
@@ -870,6 +873,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\basic_properties_charge.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Basic Properties of Electric Charge",
         "Physics",
@@ -891,6 +895,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\conductors_insulators.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Conductors and Insulators",
         "Physics",
@@ -913,6 +918,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\continuous_charge_distribution.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Continuous Charge Distribution",
         "Physics",
@@ -938,6 +944,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\coulombs_law.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Physics",
         "CoulombsLaw",
@@ -962,6 +969,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\dipole_uniform_field.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Dipole in Uniform Electric Field",
         "Physics",
@@ -980,6 +988,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\electric_charge.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Electric Charge",
         "Physics",
@@ -1011,6 +1020,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\electric_dipole.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Electric Dipole",
         "Physics",
@@ -1037,6 +1047,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\electric_field.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Electric Field",
         "Physics",
@@ -1070,6 +1081,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\electric_field_lines.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Electric Field Lines",
         "Physics",
@@ -1092,6 +1104,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\electric_flux.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Electric Flux",
         "Physics",
@@ -1114,6 +1127,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\gausss_law.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Physics",
         "GausssLaw",
@@ -1145,6 +1159,7 @@
       "path": "Physics\\Electric_Charges_and_Fields\\notes\\multiple_charges.md",
       "chapter": "Electric Charges and Fields",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Forces between Multiple Charges",
         "Physics",
@@ -1166,6 +1181,7 @@
       "path": "Units and Measurement\\core.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Units and Measurements",
         "Physics",
@@ -1321,6 +1337,7 @@
       "path": "Units and Measurement\\notes\\dimensional_analysis.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Dimensional Analysis",
         "Physics",
@@ -1352,6 +1369,7 @@
       "path": "Units and Measurement\\notes\\error_analysis.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Error Analysis",
         "Physics",
@@ -1383,6 +1401,7 @@
       "path": "Units and Measurement\\notes\\fundamental_derived.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Fundamental and Derived Quantities",
         "Physics",
@@ -1413,6 +1432,7 @@
       "path": "Units and Measurement\\notes\\introduction.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Introduction to Units and Measurements",
         "Physics",
@@ -1443,6 +1463,7 @@
       "path": "Units and Measurement\\notes\\mathematical_tools.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Mathematical Tools for Physics",
         "Physics",
@@ -1473,6 +1494,7 @@
       "path": "Units and Measurement\\notes\\measuring_instruments.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Physics",
         "UnitsAndMeasurement",
@@ -1497,6 +1519,7 @@
       "path": "Units and Measurement\\notes\\significant_figures.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Significant Figures",
         "Physics",
@@ -1528,6 +1551,7 @@
       "path": "Units and Measurement\\notes\\si_units.md",
       "chapter": "Units and Measurement",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "SI Units System",
         "Physics",
@@ -1558,6 +1582,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\core.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Chapter Overview"
       ],
@@ -1607,6 +1632,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\notes\\dimensions-and-dimensional-analysis.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Dimensions and Dimensional Analysis",
         "Physics",
@@ -1633,6 +1659,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\notes\\measurement-and-errors.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Errors in Measurement",
         "Physics",
@@ -1659,6 +1686,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\notes\\measuring-instruments.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Measuring Instruments",
         "Physics",
@@ -1690,6 +1718,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\notes\\practical-applications.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Practical Applications",
         "Physics",
@@ -1716,6 +1745,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\notes\\significant-figures.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Significant Figures",
         "Physics",
@@ -1742,6 +1772,7 @@
       "path": "Units-Dimensions-and-Error-Analysis\\notes\\systems-of-units.md",
       "chapter": "Units Dimensions and Error Analysis",
       "subject": "Physics",
+      "author": "",
       "tags": [
         "Systems of Units",
         "Physics",
