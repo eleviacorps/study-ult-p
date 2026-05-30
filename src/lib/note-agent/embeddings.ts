@@ -15,6 +15,7 @@ export function getEmbeddingMode(): EmbeddingMode | "probing" {
 }
 
 export function waitForMode(): Promise<EmbeddingMode> {
+  if (_mode === "probing") probeEmbeddingProvider();
   return _modeReady;
 }
 
@@ -37,6 +38,8 @@ export async function probeEmbeddingProvider(): Promise<EmbeddingMode> {
   _modeResolve?.("tfidf");
   return "tfidf";
 }
+
+probeEmbeddingProvider(); // Auto-probe on module load
 
 // ── Provider embeddings ──
 

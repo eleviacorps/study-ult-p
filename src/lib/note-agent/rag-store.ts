@@ -1,6 +1,6 @@
 import { chunkDocument, type Chunk } from "./chunker";
 import {
-  probeEmbeddingProvider, getEmbeddingMode, waitForMode,
+  getEmbeddingMode, waitForMode,
   embedTexts, cosineSimilarity,
   computeTF, computeIDF, computeTFIDF, cosineSimilaritySparse,
   computeContentHash, extractTokens,
@@ -133,7 +133,7 @@ export async function initRagStore(): Promise<EmbeddingMode> {
   const idx = await storeGet<IndexRecord>(store, "global");
   db.close();
 
-  const mode = await probeEmbeddingProvider();
+  const mode = await waitForMode();
 
   if (idx && idx.embeddingMode !== mode) {
     // Mode changed — clear and re-index needed (handled lazily)
