@@ -58,11 +58,6 @@ export async function POST(request: Request) {
 
     console.log(`[LLM ${reqId}] ← ${res.status}`);
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      console.log(`[LLM ${reqId}] error body:`, text.substring(0, 3000));
-    }
-
     if (isStream) {
       return new Response(res.body, {
         status: res.status,
@@ -74,7 +69,13 @@ export async function POST(request: Request) {
       });
     }
 
-    const data = await res.json().catch(() => ({}));
+    const text = await res.text().catch(() => "");
+
+    if (!res.ok) {
+      console.log(`[LLM ${reqId}] error body:`, text.substring(0, 3000));
+    }
+
+    const data = (() => { try { return JSON.parse(text); } catch { return {}; } })();
     console.log(`[LLM ${reqId}] √ done`);
     return NextResponse.json(data, { status: res.status });
   } catch (err: unknown) {
