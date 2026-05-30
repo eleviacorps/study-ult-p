@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { addDocument, searchDocuments, getDocument } from "./rag-store";
+import { queueDocument, processDocumentQueue, searchDocuments, getDocument, pendingIndexCount, getIndexTelemetry, resetIndexTelemetry } from "./rag-store";
 
 interface ToolDef {
   type: "function";
@@ -31,7 +31,6 @@ interface StartMessage {
   chapterName: string;
   chapterPath: string;
   examVars: Record<string, string>;
-  apiConfig: { baseUrl: string; model: string; apiKey: string };
 }
 
 interface AbortMessage {
@@ -66,35 +65,103 @@ let workspace = new Map<string, string>();
 let abortFlag = false;
 let ragChapterPath = "";
 
+// ── Retrieval state tracking — prevents loops and redundant searches ──
+
+let lastRetrievalQuery = "";
+let lastRetrievalTurn = -1;
+let lastRetrievalHash = "";
+
+function buildRetrievalQuery(chapterName: string, chapterPath: string, turn: number, recentToolCalls: { name: string; args: Record<string, unknown> }[]): string {
+  if (turn === 0) return `${chapterName} overview and key concepts`;
+  if (turn === lastRetrievalTurn) return lastRetrievalQuery;
+
+  // Build from recent tool activity — not from assistant prose
+  const recentPaths: string[] = [];
+  const recentTypes = new Set<string>();
+  for (const tc of recentToolCalls.slice(-5)) {
+    if (tc.name === "write_file") {
+      const p = (tc.args.path as string) || "";
+      if (p.includes("/notes/")) recentTypes.add("notes");
+      else if (p.includes("/questions/")) recentTypes.add("questions");
+      else if (p.includes("/flashcards/")) recentTypes.add("flashcards");
+      else if (p.includes("/quizzes/")) recentTypes.add("quizzes");
+      recentPaths.push(p.split("/").pop()?.replace(".md", "") || "");
+    }
+  }
+
+  const types = recentTypes.size > 0 ? [...recentTypes].join(", ") : "study materials";
+  const topics = recentPaths.slice(-3).join(", ");
+
+  if (topics) return `${chapterName} ${topics} ${types}`;
+  return `${chapterName} ${types}`;
+}
+
+function retrievalQueryHash(query: string): string {
+  return query.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 100);
+}
+
+// ── Indexing queue processing ──
+
+let lastIndexProcessTurn = -1;
+
+async function processIndexBatch(): Promise<void> {
+  const result = await processDocumentQueue();
+  if (result.indexed > 0 || result.skipped > 0) {
+    console.log(`[Agent] indexed ${result.indexed}/${result.indexed + result.skipped} docs in ${result.timeMs}ms`);
+  }
+}
+
+// ── Vault seeding ──
+
 async function seedVectorStore(vaultNotes: { path: string; content: string }[], chapterPath: string): Promise<void> {
   for (const n of vaultNotes) {
     if (n.path.startsWith(chapterPath)) {
       const type = n.path.includes("/questions/") ? "questions" : n.path.includes("/notes/") ? "notes" : "other";
-      await addDocument(n.path, n.content, chapterPath, type).catch(() => {});
+      queueDocument(n.path, n.content, chapterPath, type);
     }
   }
+  // Drain the entire queue — process batches until nothing remains
+  while (pendingIndexCount() > 0) {
+    await processDocumentQueue();
+  }
+  const tel = getIndexTelemetry();
+  console.log(`[Agent] seeded ${tel.docsIndexed} vault docs`);
+  resetIndexTelemetry();
 }
 
-async function injectRagContext(msgs: Record<string, unknown>[], chapter: string): Promise<void> {
-  const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant" && typeof m.content === "string");
-  const query = lastAssistant?.content as string || "";
-  if (!query) return;
+// ── Structured retrieval injection ──
+
+async function injectRagContext(
+  msgs: Record<string, unknown>[],
+  chapter: string,
+  chapterName: string,
+  turn: number,
+  recentToolCalls: { name: string; args: Record<string, unknown> }[],
+): Promise<void> {
+  const query = buildRetrievalQuery(chapterName, chapter, turn, recentToolCalls);
+  const qHash = retrievalQueryHash(query);
+
+  // Skip if query is essentially the same as the last one and same turn
+  if (qHash === lastRetrievalHash && turn === lastRetrievalTurn) return;
+
+  lastRetrievalQuery = query;
+  lastRetrievalHash = qHash;
+  lastRetrievalTurn = turn;
 
   const results = await searchDocuments(query, chapter, 3);
   if (results.length === 0) return;
 
   const context = results.map((r) => `--- ${r.path} ---\n${r.excerpt}`).join("\n\n");
 
-  // Append to the system prompt instead of pushing a new message
-  // (API requires tool messages to be followed by assistant, not system)
   const sysMsg = msgs.find((m) => m.role === "system");
   if (sysMsg && typeof sysMsg.content === "string") {
     let base = sysMsg.content;
-    // Strip any previous RAG context block
     base = base.replace(/\n\n\[RAG context\][\s\S]*$/, "");
     sysMsg.content = base + `\n\n[RAG context]\n${context}`;
   }
 }
+
+// ── Agent turn ──
 
 async function runAgentTurn(
   messages: Record<string, unknown>[],
@@ -150,23 +217,6 @@ async function runAgentTurn(
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
-    // Strip write_file content from API messages to avoid 504 timeouts.
-    // The LLM gets a 500-char preview and can read full content via read_file.
-    // Use truncation (not a placeholder) so the LLM never learns to copy a fixed string.
-    for (const m of newMsgs) {
-      if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
-        for (const tc2 of m.tool_calls as ToolCall[]) {
-          if (tc2.function?.name !== "write_file") continue;
-          try {
-            const a = JSON.parse(tc2.function.arguments);
-            if (a.content && typeof a.content === "string" && a.content.length > 100) {
-              a.content = a.content.slice(0, 100) + "...";
-              tc2.function.arguments = JSON.stringify(a);
-            }
-          } catch {}
-        }
-      }
-    }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response };
   }
 
@@ -178,6 +228,8 @@ async function runAgentTurn(
   };
 }
 
+// ── Tool handler ──
+
 async function toolHandler(name: string, args: Record<string, unknown>): Promise<string> {
   switch (name) {
     case "write_file": {
@@ -185,7 +237,8 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       const content = args.content as string;
       workspace.set(path, content);
       const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
-      addDocument(path, content, ragChapterPath, type).catch((e) => { console.error("RAG addDocument error:", e); });
+      // Queue for batch indexing — does NOT block the agent
+      queueDocument(path, content, ragChapterPath, type);
       return JSON.stringify({ success: true, path, bytes: content.length });
     }
 
@@ -343,6 +396,8 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
   }
 }
 
+// ── Main loop ──
+
 self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   const msg = e.data;
 
@@ -369,7 +424,12 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   const messages = structuredClone(initialMessages);
   let currentTurn = 0;
 
-  seedVectorStore(vaultNotes, chapterPath);
+  // Seed vault documents into RAG (batched, non-blocking after this)
+  console.log("[Agent] seeding vault into RAG...");
+  await seedVectorStore(vaultNotes, chapterPath);
+
+  // Track all tool calls across the run for query construction
+  const allToolCalls: { turn: number; name: string; args: Record<string, unknown> }[] = [];
 
   function getChapterFiles(): [string, string][] {
     const files: [string, string][] = [];
@@ -383,18 +443,30 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
   while (currentTurn < MAX_TURNS) {
     if (abortFlag) {
+      // Flush any pending index writes before finishing
+      await processIndexBatch();
       self.postMessage({ type: "done", messages, steps: [], turn: currentTurn, workspace: getChapterFiles() } );
       return;
     }
 
-    await injectRagContext(messages, chapterPath);
+    // Build retrieval query from structured state, not assistant prose
+    await injectRagContext(messages, chapterPath, chapterName, currentTurn, allToolCalls);
 
     try {
       const result = await runAgentTurn(messages, tools, toolHandler, config);
       messages.length = 0;
       messages.push(...result.newMessages);
 
+      // Track tool calls for query construction
+      for (const tc of result.steps.flatMap((s) => s.toolCalls)) {
+        allToolCalls.push({ turn: currentTurn, name: tc.name, args: tc.args });
+      }
+
       if (result.finished) {
+        // Flush pending index writes before finishing
+        await processIndexBatch();
+        const tel = getIndexTelemetry();
+        console.log(`[Agent] done — ${tel.docsIndexed} docs, ${tel.chunksIndexed} chunks, ${tel.embeddingCalls} embed calls, ${tel.searchCalls} searches (${tel.cacheHits} cache hits, ${tel.cacheMisses} misses)`);
         self.postMessage({ type: "done", messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() } );
         return;
       }
@@ -420,6 +492,11 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
         messages.push(initialMessages[0], initialMessages[1], ...tail);
       }
 
+      // Process pending index writes every 5 turns (batched)
+      if (currentTurn % 5 === 0 || pendingIndexCount() > 20) {
+        await processIndexBatch();
+      }
+
       self.postMessage({ type: "progress", messages, steps: result.steps, turn: currentTurn } satisfies WorkerProgressUpdate);
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
@@ -429,10 +506,15 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
         });
       }
     } catch (err: any) {
+      // Attempt to flush index queue even on error
+      await processIndexBatch();
       self.postMessage({ type: "error", error: err.message } satisfies WorkerErrorUpdate);
       return;
     }
   }
+
+  // Flush remaining index writes
+  await processIndexBatch();
 
   // Max turns reached
   const fileList: [string, string][] = [];

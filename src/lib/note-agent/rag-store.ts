@@ -18,10 +18,9 @@ interface ChunkEntry {
   chunkTotal: number;
   content: string;
   contentHash: string;
-  // One of these is populated based on mode:
-  embedding: Float32Array | null;      // provider mode
-  vector: [string, number][] | null;   // TF-IDF mode
-  tokens: string[];                    // always populated (TF-IDF fallback)
+  embedding: Float32Array | null;
+  vector: [string, number][] | null;
+  tokens: string[];
 }
 
 interface DocRecord {
@@ -41,6 +40,69 @@ interface IndexRecord {
   totalChunks: number;
   totalDocs: number;
   idf: IDFIndex | null;
+}
+
+// ── Pending index queue ──
+
+interface QueuedDoc {
+  path: string;
+  content: string;
+  chapter: string;
+  type: string;
+}
+
+let _indexQueue: QueuedDoc[] = [];
+let _processingQueue = false;
+
+// ── Retrieval cache ──
+
+interface CacheEntry {
+  results: { path: string; excerpt: string; score: number }[];
+  timestamp: number;
+  _writeVersion: number;
+}
+let _retrievalCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 10_000; // 10 seconds
+let _writeVersion = 0; // incremented on each document write, busts cache
+
+// ── Telemetry counters ──
+
+let _docsIndexed = 0;
+let _chunksIndexed = 0;
+let _embeddingCalls = 0;
+let _searchCalls = 0;
+let _cacheHits = 0;
+let _cacheMisses = 0;
+let _indexTimeMs = 0;
+let _searchTimeMs = 0;
+let _skippedSameHash = 0;
+
+export function getIndexTelemetry() {
+  const out = {
+    docsIndexed: _docsIndexed,
+    chunksIndexed: _chunksIndexed,
+    embeddingCalls: _embeddingCalls,
+    searchCalls: _searchCalls,
+    cacheHits: _cacheHits,
+    cacheMisses: _cacheMisses,
+    indexTimeMs: _indexTimeMs,
+    searchTimeMs: _searchTimeMs,
+    skippedSameHash: _skippedSameHash,
+    pendingQueue: _indexQueue.length,
+  };
+  return out;
+}
+
+export function resetIndexTelemetry() {
+  _docsIndexed = 0;
+  _chunksIndexed = 0;
+  _embeddingCalls = 0;
+  _searchCalls = 0;
+  _cacheHits = 0;
+  _cacheMisses = 0;
+  _indexTimeMs = 0;
+  _searchTimeMs = 0;
+  _skippedSameHash = 0;
 }
 
 // ── Constants ──
@@ -88,12 +150,10 @@ function storeGet<T>(store: IDBObjectStore, key: string): Promise<T | undefined>
   });
 }
 
-/** Synchronous batch put — does NOT await individual requests. Awaits transaction only. */
 function putAll(store: IDBObjectStore, values: unknown[]): void {
   for (const v of values) store.put(v);
 }
 
-/** Synchronous batch delete — does NOT await individual requests. Awaits transaction only. */
 function deleteAll(store: IDBObjectStore, keys: string[]): void {
   for (const k of keys) store.delete(k);
 }
@@ -106,9 +166,10 @@ function storeGetAll<T>(store: IDBObjectStore, query?: IDBValidKey): Promise<T[]
   });
 }
 
-function storeGetAllKeys(store: IDBObjectStore, query?: IDBValidKey): Promise<IDBValidKey[]> {
+/** Get all entries from an index (e.g., chapter index). Bounded. */
+function indexGetAll<T>(index: IDBIndex, query?: IDBValidKey): Promise<T[]> {
   return new Promise((resolve) => {
-    const req = query !== undefined ? store.getAllKeys(query) : store.getAllKeys();
+    const req = query !== undefined ? index.getAll(query) : index.getAll();
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => resolve([]);
   });
@@ -138,7 +199,6 @@ export async function initRagStore(): Promise<EmbeddingMode> {
   const mode = await waitForMode();
 
   if (idx && idx.embeddingMode !== mode) {
-    // Mode changed — clear and re-index needed (handled lazily)
     await saveIndexRecord({ id: "global", embeddingMode: mode, totalChunks: 0, totalDocs: 0, idf: null });
   } else if (!idx) {
     await saveIndexRecord({ id: "global", embeddingMode: mode, totalChunks: 0, totalDocs: 0, idf: null });
@@ -164,52 +224,55 @@ async function saveIndexRecord(rec: IndexRecord): Promise<void> {
   db.close();
 }
 
-// ── Embedded IDF cache (TF-IDF mode) ──
+// ── Background queue: queueDocument + processDocumentQueue ──
 
-let _idfCache: { idf: IDFIndex; totalChunks: number } | null = null;
-
-async function loadIDF(): Promise<{ idf: IDFIndex; totalChunks: number }> {
-  if (_idfCache) return _idfCache;
-  const rec = await loadIndexRecord();
-  if (rec?.idf) {
-    _idfCache = { idf: rec.idf, totalChunks: rec.totalChunks };
-    return _idfCache;
-  }
-  return { idf: {}, totalChunks: 0 };
+export function queueDocument(path: string, content: string, chapter: string, type: string): void {
+  if (!content.trim()) return;
+  _indexQueue.push({ path, content, chapter, type });
 }
 
-async function rebuildIDF(): Promise<void> {
-  const db = await openDB();
-  const all = await (() => {
-    const tx = db.transaction(STORE_CHUNKS, "readonly");
-    return storeGetAll<ChunkEntry>(tx.objectStore(STORE_CHUNKS));
-  })();
-  db.close();
+export function pendingIndexCount(): number {
+  return _indexQueue.length;
+}
 
-  const allTokens = all.map((c) => c.tokens);
-  const idf = allTokens.length > 0 ? computeIDF(allTokens) : {};
-  const totalChunks = allTokens.length;
-  _idfCache = { idf, totalChunks };
+export async function processDocumentQueue(): Promise<{
+  indexed: number;
+  skipped: number;
+  timeMs: number;
+}> {
+  if (_processingQueue) return { indexed: 0, skipped: 0, timeMs: 0 };
+  if (_indexQueue.length === 0) return { indexed: 0, skipped: 0, timeMs: 0 };
 
-  const rec = await loadIndexRecord();
-  await saveIndexRecord({
-    id: "global",
-    embeddingMode: (rec?.embeddingMode || "tfidf") as EmbeddingMode,
-    totalChunks,
-    totalDocs: rec?.totalDocs || 0,
-    idf,
-  });
+  _processingQueue = true;
+  const start = performance.now();
+  let indexed = 0;
+  let skipped = 0;
+
+  const batch = _indexQueue.splice(0, Math.min(_indexQueue.length, 20));
+
+  for (const doc of batch) {
+    const ok = await addDocument(doc.path, doc.content, doc.chapter, doc.type);
+    if (ok === "skipped") skipped++;
+    else if (ok === "indexed") indexed++;
+  }
+
+  const timeMs = Math.round(performance.now() - start);
+  _indexTimeMs += timeMs;
+  _processingQueue = false;
+
+  return { indexed, skipped, timeMs };
 }
 
 // ── CRUD ──
 
-export async function addDocument(
+/** Returns "indexed", "skipped" (same hash), or "failed" */
+async function addDocument(
   path: string,
   content: string,
   chapter: string,
   type: string
-): Promise<void> {
-  if (!content.trim()) return;
+): Promise<"indexed" | "skipped" | "failed"> {
+  if (!content.trim()) return "failed";
 
   const mode = getEmbeddingMode();
   if (mode === "probing") await waitForMode();
@@ -227,7 +290,8 @@ export async function addDocument(
 
     if (existing && existing.contentHash === contentHash) {
       db.close();
-      return;
+      _skippedSameHash++;
+      return "skipped";
     }
 
     // ── If content changed, delete old chunks (separate write transaction) ──
@@ -240,7 +304,7 @@ export async function addDocument(
 
     // ── Chunk the document (no DB work here — safe) ──
     const chunks = chunkDocument(content, MAX_CHUNK_TOKENS, OVERLAP_TOKENS);
-    if (chunks.length === 0) { db.close(); return; }
+    if (chunks.length === 0) { db.close(); return "failed"; }
 
     // ── Embed (no DB work here — safe) ──
     const chunkTexts = chunks.map((c) => c.content);
@@ -248,13 +312,14 @@ export async function addDocument(
     let tfVectors: SparseVector[] | null = null;
 
     if (resolvedMode === "provider") {
+      _embeddingCalls++;
       embeddings = await embedTexts(chunkTexts, "passage");
       if (!embeddings) tfVectors = chunkTexts.map((t) => computeTF(t));
     } else {
       tfVectors = chunkTexts.map((t) => computeTF(t));
     }
 
-    // ── Build chunk entries (async hash, no DB) ──
+    // ── Build chunk entries ──
     const chunkEntries: ChunkEntry[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
@@ -273,7 +338,7 @@ export async function addDocument(
       });
     }
 
-    // ── Single write transaction — all puts synchronous ──
+    // ── Single write transaction ──
     const now = Date.now();
     const idxRec = await loadIndexRecord();
     const tx = db.transaction([STORE_CHUNKS, STORE_DOCS, STORE_INDEX], "readwrite");
@@ -294,13 +359,21 @@ export async function addDocument(
     await txComplete(tx);
     db.close();
 
-    // ── Async post-processing ──
+    _docsIndexed++;
+    _chunksIndexed += chunks.length;
+    _writeVersion++; // bust retrieval cache
+    console.log(`[RAG] indexed ${path} → ${chunks.length} chunks (${resolvedMode})`);
+
+    // ── Async IDF rebuild (fire-and-forget, only in TF-IDF mode) ──
     if (resolvedMode === "tfidf" || !embeddings) {
       rebuildIDF().catch(() => {});
     }
+
+    return "indexed";
   } catch (err) {
     db.close();
     console.error("[RAG] addDocument error:", err);
+    return "failed";
   }
 }
 
@@ -318,36 +391,96 @@ export async function getDocument(path: string): Promise<string | null> {
 
 // ── Search ──
 
+function normalizeQuery(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+function cacheKey(query: string, chapter: string, typeFilter?: string): string {
+  return `${normalizeQuery(query)}|${chapter}|${typeFilter || "*"}`;
+}
+
+function getCached(key: string): { path: string; excerpt: string; score: number }[] | null {
+  const entry = _retrievalCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    _retrievalCache.delete(key);
+    return null;
+  }
+  // Also bust on index writes
+  if (entry._writeVersion !== _writeVersion) {
+    _retrievalCache.delete(key);
+    return null;
+  }
+  _cacheHits++;
+  return entry.results;
+}
+
+function setCache(key: string, results: { path: string; excerpt: string; score: number }[]) {
+  _retrievalCache.set(key, { results, timestamp: Date.now(), _writeVersion });
+  // Evict oldest if cache grows too large
+  if (_retrievalCache.size > 50) {
+    const oldest = _retrievalCache.entries().next().value;
+    if (oldest) _retrievalCache.delete(oldest[0]);
+  }
+}
+
 export async function searchDocuments(
   query: string,
   chapter: string,
   limit = 5,
   typeFilter?: string
 ): Promise<{ path: string; excerpt: string; score: number }[]> {
+  const searchStart = performance.now();
+  _searchCalls++;
+
   try {
     if (!query.trim()) return [];
+
+    // ── Check cache ──
+    const cKey = cacheKey(query, chapter, typeFilter);
+    const cached = getCached(cKey);
+    if (cached) {
+      _searchTimeMs += Math.round(performance.now() - searchStart);
+      return cached;
+    }
+    _cacheMisses++;
 
     const mode = getEmbeddingMode();
     if (mode === "probing") await waitForMode();
     const resolvedMode = getEmbeddingMode() as EmbeddingMode;
 
-    // ── Load relevant chunks ──
+    // ── Load ONLY chunks for this chapter via the chapter index ──
     const db = await openDB();
     const tx = db.transaction(STORE_CHUNKS, "readonly");
-    const all = await storeGetAll<ChunkEntry>(tx.objectStore(STORE_CHUNKS));
+    const chapterIndex = tx.objectStore(STORE_CHUNKS).index("chapter");
+    const all = await indexGetAll<ChunkEntry>(chapterIndex, chapter);
     db.close();
 
     if (all.length === 0) return [];
 
-    let filtered = all.filter((c) => c.chapter === chapter);
+    let filtered = all;
     if (typeFilter) filtered = filtered.filter((c) => c.type === typeFilter);
     if (filtered.length === 0) return [];
+
+    // ── Candidate reduction: token overlap prefilter before expensive scoring ──
+    const queryTokens = new Set(extractTokens(normalizeQuery(query)));
+    if (queryTokens.size > 0) {
+      const before = filtered.length;
+      filtered = filtered.filter((c) => {
+        for (const t of c.tokens) {
+          if (queryTokens.has(t)) return true;
+        }
+        return false;
+      });
+      console.log(`[RAG] candidate reduction: ${before} → ${filtered.length} chunks (${queryTokens.size} query tokens)`);
+    }
 
     // ── Embed query ──
     let queryVec: Float32Array | null = null;
     let querySparse: SparseVector | null = null;
 
     if (resolvedMode === "provider") {
+      _embeddingCalls++;
       const emb = await embedTexts([query], "query");
       if (emb && emb.length > 0) {
         queryVec = emb[0];
@@ -387,15 +520,23 @@ export async function searchDocuments(
       if (!existing || s.score > existing.score) best.set(s.path, s);
     }
 
-    return Array.from(best.values())
+    const results = Array.from(best.values())
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(({ path, excerpt, score }) => ({ path, excerpt, score }));
+
+    // ── Cache results ──
+    setCache(cKey, results);
+
+    _searchTimeMs += Math.round(performance.now() - searchStart);
+    return results;
   } catch (err) {
     console.error("[RAG] searchDocuments error:", err);
     return [];
   }
 }
+
+// ── Legacy search alias ──
 
 export async function searchDocumentsByContent(
   query: string,
@@ -405,6 +546,8 @@ export async function searchDocumentsByContent(
 ): Promise<{ path: string; excerpt: string; score: number }[]> {
   return searchDocuments(query, chapter, limit, typeFilter);
 }
+
+// ── Delete ──
 
 export async function deleteDocument(path: string): Promise<void> {
   try {
@@ -430,11 +573,49 @@ export async function deleteDocument(path: string): Promise<void> {
     await txComplete(tx);
     db.close();
 
+    _writeVersion++;
     rebuildIDF().catch(() => {});
   } catch (err) {
     console.error("[RAG] deleteDocument error:", err);
   }
 }
+
+// ── IDF helpers ──
+
+let _idfCache: { idf: IDFIndex; totalChunks: number } | null = null;
+
+async function loadIDF(): Promise<{ idf: IDFIndex; totalChunks: number }> {
+  if (_idfCache) return _idfCache;
+  const rec = await loadIndexRecord();
+  if (rec?.idf) {
+    _idfCache = { idf: rec.idf, totalChunks: rec.totalChunks };
+    return _idfCache;
+  }
+  return { idf: {}, totalChunks: 0 };
+}
+
+async function rebuildIDF(): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(STORE_CHUNKS, "readonly");
+  const all = await storeGetAll<ChunkEntry>(tx.objectStore(STORE_CHUNKS));
+  db.close();
+
+  const allTokens = all.map((c) => c.tokens);
+  const idf = allTokens.length > 0 ? computeIDF(allTokens) : {};
+  const totalChunks = allTokens.length;
+  _idfCache = { idf, totalChunks };
+
+  const rec = await loadIndexRecord();
+  await saveIndexRecord({
+    id: "global",
+    embeddingMode: (rec?.embeddingMode || "tfidf") as EmbeddingMode,
+    totalChunks,
+    totalDocs: rec?.totalDocs || 0,
+    idf,
+  });
+}
+
+// ── Other utilities ──
 
 function storeIndexGetAllKeys(index: IDBIndex, query?: IDBValidKey): Promise<IDBValidKey[]> {
   return new Promise((resolve) => {
