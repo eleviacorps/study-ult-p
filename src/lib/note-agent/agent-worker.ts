@@ -148,22 +148,8 @@ async function runAgentTurn(
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
-    // Strip write_file content from stored messages (content is in RAG + workspace).
-    // The LLM already saw the full content when it called the tool — this is just history.
-    for (const m of newMsgs) {
-      if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
-        for (const tc2 of m.tool_calls as ToolCall[]) {
-          if (tc2.function?.name !== "write_file") continue;
-          try {
-            const a = JSON.parse(tc2.function.arguments);
-            if (a.content && typeof a.content === "string" && a.content.length > 500) {
-              a.content = `[stored in RAG — ${a.content.length} bytes]`;
-              tc2.function.arguments = JSON.stringify(a);
-            }
-          } catch {}
-        }
-      }
-    }
+    // write_file content is kept in full in messages — the LLM needs to see real content.
+    // Content is also stored in workspace + RAG for persistence.
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response };
   }
 
