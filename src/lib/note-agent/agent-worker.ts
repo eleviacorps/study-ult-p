@@ -382,9 +382,21 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
       currentTurn++;
 
-      // Sliding window: keep system prompts + recent context
+      // Sliding window: preserve complete tool_call↔tool chains
       if (messages.length > 8) {
-        const tail = messages.slice(-6);
+        const tail: Record<string, unknown>[] = [];
+        let pendingTools = 0;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const m = messages[i];
+          tail.unshift(m);
+          if (m.role === "tool") {
+            pendingTools++;
+          } else if (m.role === "assistant" && m.tool_calls) {
+            const tc = (m.tool_calls as unknown[]).length;
+            pendingTools = Math.max(0, pendingTools - tc);
+          }
+          if (tail.length >= 6 && pendingTools === 0 && m.role !== "tool") break;
+        }
         messages.length = 0;
         messages.push(initialMessages[0], initialMessages[1], ...tail);
       }
