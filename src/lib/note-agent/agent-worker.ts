@@ -168,7 +168,7 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       const content = args.content as string;
       workspace.set(path, content);
       const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
-      addDocument(path, content, ragChapterPath, type).catch(() => {});
+      addDocument(path, content, ragChapterPath, type).catch((e) => { console.error("RAG addDocument error:", e); });
       return JSON.stringify({ success: true, path, bytes: content.length });
     }
 
@@ -348,7 +348,7 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
   ragChapterPath = chapterPath;
 
-  const MAX_TURNS = 50;
+  const MAX_TURNS = 150;
   const messages = structuredClone(initialMessages);
   let currentTurn = 0;
 
