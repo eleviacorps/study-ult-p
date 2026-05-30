@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 4096) : 4096,
+      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 65536) : 65536,
       temperature: typeof body.temperature === "number" ? body.temperature : 0.25,
       top_p: typeof body.top_p === "number" ? body.top_p : 0.9,
       stream: isStream,
