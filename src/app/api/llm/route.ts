@@ -3,9 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 
 const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
 const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
-// const MAX_MESSAGES = 12;
-// const MAX_MESSAGE_CHARS = 18000;
-// const MAX_TOTAL_CHARS = 60000;
 
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -16,6 +13,9 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
+  const reqId = crypto.randomUUID().slice(0, 8);
+  console.log(`[LLM ${reqId}] POST /api/llm`);
+
   try {
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const supabase = await createClient();
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 8192) : 4096,
+      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 4096) : 4096,
       temperature: typeof body.temperature === "number" ? body.temperature : 0.25,
       top_p: typeof body.top_p === "number" ? body.top_p : 0.9,
       stream: isStream,
@@ -48,11 +48,20 @@ export async function POST(request: Request) {
     if (Array.isArray(body.tools)) requestBody.tools = body.tools;
     if (body.tool_choice) requestBody.tool_choice = body.tool_choice;
 
+    console.log(`[LLM ${reqId}] → ${baseUrl}/v1/chat/completions model=${model} msgs=${messages.length} max_tokens=${requestBody.max_tokens}`);
+
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: hdrs,
       body: JSON.stringify(requestBody),
     });
+
+    console.log(`[LLM ${reqId}] ← ${res.status}`);
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.log(`[LLM ${reqId}] error body:`, text.substring(0, 3000));
+    }
 
     if (isStream) {
       return new Response(res.body, {
@@ -66,8 +75,10 @@ export async function POST(request: Request) {
     }
 
     const data = await res.json().catch(() => ({}));
+    console.log(`[LLM ${reqId}] √ done`);
     return NextResponse.json(data, { status: res.status });
   } catch (err: unknown) {
+    console.log(`[LLM ${reqId}] × exception:`, err instanceof Error ? err.message : err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "unknown_error" }, { status: 500 });
   }
 }

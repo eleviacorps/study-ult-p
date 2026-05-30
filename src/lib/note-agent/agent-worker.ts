@@ -62,6 +62,26 @@ type WorkerOutMessage = WorkerProgressUpdate | WorkerDoneUpdate | WorkerErrorUpd
 let workspace = new Map<string, string>();
 let abortFlag = false;
 
+function compactMessages(msgs: Record<string, unknown>[], turn: number): boolean {
+  const THRESHOLD = 12;
+  const KEEP_TAIL = 6;
+  if (msgs.length <= THRESHOLD) return false;
+
+  const system = msgs[0];
+  const firstUser = msgs[1];
+  const tail = msgs.slice(-KEEP_TAIL);
+
+  msgs.length = 0;
+  if (system) msgs.push(system);
+  if (firstUser && firstUser !== system) msgs.push(firstUser);
+  msgs.push({
+    role: "system",
+    content: `[Context compacted at turn ${turn}. Earlier messages removed. All files remain in workspace. Continue the task normally.]`,
+  });
+  msgs.push(...tail);
+  return true;
+}
+
 function sanitizePath(name: string): string {
   return name.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_\-/]/g, "").replace(/_+/g, "_");
 }
@@ -346,6 +366,7 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       }
 
       currentTurn++;
+      compactMessages(messages, currentTurn);
       self.postMessage({ type: "progress", messages, steps: result.steps, turn: currentTurn } satisfies WorkerProgressUpdate);
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
