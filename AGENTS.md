@@ -5,7 +5,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 ## Goal
-Fix the RAG + note agent pipeline to eliminate 504 timeouts, retrieval loops, per-write embeddings, full-store scans, and unbounded per-turn costs. Implement checkpoint-based embedding batching.
+Fix the RAG + note agent pipeline to eliminate 504 timeouts, retrieval loops, per-write embeddings, full-store scans, and unbounded per-turn costs. Implement checkpoint-based embedding batching and structured conversation compaction.
 
 ## Constraints & Preferences
 - Do NOT redesign the system; only fix remaining critical issues.
@@ -16,61 +16,67 @@ Fix the RAG + note agent pipeline to eliminate 504 timeouts, retrieval loops, pe
 - Search must not scan the entire corpus on every query.
 - Vault seeding must index every document (drain queue fully).
 - Embedding API calls limited to 100 req/min, 1000 req/day — batch aggressively by section.
-- Use explicit checkpoint signals, not heuristic "guessing from random writes", to flush section embeddings.
+- Use explicit checkpoint signals (section transition from `notes/` → `questions/`), not heuristic "guessing from random writes", to flush section embeddings.
+- Skill instructions (43KB `skill.md` + 14KB references) must NOT be truncated — doing so breaks note quality.
 
 ## Progress
 ### Done
-1. **Edge Runtime** — `/api/llm` switched from Serverless Function (10s Hobby timeout) to Edge Runtime (30s wall timeout on Hobby; I/O-bound LLM calls benefit from wall time).
-2. **Edge response streaming** — `/api/llm/route.ts` changed from `await res.text()` (buffers full provider response, keeps function wall clock ticking) to `return new Response(res.body, ...)` (pipes provider stream through; function returns in ~1-3s instead of 20-25s). Both streaming and non-streaming paths use the same pipe-through approach.
-3. **max_tokens reduced** — `65536` → `4096` in all 3 locations (`agent-worker.ts`, `llm-agent.ts`, `/api/llm/route.ts`). Each turn only needs to decide the next few tool calls (~500-1500 tokens); 65K budget let the LLM ramble into payload/timeout territory.
-4. **Payload budget enforcement** — worker checks `JSON.stringify({messages, tools}).length` before every LLM call; >200KB forces aggressive window truncation (system + user + last 4 messages). `/api/llm` route rejects requests >500KB with 413.
-5. **write_file arguments compacted** — full content (~10-30KB) replaced with `[FILE STORED — path, bytes, excerpt]` in the assistant message after execution. Full content preserved in workspace + RAG. Done in `runAgentTurn` post-processing loop.
-6. **read_file returns compact by default** — result is `{path, size, excerpt, mode: "compact"}` (~400 bytes) instead of full content. Added optional `full: boolean` parameter for byte-level verification. Tool definition updated in `NOTE_AGENT_TOOLS` in `llm-agent.ts`.
-7. **assess_quality returns compact by default** — result is counts + first 10 issues (~2KB) instead of full diagnostic payload (~50KB+). Added optional `detailed: boolean` parameter for full diagnostics. Tool definition updated.
-8. **Read cache per-path** — in-memory `Map<string, string>` caches read_file results; invalidated on write_file to the same path. Falls back to RAG (`getDocument()`) for vault files indexed but not in workspace.
-9. **Loop detection** — 4 consecutive same-path reads/writes or 4 consecutive idle turns (no tool calls) throws descriptive error instead of cascading into timeout. `MAX_CONSECUTIVE_SAME_ACTION = 4`; also `MAX_CONSECUTIVE_PARSE_FAILS = 3` for malformed JSON.
-10. **Vault seeding path matching fixed** — `normPath.split("/").includes(normChapterPath)` instead of `n.path.startsWith(chapterPath)`. Catches subject-qualified vault paths like `Physics/Electrostatics/notes/x.md` when chapterPath is `Electrostatics`. Logs `queuedCount/total` for visibility.
-11. **Placeholder bug fixed** — removed the `write_file` argument stripping block from `runAgentTurn`. LLM no longer sees `[stored in RAG — N bytes]` and will not copy it as file content.
-12. **`.catch(() => {})` replaced** with `.catch((e) => console.error(...))` on `addDocument` in `toolHandler`.
-13. **MAX_TURNS raised** from 50 to 150.
-14. **Retrieval loops stopped** — `injectRagContext` builds structured queries from chapter name + recent tool call paths/types, never from last assistant prose. Queries deduplicated via `retrievalQueryHash()`.
-15. **Indexing moved out of write path** — `write_file` handler calls `queueDocument()` (O(1), non-blocking). `processDocumentQueue()` batches up to 20 docs per call.
-16. **Full-store scans eliminated** — `searchDocuments` uses `index("chapter").getAll(chapter)` to load only the current chapter's chunks.
-17. **Candidate reduction before scoring** — token-overlap prefilter discards chunks sharing zero tokens with the query before cosine similarity scoring.
-18. **Retrieval cache** — in-memory Map keyed by normalized query + chapter + type; 10s TTL; busted on `_writeVersion` increment.
-19. **Vault seeding drains queue fully** — `seedVectorStore` loops `while (pendingIndexCount() > 0) { await processDocumentQueue(); }` with stall guard.
-20. **Telemetry counters** — `getIndexTelemetry()` returns `docsIndexed`, `chunksIndexed`, `embeddingCalls`, `searchCalls`, `cacheHits`, `cacheMisses`, `indexTimeMs`, `searchTimeMs`, `skippedSameHash`, `pendingQueue`. Per-turn log includes tool call count, message count, estimated payload KB, pending queue size.
-21. **Build passes** — `npm run build` succeeds on all commits.
-22. **Checkpoint-based embedding system** — `addDocument` split into store-only phase (chunks with `embedding: null`) and batch-embed phase via `embedSection()`. `write_file` queues content store-only; `processDocumentQueue` stores without API calls. Section transition auto-detect triggers `embedSection("notes")` → `embedSection("questions")` → `embedSection("revision")` as the agent moves through phases. `embedSection` is idempotent — previously-embedded chunks are skipped. Vault seeding embeds immediately (`embedImmediately=true`). In-memory `_pendingPathsBySection` map tracks which paths need embedding. Functions added: `embedSection(section)`, `getPendingEmbedSummary()`, `resetPendingEmbeds()`. DB version bumped to 3 for section index. All re-exported via `vector-store.ts`.
+1. **Edge Runtime** — `/api/llm` switched from Serverless Function (10s Hobby timeout) to Edge Runtime (30s wall timeout). I/O-bound LLM calls benefit from wall time.
+2. **Edge response streaming** — `/api/llm/route.ts` changed from `await res.text()` (buffers full response, keeps wall clock ticking) to `return new Response(res.body, ...)` (pipes provider stream; function returns in ~1-3s instead of 20-25s).
+3. **max_tokens reduced** — `65536` → `4096` in all 3 locations (`agent-worker.ts`, `llm-agent.ts`, `/api/llm/route.ts`). Keeps each turn focused on next few tool calls (~500-1500 tokens).
+4. **write_file arguments compacted** — full content (~10-30KB) replaced with `[FILE STORED — path, bytes, excerpt]` in the assistant's tool_calls after execution. Full content preserved in workspace + RAG.
+5. **read_file returns compact by default** — result is `{path, size, excerpt, mode: "compact"}` (~400 bytes). Optional `full: boolean` for byte-level verification.
+6. **assess_quality returns compact by default** — result is counts + first 10 issues (~2KB). Optional `detailed: boolean` for full diagnostics.
+7. **Per-path read cache** — `Map<string, string>` caches compact read_file results; invalidated on write_file. Falls back to RAG for indexed files.
+8. **Loop detection** — 4 consecutive same-path reads/writes or 4 consecutive idle turns throws descriptive error. `MAX_CONSECUTIVE_SAME_ACTION = 4`; `MAX_CONSECUTIVE_PARSE_FAILS = 3`.
+9. **Placeholder bug fixed** — write_file argument stripping removed; read_file ignores `[FILE STORED —` in workspace and falls back to RAG; write_file rejects placeholder content.
+10. **`.catch(() => {})` replaced** with `.catch((e) => console.error(...))` on all async calls.
+11. **MAX_TURNS raised** from 50 to 150.
+12. **Retrieval loops stopped** — `injectRagContext` builds queries from chapter name + tool call paths, never assistant prose. Deduplicated via `retrievalQueryHash()`.
+13. **Indexing moved out of write path** — `queueDocument()` (O(1), non-blocking). `processDocumentQueue()` drains up to 20 docs per call.
+14. **Full-store scans eliminated** — `searchDocuments` uses `index("chapter").getAll(chapter)` to load only the current chapter's chunks.
+15. **Candidate reduction before scoring** — token-overlap prefilter discards chunks sharing zero tokens with the query before cosine similarity.
+16. **Retrieval cache** — in-memory Map keyed by normalized query + chapter + type; 10s TTL; busted on `_writeVersion` increment.
+17. **Vault seeding drains queue fully** — loops `while (pendingIndexCount() > 0)` with stall guard.
+18. **Telemetry counters** — docsIndexed, chunksIndexed, embeddingCalls, searchCalls, cacheHits, cacheMisses, indexTimeMs, searchTimeMs, skippedSameHash, pendingQueue. Per-turn payload KB log.
+19. **Checkpoint-based embedding** — store-only phase (chunks with `embedding: null`) + batch-embed via `embedSection()`. Section transition auto-detect triggers `embedSection()`. Idempotent, DB v2→v3 with section index.
+20. **Gemini Embedding 2** — model `gemini-embedding-2`, route translates OpenAI↔Gemini format. Single + batch endpoints.
+21. **Vault seeding space-vs-underscore fix** — fallback matching normalizes chapter path spaces/underscores.
+22. **Structured conversation compaction** (replaces payload truncation) — When >180KB, builds a `[STATE SUMMARY]` message listing all written files (by section: notes/questions/flashcards/quizzes/revision), file counts, last 5 tool actions, and remaining work hints. Replaces all accumulated messages (except system+user) with this single compact summary. Payload drops from ~180KB → ~90KB. No orphaned tool messages, no context loss (files are ground truth in workspace).
+23. **read_file placeholder detection** — workspace content starting with `[FILE STORED —` triggers RAG fallback.
+24. **Skill context preserved** — 43KB `skill.md` + 14KB references kept intact. Not truncated.
+25. **Build passes** — `npm run build` succeeds on every commit.
 
 ### Next Steps
-1. **Deploy and test** at `/note-agent` — verify no 504 errors, no placeholder content, full vault indexing, section-based embedding calls (not per-write), cache hits on repeated queries.
-2. **Monitor telemetry** in browser console: `[RAG] candidate reduction: X → Y chunks`, `[Agent] seeded N vault docs`, cache hit/miss, section embed counts, per-turn payload KB.
-3. **Watch for migration:** existing IndexedDB databases at version 2 will be auto-migrated to version 3 (adding `section` index on chunks store).
+1. **Deploy and test** at `/note-agent` — verify compaction fires around turn 10-15, drops payload to ~90KB, agent continues normally reading workspace files.
+2. **Verify multiple compaction cycles** — agent should be able to grow → compact → grow → compact repeatedly.
+3. **Monitor telemetry** — per-turn payload KB before/after compaction, tool call counts.
+4. **Consider compaction threshold tuning** — 180KB works but may need tweaking. The compaction summary is built from workspace state, not LLM analysis, so it costs zero API calls.
 
 ## Key Decisions
-- **Pipe provider response through Edge function** — `return new Response(res.body, ...)` instead of `await res.text()`. Function returns in ~1-3s (time to first byte from provider) instead of waiting for full 20-25s generation. The remaining tokens stream through Edge runtime infrastructure without counting against the 30s wall limit.
-- **max_tokens 4096** — tight enough to prevent rambling, loose enough for reasoning + tool calls. If the model exceeds it, the turn ends cleanly and continues in the next turn (no content loss).
-- **Compact tool results by default** (`read_file`, `assess_quality`) — full content available via optional `full: true` / `detailed: true` parameters. This is a runtime budget measure, not knowledge truncation. Full content lives in workspace + RAG.
-- **Checkpoint-based embedding** — separates storage (fast, immediate) from embedding (slow, batched, API-costly). Checkpoints align with the agent's natural workflow phases (notes → questions → revision).
-- **In-memory pending-embed tracking** — `_pendingPathsBySection` map avoids DB schema migration; reset on worker restart.
-- **Edge Runtime on Vercel Hobby** — 5s CPU limit, 30s wall timeout. LLM `fetch()` is I/O-bound so wall time is the effective limit.
+- **Structured compaction over message truncation** — Instead of dropping the tail of messages (which orphans tool calls and loses context), replace all accumulated tool chains with a single structured state summary. The workspace is the ground truth; the LLM can read any file. No extra LLM call needed. Multiple compaction cycles are safe.
+- **Compact tool results by default** (`read_file`, `assess_quality`) — full content available via optional parameters. Runtime budget measure, not knowledge truncation.
+- **Checkpoint-based embedding** — separates storage (fast) from embedding (slow, batched, API-costly). Checkpoints align with agent's natural phases (notes → questions → revision).
+- **Skill context NOT truncated** — 58KB of skill instructions preserved. Payload managed by compaction rather than modifying instructions.
+- **Pipe provider response through Edge function** — `return new Response(res.body, ...)` instead of `await res.text()`. Function returns in ~1-3s (TTFB from provider) instead of waiting for full generation.
 
 ## Critical Context
-- **Embedding quota:** 100 req/min, 1000 req/day. Each req can embed up to 10 chunks (batched by `embedTexts`). Checkpoint-based embedding uses 1-3 calls per section instead of 1 call per write.
-- **`write_file` handler** stores content in `workspace` + `queueDocument()` (store-only, no API call). Returns short JSON result. Section transition auto-detect fires `embedSection()` fire-and-forget for the previous section.
-- **`seedVectorStore`** uses `embedImmediately=true` — vault docs must be immediately searchable for retrieval queries during the agent run.
-- **`embedSection(section)`** calls `embedTexts` in batches of 10, writes embeddings back to IndexedDB. Idempotent — skips chunks with non-null embedding.
-- **DB migration:** existing DBs at version 2 auto-migrate to version 3, adding a `section` index on the chunks store for efficient `embedSection` lookups.
-- **`_writeVersion`** increments on every document write, busting retrieval cache globally.
-- **`retrievalQueryHash()`** deduplicates identical queries across turns; `buildRetrievalQuery()` uses only tool call activity (paths, types) — never assistant `content`.
-- **`searchDocuments`** loads chunks via `chapter` index, applies type filter, then token-overlap prefilter, then cosine similarity scoring.
-- **`tokens[]`** field is always populated (set during store phase, no API call needed — computed from text via `extractTokens`).
+- **Compaction mechanics** (`agent-worker.ts:557-578`): when `payloadEstimate > 180_000`, builds a `[STATE SUMMARY]` user message with file counts by section (notes/questions/flashcards/quizzes/revision), total file count, last 5 tool actions, and hints about what's still needed (e.g., `"Questions file remains to be written."`). Only system + original user message + state summary survive. Multiple compactions are safe — each rebuilds from current workspace state.
+- **Default vault** (`vault-data.json`): 31 notes across 4 Physics chapters. Biology notes come from localStorage (`mergeAgentNotes` from prior agent runs), loaded into workspace but not counted in the 31.
+- **`write_file` handler**: guards against placeholder content. Stores in workspace + queues store-only via `queueDocument`. Returns `{success, path, bytes}`.
+- **`read_file` handler**: if workspace content starts with `[FILE STORED —`, falls back to RAG `getDocument()`. Prevents placeholder leakage.
+- **`embedSection(section)`**: batch-embeds all null-embedding chunks for a section. Idempotent.
+- **RAG context injection**: appends 3 excerpts (~300 chars each) to system message every turn. Replaces previous via regex.
+- Read cache: compact results cached per-path. Cleared on write_file. Falls back to RAG for workspace misses.
+- `_writeVersion` increments on every document write, busting retrieval cache globally.
+- Embedding quota: 100 req/min, 1000 req/day. Each req embeds up to 10 chunks.
 
 ## Relevant Files
-- `src/lib/note-agent/agent-worker.ts` — agent loop, loop guards, max_tokens 4096, write_file/read_file compaction, read cache, section transition auto-detect, `embedSection` caller on checkpoint/abort/done/error.
-- `src/lib/note-agent/rag-store.ts` — `queueDocument`, `processDocumentQueue`, `searchDocuments` (chapter-indexed + token-overlap + cache), `addDocument` (store-only or embed-on-write), `embedSection` (batch-embed all null-embedding chunks in a section), `getPendingEmbedSummary`, `resetPendingEmbeds`, `_pendingPathsBySection` tracking, telemetry counters, DB upgrade v2→v3.
-- `src/lib/note-agent/vector-store.ts` — re-exports all rag-store functions including `embedSection`, `getPendingEmbedSummary`, `resetPendingEmbeds`.
-- `src/lib/note-agent/embeddings.ts` — `embedTexts`, `extractTokens`, `computeTF`, `computeIDF`, `computeContentHash`.
-- `src/app/api/llm/route.ts` — Edge Runtime, stream-through provider response, max_tokens 4096 cap, 500KB request limit.
-- `src/lib/llm-agent.ts` — `runAgentTurn` (max_tokens 4096), `NOTE_AGENT_TOOLS` (updated read_file, assess_quality parameters).
+- `src/lib/note-agent/agent-worker.ts` — agent loop, compaction (state summary builder), loop guards, write_file/read_file with placeholder detection, section transition auto-detect, embedSection caller.
+- `src/lib/note-agent/rag-store.ts` — queueDocument, processDocumentQueue, searchDocuments (chapter-indexed + token-overlap + cache), embedSection, DB v2→v3.
+- `src/lib/note-agent/vector-store.ts` — re-exports all rag-store functions.
+- `src/lib/note-agent/embeddings.ts` — embedTexts, extractTokens, computeTF/IDF, computeContentHash. Auto-probes Gemini provider on load.
+- `src/app/api/embeddings/route.ts` — Gemini-native support, auto-detects provider from base URL.
+- `src/lib/load-skill.ts` — loads 43KB skill.md + 5 reference files (14KB). Not truncated.
+- `src/lib/llm-agent.ts` — runAgentTurn (max_tokens 4096), NOTE_AGENT_TOOLS.
+- `src/app/api/llm/route.ts` — Edge Runtime, stream-through, 500KB request limit.
