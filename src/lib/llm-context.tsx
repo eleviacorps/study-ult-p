@@ -11,10 +11,14 @@ interface LlmResponse {
   reasoning: string;
 }
 
+interface AskOptions {
+  reasoning?: boolean;
+}
+
 interface LlmContextValue {
   config: LlmConfig;
-  ask: (context: string, question: string) => Promise<LlmResponse>;
-  askStream: (context: string, question: string) => AsyncGenerator<string, void, unknown>;
+  ask: (context: string, question: string, options?: AskOptions) => Promise<LlmResponse>;
+  askStream: (context: string, question: string, options?: AskOptions) => AsyncGenerator<string, void, unknown>;
   isAsking: boolean;
 }
 
@@ -58,7 +62,7 @@ async function writeCachedResponse(messages: { role: string; content: string }[]
   }
 }
 
-async function proxyCompletion(messages: { role: string; content: string }[]): Promise<LlmResponse> {
+async function proxyCompletion(messages: { role: string; content: string }[], reasoning?: boolean): Promise<LlmResponse> {
   try {
     const cached = await readCachedResponse(messages);
     if (cached) return cached;
@@ -66,7 +70,7 @@ async function proxyCompletion(messages: { role: string; content: string }[]): P
     const res = await fetch("/api/llm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, max_tokens: 4096 }),
+      body: JSON.stringify({ messages, max_tokens: 4096, reasoning }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -88,19 +92,19 @@ async function proxyCompletion(messages: { role: string; content: string }[]): P
 export function LlmProvider({ children }: { children: React.ReactNode }) {
   const [isAsking, setIsAsking] = useState(false);
 
-  const ask = useCallback(async (context: string, question: string): Promise<LlmResponse> => {
+  const ask = useCallback(async (context: string, question: string, options?: AskOptions): Promise<LlmResponse> => {
     setIsAsking(true);
     try {
       const messages = question
         ? [{ role: "system", content: context }, { role: "user", content: question }]
         : [{ role: "user", content: context }];
-      return await proxyCompletion(messages);
+      return await proxyCompletion(messages, options?.reasoning);
     } finally {
       setIsAsking(false);
     }
   }, []);
 
-  const askStream = useCallback(async function* (context: string, question: string): AsyncGenerator<string, void, unknown> {
+  const askStream = useCallback(async function* (context: string, question: string, options?: AskOptions): AsyncGenerator<string, void, unknown> {
     setIsAsking(true);
     try {
       const messages = question
@@ -110,7 +114,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, max_tokens: 4096, stream: true }),
+        body: JSON.stringify({ messages, max_tokens: 4096, stream: true, reasoning: options?.reasoning }),
       });
 
       if (!res.ok) {

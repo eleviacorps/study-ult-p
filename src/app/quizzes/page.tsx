@@ -56,6 +56,7 @@ export default function QuizPage() {
   const { ask, config } = useLlm();
 
   const [phase, setPhase] = useState<"config" | "started" | "finished">("config");
+  const [errorMessage, setErrorMessage] = useState("");
   const [questionCount, setQuestionCount] = useState(10);
   const [timeMinutes, setTimeMinutes] = useState(15);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -74,20 +75,28 @@ export default function QuizPage() {
   answersRef.current = answers;
 
   const generateQuiz = useCallback(async () => {
-    if (!vault) return;
-    if (!config.enabled) return;
+    if (!vault) { setErrorMessage("Vault not loaded"); return; }
 
-    const allQuizzes = vault.quizzes || [];
-    if (allQuizzes.length === 0) return;
+    let allQuizzes = vault.quizzes || [];
+    if (allQuizzes.length === 0) {
+      allQuizzes = (vault.questions || []).map((q) => ({
+        id: q.id,
+        chapter: q.chapter,
+        question: q.given || q.title || "",
+        options: (q.options || []).map((o) => ({ label: o.label, text: o.text, correct: o.label === (q.answer || "").trim().charAt(0) })),
+        explanation: q.solution || "",
+      }));
+    }
+    if (allQuizzes.length === 0) { setErrorMessage("No questions available in the vault"); return; }
 
-    const shuffled = [...allQuizzes].sort(() => Math.random() - 0.5).slice(0, questionCount);
+    const shuffled = [...allQuizzes].sort(() => Math.random() - 0.5).slice(0, Math.min(questionCount, allQuizzes.length));
     setQuestions(
-      shuffled.map((q, i) => ({
+      shuffled.map((q: any, i) => ({
         id: q.id || `q-${i}`,
-        text: q.question,
-        options: q.options?.map((o) => o.text) || ["A", "B", "C", "D"],
-        correctIndex: q.options?.findIndex((o) => o.correct) ?? 0,
-        explanation: q.explanation || "",
+        text: q.question || q.given || q.title || "",
+        options: q.options?.map((o: any) => o.text || o.label || "") || ["A", "B", "C", "D"],
+        correctIndex: q.options?.findIndex((o: any) => o.correct) ?? 0,
+        explanation: q.explanation || q.solution || "",
         type: "single" as const,
       }))
     );
@@ -225,7 +234,7 @@ export default function QuizPage() {
         if (wrongSummary) {
           const ctx = PROMPTS.QUIZ_COACH.replace("{SCORE}", String(correct)).replace("{TOTAL}", String(qs.length)).replace("{NET_SCORE}", String(netScore));
           const analysis = PROMPTS.QUIZ_WRONG_ANALYSIS.replace("{WRONG_SUMMARY}", wrongSummary);
-          const { content } = await ask(ctx, analysis);
+          const { content } = await ask(ctx, analysis, { reasoning: false });
           setScore((prev) => prev ? { ...prev, feedback: content } : prev);
         }
       } catch {}
@@ -300,13 +309,19 @@ export default function QuizPage() {
               </div>
             </div>
 
-            <button onClick={generateQuiz} disabled={!config.enabled}
+            {errorMessage && (
+              <div className="mt-4 p-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20">
+                <p className="text-[10px] text-[#EF4444]">{errorMessage}</p>
+              </div>
+            )}
+
+            <button onClick={() => { setErrorMessage(""); generateQuiz(); }}
               className="w-full mt-6 py-3 bg-[#1856FF] hover:bg-[#1856FF]/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium flex items-center justify-center gap-2">
               <Timer className="w-4 h-4" /> Start Quiz
             </button>
 
             {!config.enabled && (
-              <p className="text-[10px] text-[#F59E0B]/70 text-center mt-2">AI service is unavailable</p>
+              <p className="text-[10px] text-[#F59E0B]/70 text-center mt-2">AI coach unavailable — questions from vault only</p>
             )}
 
             <div className="mt-4 p-3 bg-[#F59E0B]/5 border border-[#F59E0B]/10">

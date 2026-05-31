@@ -72,6 +72,7 @@ export default function TestTakePage() {
   const [score, setScore] = useState<{ correct: number; wrong: number; total: number; feedback: string } | null>(null);
   const [aiScoreLoading, setAiScoreLoading] = useState(false);
   const [resumeData, setResumeData] = useState<{ questions: TestQuestion[]; currentQ: number; timeLeft: number; timeSpent: number } | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const questionsRef = useRef(questions);
   const answersRef = useRef(answers);
@@ -102,9 +103,9 @@ export default function TestTakePage() {
     try {
       const prompt = PROMPTS.TEST_GENERATOR.replace("{COUNT}", String(actualCount)).replace("{QUESTIONS}", questionsContent);
 
-      const { content: response } = await ask(prompt, "");
+      const { content: response } = await ask(prompt, "", { reasoning: false });
 
-      const jsonMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      const jsonMatch = response.match(/\[[\s\S]*?\]/);
       if (jsonMatch) {
         try {
           const cleaned = jsonMatch[0]
@@ -130,9 +131,11 @@ export default function TestTakePage() {
         }
       }
 
+      setErrorMessage("No valid questions could be generated. Try a different chapter or question count.");
       setPhase("config");
       return;
-      } catch {
+      } catch (e) {
+        setErrorMessage(`Test generation failed: ${e instanceof Error ? e.message : "Unknown error"}`);
         setPhase("config");
       }
   }, [vault, chapterName, questionCount, timeMinutes, customQuestionCount, ask, config.enabled]);
@@ -256,7 +259,12 @@ export default function TestTakePage() {
       setAiScoreLoading(true);
       try {
         const wrongQs = qs
-          .map((q, i) => ans.get(i) !== q.correctIndex ? `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${ans.get(i) || "skipped"}` : "")
+          .map((q, i) => {
+            const userAns = ans.get(i);
+            if (userAns === undefined || userAns === null) return "";
+            if (typeof userAns === "number" && userAns === q.correctIndex) return "";
+            return `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${typeof userAns === "number" ? q.options[userAns] || "skipped" : userAns}`;
+          })
           .filter(Boolean).join("\n\n");
 
         const feedbackContext = PROMPTS.TEST_FEEDBACK
@@ -268,7 +276,7 @@ export default function TestTakePage() {
 
         const analysisPrompt = PROMPTS.TEST_WRONG_ANALYSIS.replace("{WRONG_QUESTIONS}", wrongQs);
 
-        const { content } = await ask(feedbackContext, analysisPrompt);
+        const { content } = await ask(feedbackContext, analysisPrompt, { reasoning: false });
         setScore((prev) => prev ? { ...prev, feedback: content } : prev);
       } catch {}
       setAiScoreLoading(false);
@@ -366,7 +374,13 @@ export default function TestTakePage() {
               </div>
             </div>
 
-            <button onClick={startTest} disabled={isAsking}
+            {errorMessage && (
+              <div className="mt-4 p-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/20">
+                <p className="text-[10px] text-[#EF4444]">{errorMessage}</p>
+              </div>
+            )}
+
+            <button onClick={() => { setErrorMessage(""); startTest(); }} disabled={isAsking}
               className="w-full mt-6 py-3 rounded-xl bg-[#1856FF] hover:bg-[#1856FF]/90 disabled:opacity-50 text-white text-sm font-medium flex items-center justify-center gap-2">
               {isAsking ? <><Loader2 className="w-4 h-4 animate-spin" /> AI generating...</> : <><Timer className="w-4 h-4" /> Start Test</>}
             </button>
