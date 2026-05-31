@@ -5,55 +5,49 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 ## Goal
-Fix 504 timeouts and the core.md rewrite loop in the note agent. Implement SSE streaming to eliminate 504s, add write-once file rules to stop the core.md loop, and raise max_tokens to 16384 so notes fit in one turn.
+Fix 504 timeouts, the core.md rewrite loop, and 413 request-too-large errors. Implement SSE streaming to eliminate 504s, add write-once file rules to stop the core.md loop, disable RAG to stop payload bloat, and switch compaction from token-based to byte-based to stay under 500KB limit.
 
 ## Constraints & Preferences
 - Do NOT remove Supabase auth from `/api/llm/route.ts` — needed for security.
 - Keep full file content in workspace and RAG; do NOT strip generated notes.
 - Skill instructions (43KB skill.md + 14KB references) must NOT be truncated.
-- Vercel Edge Function has 60s wall timeout on Hobby plan.
-- The user wants a free alternative (Cloudflare Workers Free/Unbound) if Vercel's timeout persists.
+- Vercel Edge Function has 60s wall timeout on Hobby plan and 500KB request limit.
+- RAG disabled because injected excerpts bloat the system message past the 500KB limit over many turns.
+- Compaction is byte-based (not token-based) because the 413 error is about byte size, not token count.
 
 ## Progress
 ### Done
 1. **SSE streaming** — agent-worker.ts `runAgentTurn` sends `stream: true`. New `parseStreamingResponse()` reads SSE chunks from `res.body.getReader()`, reconstructs content + tool_calls + reasoning_content from delta events. TTFB drops from ~30s → ~1s. The edge function returns at TTFB, eliminating 504s.
-2. **Token-based compaction** — tracks `lastPromptTokens` from `usage.prompt_tokens` per turn, compacts at `COMPACT_TOKEN_THRESHOLD = 800_000` (80% of 1M context). Builds `[STATE SUMMARY]` user message with file counts by section, last 5 tool actions, remaining-work hints. Resets counter after compaction. No extra LLM call.
-3. **Token logging** — `[Tokens] prompt=X completion=Y total=Z` logged inside `runAgentTurn`.
-4. **504 retry** — status 504 triggers retry with 2s/4s backoff, up to 3 attempts. Each attempt is a fresh edge function invocation.
-5. **Auth kept** — reverted the try-catch removal of Supabase auth.
-6. **Provider timeout removed** — reverted the 20s AbortController. Edge function's 60s wall limit is the safety net.
-7. **max_tokens raised** — 4096 → 32768 in both `agent-worker.ts` (body) and `route.ts` (cap). A 400+ line note fits in one turn.
-8. **write_file compaction deletes content** — instead of replacing with `[FILE STORED — ...]`, now `delete a.content`. LLM cannot copy a placeholder into a new write call.
-9. **Placeholder guard** — read_file detects content starting with `[FILE STORED —` and falls back to RAG. write_file rejects placeholder content. Startup scan cleans corrupted entries.
-10. **mode: "full"** — read_file with `full: true` includes `"mode": "full"` in the JSON result.
-11. **Core.md rewrite guard** — write_file handler checks if path ends with `core.md` and already exists in workspace; if so, returns error instructing to read it and move to creating notes.
-12. **Write-once + No-Planning rules** added to `skill.md` — a `RULES THAT OVERRIDE EVERYTHING BELOW` section at the top of the skill file instructs: write each file exactly once, use priority order (core.md → notes → questions → MCQs → flashcards → quizzes → revision), never plan or redesign existing files, produce exactly one new file per turn.
-13. **Finish-reason detection** — `parseStreamingResponse` tracks `choice.finish_reason`. On `"length"`, drops truncated tool calls whose arguments aren't valid JSON instead of pushing them to the handler.
-14. **Continuation prompt on truncation** — when `finish_reason: "length"` drops all tool calls, `runAgentTurn` injects a user continuation prompt ("Continue immediately...") instead of letting the agent terminate or hit 3 consecutive parse failures.
-15. **Truncation instruction in skill** — "On Output Truncation" rule tells the LLM to output the next tool call immediately with no preamble if it sees the truncation signal.
+2. **Token-based compaction (replaced)** — was `COMPACT_TOKEN_THRESHOLD = 800_000` (80% of 1M context). Never fired because prompt tokens maxed at ~97K.
+3. **Byte-based compaction** — checks `JSON.stringify(messages).length` every turn. Fires at 220KB, well under the 500KB edge limit. Builds `[STATE SUMMARY]` with file counts + last 5 actions + hints. Keeps system + user + summary, drops everything else.
+4. **RAG disabled** — `injectRagContext` call commented out in the agent loop. The injected excerpts accumulated in the system message, bloating payload past 500KB. Code kept in file for future re-enable.
+5. **max_tokens raised** — 4096 → 32768 in both `agent-worker.ts` (body) and `route.ts` (cap). Gives room for reasoning (~16K) + tool call content (~16K).
+6. **write_file compaction deletes content** — `delete a.content` instead of `[FILE STORED — ...]` placeholder.
+7. **Placeholder guard** — read_file/write_file detect and reject placeholder content. Startup scan cleans corrupted entries.
+8. **Core.md rewrite guard** — write_file rejects path ending with `core.md` if it already exists in workspace.
+9. **Write-once + No-Planning rules** — `RULES THAT OVERRIDE EVERYTHING BELOW` section in skill.md.
+10. **Finish-reason detection** — `parseStreamingResponse` tracks `choice.finish_reason`; on `"length"`, drops truncated tool calls instead of pushing invalid JSON to handler.
+11. **Continuation prompt on truncation** — when all tool calls dropped by `finish_reason: "length"`, injects user continuation prompt instead of killing agent.
+12. **Provider timeout removed** — reverted 20s AbortController. Edge function's 60s wall limit is the safety net.
+13. **504 retry** — 3 attempts with 2s/4s backoff.
+14. **Auth kept** — Supabase auth untouched.
 
 ### Test Results (Sexual Reproduction in Flowering Plants chapter)
-- **No 504s** — SSE streaming works perfectly throughout 29 turns.
-- **Core.md written once** — Biology/core.md created on turn 1, never rewritten. Chapter core.md created once on turn 3.
-- **8 notes created** — all ~400+ lines, indexed into RAG with section transitions detected.
-- **embedSection("notes") fired** — 104 chunks embedded in one batch at section transition.
-- **Failure at transition** — after completing all notes, the model spent ~16K tokens on `reasoning_content` (model-internal chain-of-thought), hit `max_tokens=16384` mid-tool-call, then hit 3 consecutive parse failures on empty/incomplete tool calls → "Too many malformed tool calls".
-- **Token pattern** — when writing notes: completion=1-8K; after all notes done: completion=16,383-16,385 (hitting limit every turn). Root cause: model burns all output tokens on reasoning about "what to do next".
+- **No 504s** — SSE streaming works throughout 85+ turns.
+- **No core.md rewrite** — Biology/core.md and chapter core.md written once each.
+- **8 notes + 100_questions.md + 100_mcqs.md + 100_flashcards.md + 100_quizzes.md + revision files created** — all indexed into RAG.
+- **413 error at turn 85** — payload hit 542KB > 500KB Vercel Edge limit. Cause: compaction threshold was 800K tokens but prompt tokens only reached 97K → compaction never fired → messages accumulated for 85+ turns.
+- **embedSection fired correctly** — at section transitions (notes → questions → other → revision), 69 + 63 + 72 + 54 chunks embedded.
 
-### Fix for truncation
-- `max_tokens` raised 16384→32768 in both worker and route
-- `finish_reason: "length"` now detected; truncated tool calls dropped instead of failing parse
-- Continuation prompt injected when all tool calls truncated, resetting the agent instead of killing it
-- Skill rule added: "Zero tokens spent on thinking. Only the tool call."
-
-### In Progress
-- **Testing** — need to deploy and verify the agent writes core.md once, progresses to notes, and does not loop.
+### Fix for 413
+- Compaction switched from token-based (800K threshold) to byte-based (220KB threshold).
+- RAG injection disabled (was adding excerpts to system message every turn).
+- Compaction now fires at ~220KB, stays well under 500KB limit.
 
 ### Next Steps
-1. **Deploy and test** at `/note-agent` — verify core.md is written once, agent progresses to notes, no rewrite loop.
-2. **Verify SSE streaming** — no 504s, agent completes full generation.
-3. **Monitor compaction** — should fire rarely (800K token threshold is high).
-4. **If loops persist** — add a worker-side `_writtenFiles Set<string>` in write_file handler that rejects rewrites to any path that has already been written once.
+1. **Deploy and test** — verify no 413 errors, compaction fires appropriately, agent completes full generation.
+2. **Monitor compaction** — should fire every ~40-50 turns, keeping payload around ~220KB.
+3. **If RAG needed later** — re-enable `injectRagContext` call but either cap the number of excerpts or reduce their size.
 
 ## Key Decisions
 - **Structured compaction over message truncation** — Instead of dropping the tail of messages (which orphans tool calls and loses context), replace all accumulated tool chains with a single structured state summary. The workspace is the ground truth; the LLM can read any file. No extra LLM call needed. Multiple compaction cycles are safe.
@@ -71,7 +65,7 @@ Fix 504 timeouts and the core.md rewrite loop in the note agent. Implement SSE s
 - **Core.md rewrite guard**: if path ends with `core.md` and already exists in workspace, returns error with `"core.md already exists. Read it, then move to creating notes."`
 - **`read_file` handler**: if workspace content starts with `[FILE STORED —`, falls back to RAG `getDocument()`. Prevents placeholder leakage.
 - **`embedSection(section)`**: batch-embeds all null-embedding chunks for a section. Idempotent.
-- **RAG context injection**: appends 3 excerpts (~300 chars each) to system message every turn. Replaces previous via regex.
+- **RAG context injection**: commented out (disabled). 3 excerpts were appended to system message every turn, bloating payload past 500KB. Code kept for future re-enable.
 - Read cache: compact results cached per-path. Cleared on write_file. Falls back to RAG for workspace misses.
 - `_writeVersion` increments on every document write, busting retrieval cache globally.
 - Embedding quota: 100 req/min, 1000 req/day. Each req embeds up to 10 chunks.
