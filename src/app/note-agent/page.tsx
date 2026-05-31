@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { addPoints, updateStudyState } from "@/lib/study-state";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { useVaultStore } from "@/stores/vault-store";
@@ -324,6 +325,14 @@ export default function NoteAgentPage() {
     });
 
     useVaultStore.getState().addAgentNotes(notes);
+
+    const fileCount = files.length;
+    addPoints(50, "Notes Generated", `Generated ${fileCount} files for ${chapterName}`);
+    updateStudyState((state) => {
+      const today = new Date().toISOString().split("T")[0];
+      state.studyMinutes[today] = (state.studyMinutes[today] || 0) + Math.max(5, Math.round(fileCount * 2));
+    });
+
     setVaultSaved(true);
     setTimeout(() => setVaultSaved(false), 3000);
   };
