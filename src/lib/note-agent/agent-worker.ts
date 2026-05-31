@@ -65,7 +65,36 @@ let workspace = new Map<string, string>();
 let abortFlag = false;
 let ragChapterPath = "";
 
-// ── Loop guards ──
+// ── Broadcast targets — supports both DedicatedWorker and SharedWorker ──
+
+const _broadcastTargets: Set<(msg: unknown) => void> = new Set();
+let _latestState: unknown = null;
+function _send(msg: unknown) {
+  _latestState = msg;
+  for (const target of _broadcastTargets) {
+    try { target(msg); } catch { /* port may have disconnected */ }
+  }
+}
+
+// DedicatedWorker mode (direct page → worker)
+_broadcastTargets.add((msg) => { self.postMessage(msg); });
+
+// SharedWorker mode — survives page navigations within the origin
+if (typeof (self as any).onconnect !== "undefined") {
+  (self as any).onconnect = (e: MessageEvent) => {
+    const port = e.ports[0];
+    _broadcastTargets.add((msg) => { try { port.postMessage(msg); } catch { /* port disconnected */ } });
+    // Send current state to reconnecting pages
+    if (_latestState) {
+      try { port.postMessage(_latestState); } catch {}
+    }
+    port.onmessage = async (event: MessageEvent<WorkerInMessage>) => {
+      const handler = (self as any).onmessage as ((e: MessageEvent<WorkerInMessage>) => Promise<void>) | null;
+      if (handler) await handler(event);
+    };
+    port.start();
+  };
+}
 let _parseFailCount = 0;
 let _consecutiveSameFile = 0;
 let _lastFilePath = "";
@@ -1056,7 +1085,7 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       if (_lastWrittenSection) {
         await embedSection(_lastWrittenSection);
       }
-      self.postMessage({ type: "done", messages, steps: [], turn: currentTurn, workspace: getChapterFiles() } );
+      _send({ type: "done", messages, steps: [], turn: currentTurn, workspace: getChapterFiles() } );
       return;
     }
 
@@ -1165,7 +1194,7 @@ Continue with the next task. Check workspace for current files.${notes.length < 
         }
         const tel = getIndexTelemetry();
         console.log(`[Agent] done — ${tel.docsIndexed} docs, ${tel.chunksIndexed} chunks, ${tel.embeddingCalls} embed calls, ${tel.searchCalls} searches (${tel.cacheHits} cache hits, ${tel.cacheMisses} misses)`);
-        self.postMessage({ type: "done", messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() } );
+        _send({ type: "done", messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() } );
         return;
       }
 
@@ -1195,7 +1224,7 @@ Continue with the next task. Check workspace for current files.${notes.length < 
         await processIndexBatch();
       }
 
-      self.postMessage({ type: "progress", messages, steps: result.steps, turn: currentTurn } satisfies WorkerProgressUpdate);
+      _send({ type: "progress", messages, steps: result.steps, turn: currentTurn } satisfies WorkerProgressUpdate);
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
         // Track consecutive idle turns (no tool calls, no content)
@@ -1215,7 +1244,7 @@ Continue with the next task. Check workspace for current files.${notes.length < 
       if (_lastWrittenSection) {
         embedSection(_lastWrittenSection).catch(() => {});
       }
-      self.postMessage({ type: "error", error: err.message } satisfies WorkerErrorUpdate);
+      _send({ type: "error", error: err.message } satisfies WorkerErrorUpdate);
       return;
     }
   }
@@ -1234,5 +1263,5 @@ Continue with the next task. Check workspace for current files.${notes.length < 
       fileList.push([path, content]);
     }
   }
-  self.postMessage({ type: "done", messages, steps: [], turn: currentTurn, workspace: fileList } );
+  _send({ type: "done", messages, steps: [], turn: currentTurn, workspace: fileList } );
 };

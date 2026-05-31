@@ -7,7 +7,9 @@ const DB_KEY = "note-agent-session";
 type StateSubscriber = (state: AgentUIState) => void;
 
 // Module-level singletons — survive component remounts
-let worker: Worker | null = null;
+let sharedWorker: SharedWorker | null = null;
+let workerPort: MessagePort | null = null;
+let workerReady = false;
 let subscribers = new Set<StateSubscriber>();
 let currentState: AgentUIState = createInitialState();
 let lastSave = 0;
@@ -107,12 +109,18 @@ function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
   }
 }
 
-function ensureWorker(): Worker {
-  if (!worker) {
-    worker = new Worker(new URL("./agent-worker.ts", import.meta.url));
-    worker.onmessage = handleWorkerMessage;
+function ensureWorker(): MessagePort {
+  if (!sharedWorker) {
+    sharedWorker = new SharedWorker(new URL("./agent-worker.ts", import.meta.url));
+    workerPort = sharedWorker.port;
+    workerPort.onmessage = handleWorkerMessage;
+    workerPort.start();
+    workerReady = true;
+  } else if (workerPort) {
+    // Re-attach handler in case the component re-mounted
+    workerPort.onmessage = handleWorkerMessage;
   }
-  return worker;
+  return workerPort!;
 }
 
 export function subscribe(cb: StateSubscriber): () => void {
@@ -128,10 +136,10 @@ export function getState(): AgentUIState {
 }
 
 export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path: string; content: string }[], chapterName: string, chapterPath: string, initialMessages: Record<string, unknown>[], examVars?: Record<string, string>) {
-  const w = ensureWorker();
+  const p = ensureWorker();
 
   // Make sure it's connected (re-attach handler if worker was recreated)
-  w.onmessage = handleWorkerMessage;
+  p.onmessage = handleWorkerMessage;
 
   currentState = createInitialState();
   currentState = {
@@ -146,7 +154,7 @@ export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path:
   notify();
   saveToDB(DB_KEY, currentState).catch(() => {});
 
-  w.postMessage({
+  p.postMessage({
     type: "start",
     config,
     tools,
@@ -159,16 +167,15 @@ export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path:
 }
 
 export function abort() {
-  if (worker) {
-    worker.postMessage({ type: "abort" });
+  if (workerPort) {
+    workerPort.postMessage({ type: "abort" });
   }
 }
 
 export function discard() {
-  if (worker) {
-    worker.terminate();
-    worker = null;
-  }
+  // SharedWorker can't be terminated from a single page — just clean state
+  sharedWorker = null;
+  workerPort = null;
   currentState = createInitialState();
   deleteFromDB(DB_KEY).catch(() => {});
   notify();
