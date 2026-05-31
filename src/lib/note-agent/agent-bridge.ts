@@ -110,12 +110,32 @@ function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
 }
 
 function ensureWorker(): MessagePort {
-  if (!sharedWorker) {
-    sharedWorker = new SharedWorker(new URL("./agent-worker.ts", import.meta.url));
-    workerPort = sharedWorker.port;
-    workerPort.onmessage = handleWorkerMessage;
-    workerPort.start();
-    workerReady = true;
+  if (!sharedWorker && !workerPort) {
+    const url = new URL("./agent-worker.ts", import.meta.url);
+    // SharedWorker survives page navigations but is NOT supported in Android WebView.
+    // DedicatedWorker (Worker) works everywhere but dies on navigation/background.
+    // Try SharedWorker first, fall back to DedicatedWorker.
+    try {
+      sharedWorker = new SharedWorker(url);
+      workerPort = sharedWorker.port;
+    } catch {
+      // SharedWorker not available (Android WebView, older browsers)
+      const dedicated = new Worker(url);
+      // Wrap the DedicatedWorker's onmessage into a port-like interface
+      workerPort = {
+        postMessage: (msg: unknown) => dedicated.postMessage(msg),
+        start: () => { /* DedicatedWorker starts immediately */ },
+        onmessage: null as unknown as ((ev: MessageEvent) => void),
+      } as unknown as MessagePort;
+      dedicated.onmessage = (e: MessageEvent) => {
+        if (workerPort?.onmessage) workerPort.onmessage(e);
+      };
+    }
+    if (workerPort) {
+      workerPort.onmessage = handleWorkerMessage;
+      workerPort.start();
+      workerReady = true;
+    }
   } else if (workerPort) {
     // Re-attach handler in case the component re-mounted
     workerPort.onmessage = handleWorkerMessage;
