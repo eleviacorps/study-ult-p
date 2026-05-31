@@ -706,12 +706,15 @@ async function runAgentTurn(
           _writeFailCount++;
           if (_writeFailCount >= MAX_WRITE_FAILS && !_writeFailInjected) {
             _writeFailInjected = true;
+            const errBody = JSON.stringify({ error: "write_file retry limit reached — see next user message" });
+            // MUST add tool response before user reminder to satisfy DeepSeek's tool_call chain
+            newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
             const reminder: Record<string, unknown> = {
               role: "user",
               content: "[REMINDER: write_file requires both \"path\" (string) and \"content\" (string) parameters. The content must be the full file content. If you already wrote the content file before, use read_file to check it instead of trying to rewrite it.]",
             };
             newMsgs.push(reminder);
-            step.toolCalls.push({ name: tc.function.name, args: {}, result: JSON.stringify({ error: "write_file retry limit reached — reminder injected" }) });
+            step.toolCalls.push({ name: tc.function.name, args: {}, result: errBody });
             continue;
           }
         }
