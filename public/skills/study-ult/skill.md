@@ -59,7 +59,7 @@ After writing a file, immediately determine the next missing file. If you have w
 If you see "[Output exceeded token limit", that means your previous response was cut off. Do NOT recap or re-explain. Just output the single next tool call immediately with no preamble.
 
 ### Question Difficulty (CRITICAL — matches target exam only)
-All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. Before generating any exam content, call **search_web** ONCE to fetch real previous-year question patterns and difficulty levels. If search_web returns no results, proceed using your knowledge — do NOT retry. These are the standard difficulty profiles per exam type:
+All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. These are the standard difficulty profiles per exam type:
 
 **{EXAM_LEVEL1}** — the primary/preliminary level (e.g. NEET UG, JEE Main, SAT, CBSE Boards, GCSE, CUET):
 - **NEET UG**: 60% application-based + 40% factual recall. Multi-step reasoning, data interpretation, assertion-reason, diagram-based. No single-step factual recalls. Medium = 2-3 step reasoning; Hard = multi-concept synthesis with traps.
@@ -80,6 +80,26 @@ All questions, MCQs, and quizzes MUST match the actual difficulty of the target 
 **CUET-specific**: Include domain-specific MCQs with passage comprehension, logical reasoning interleaved with subject knowledge, and numerical ability integration.
 
 General rule: Each question's **Difficulty** metadata field MUST reflect the actual difficulty relative to the target exam, not absolute difficulty. A Medium {EXAM_LEVEL1} question must require 2-3 step reasoning within the syllabus; a Hard one requires multi-concept synthesis or contains at least one trap/distractor that tests conceptual depth.
+
+### Question Type Definitions (Use ALL types — NOT just formula plug-and-chug)
+
+Every question set MUST include these question types mixed throughout all difficulty levels:
+
+| Type | Description | Difficulty Range | Count (of 100) |
+|------|-------------|-----------------|-----------------|
+| **Numerical/Solved** | Given/Find/Approach/Solution format with step-by-step working | Easy to Hard | ~40 |
+| **Assertion-Reason** | Two statements: Assertion (A) and Reason (R). Options: both true+R explains A, both true+R does NOT explain A, A true+R false, A false+R true, both false | Moderate to Hard | ~15 |
+| **Statement-Based** | Multiple statements labeled (i-iv). Identify correct/incorrect ones. Or "Which of the following is/are correct?" | Moderate to Hard | ~15 |
+| **True/False** | Multiple independent statements to evaluate as T/F. Or "Which of the following statements is true?" | Easy to Moderate | ~10 |
+| **Matching/Matrix** | Two columns to match. Or matrix-match with multiple rows × multiple columns | Moderate to Hard | ~10 |
+| **Multi-Paragraph Comprehension** | A passage/paragraph followed by 2-3 questions based on it. Can include diagrams, data tables, experimental setups | Hard | ~10 |
+
+**Difficulty-Question Type Mapping:**
+- **Easy** (Q1-Q20): Numerical (direct) + True/False + basic statements
+- **Moderate** (Q21-Q60): Numerical (multi-step) + Assertion-Reason + Statement-Based + Matching + comprehension with short passages
+- **Hard** (Q61-Q100): Numerical (multi-concept synthesis) + Multi-paragraph comprehension + Matrix-match + complex Assertion-Reason with traps
+
+**CRITICAL — Do NOT generate only formula plug-and-chug questions.** At least 40% of questions MUST be non-numerical types (assertion-reason, statement-based, matching, comprehension). Every single question must feel like it could appear on the actual {EXAM_NAME} exam — multi-step reasoning, conceptual depth, hidden traps. If a student could answer in 10 seconds, it is too easy — delete it and write a harder version.
 
 ---
 
@@ -944,9 +964,210 @@ $$= [final answer] [unit]$$
 ---
 
 ### Difficulty Distribution:
-- **Easy (Q1-Q20):** 20 questions - Direct formula application
-- **Moderate (Q21-Q60):** 40 questions - Single concept, 2-3 steps
-- **Difficult (Q61-Q100):** 40 questions - Multi-concept, {EXAM_LEVEL2} level
+- **Easy (Q1-Q20):** 20 questions - Direct formula application (can be numerical, T/F, or simple statements)
+- **Moderate (Q21-Q60):** 40 questions - 2-3 step reasoning, assertion-reason, statement-based, matching
+- **Difficult (Q61-Q100):** 40 questions - Multi-concept synthesis, multi-paragraph comprehension, matrix-match, {EXAM_LEVEL2} level
+
+### NEW Question Type Templates:
+
+#### Assertion-Reason Format:
+```markdown
+## Q[X]. [Topic Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Moderate / Hard
+**Marks:** [X]
+**Type:** Assertion-Reason
+
+### Assertion (A):
+[Statement — may be true or false]
+
+### Reason (R):
+[Statement — may be true or false, may or may not explain A]
+
+### Options:
+A) Both A and R are true and R is the correct explanation of A
+B) Both A and R are true but R is NOT the correct explanation of A
+C) A is true but R is false
+D) A is false but R is true
+E) Both A and R are false
+
+### Explanation:
+[Step-by-step reasoning evaluating both statements]
+- **A is [true/false] because:** [reasoning]
+- **R is [true/false] because:** [reasoning]
+- **R [does/does not] explain A because:** [why R is or isn't the correct explanation]
+
+### {EXAM_NAME} Insight:
+> [!SHORTCUT]
+> **Quick check:** [How to evaluate assertion-reason questions for this topic]
+```
+
+#### Statement-Based Format:
+```markdown
+## Q[X]. [Topic Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Easy / Moderate / Hard
+**Marks:** [X]
+**Type:** Statement-Based
+
+### Statements:
+(i) [Statement 1 — may be correct or incorrect]
+(ii) [Statement 2]
+(iii) [Statement 3]
+(iv) [Statement 4]
+
+### Question:
+Which of the above statements is/are correct?
+
+### Options:
+A) (i) and (ii) only
+B) (ii) and (iii) only
+C) (i), (ii), and (iv) only
+D) All of the above
+
+### Explanation:
+- **(i) [Correct/Incorrect]:** [Reasoning for each statement]
+- **(ii) [Correct/Incorrect]:** [Reasoning]
+- **(iii) [Correct/Incorrect]:** [Reasoning]
+- **(iv) [Correct/Incorrect]:** [Reasoning]
+
+### Correct Combination:
+✅ [Correct option with explanation]
+
+### Common Trap:
+⚠️ [Why students pick the wrong combination — e.g. missing a subtle exception]
+```
+
+#### True/False Format:
+```markdown
+## Q[X]. [Topic Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Easy / Moderate
+**Marks:** [X]
+**Type:** True/False
+
+### Statement:
+[Single statement to evaluate]
+
+### Options:
+A) True
+B) False
+
+### Explanation:
+[Detailed reasoning showing why the statement is true or false, referencing the specific concept]
+
+### Correct Answer:
+✅ [True/False]
+```
+
+#### Matching Format:
+```markdown
+## Q[X]. [Topic Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Moderate / Hard
+**Marks:** [X]
+**Type:** Matching
+
+### Column I (List):
+| (P) | [Item P] |
+| (Q) | [Item Q] |
+| (R) | [Item R] |
+| (S) | [Item S] |
+
+### Column II (List):
+| (1) | [Item 1] |
+| (2) | [Item 2] |
+| (3) | [Item 3] |
+| (4) | [Item 4] |
+
+### Options:
+A) P→1, Q→2, R→3, S→4
+B) P→2, Q→3, R→4, S→1
+C) P→3, Q→4, R→1, S→2
+D) P→4, Q→1, R→2, S→3
+
+### Explanation:
+- **P matches [X] because:** [Reasoning for each pairing]
+- **Q matches [Y] because:** [Reasoning]
+- **R matches [Z] because:** [Reasoning]
+- **S matches [W] because:** [Reasoning]
+
+### Correct Matching:
+✅ P→[#], Q→[#], R→[#], S→[#]
+
+### Common Trap:
+⚠️ [Which pairs students commonly mismatch and why]
+```
+
+#### Multi-Paragraph Comprehension Format:
+```markdown
+## Passage [X]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Hard
+**Marks:** [X] × [number of questions]
+**Type:** Comprehension
+
+### Passage:
+[2-3 paragraph passage describing a scenario, experimental setup, or concept application. Include data tables, graphs, or diagrams if applicable.]
+
+Paragraph 1: [Context and setup]
+Paragraph 2: [Data, observations, or derived relationships]
+Paragraph 3 (optional): [Additional constraints or extended scenario]
+
+### Question 1: [Based on paragraph 1 — direct interpretation]
+**Difficulty:** Moderate
+
+### Options:
+A) [Option]
+B) [Option]
+C) [Option]
+D) [Option]
+
+### Explanation:
+[Based on specific information from the passage]
+
+### Answer:
+✅ [Correct option]
+
+---
+
+### Question 2: [Based on paragraph 2 — data analysis/computation]
+**Difficulty:** Hard
+
+### Options:
+A) [Option]
+B) [Option]
+C) [Option]
+D) [Option]
+
+### Explanation:
+[Involves calculation or inference from the passage data]
+
+### Answer:
+✅ [Correct option]
+
+---
+
+### Question 3 (optional): [Multi-concept synthesis across entire passage]
+**Difficulty:** Hard
+
+### Options:
+A) [Option]
+B) [Option]
+C) [Option]
+D) [Option]
+
+### Explanation:
+[Requires integrating information from multiple parts of the passage]
+
+### Answer:
+✅ [Correct option]
+```
 
 ### Question Generation Guidelines:
 
@@ -1098,6 +1319,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 
 ### Pre-Delivery Question Checklist:
 - [ ] Exactly 100 questions generated
+- [ ] At least 40% are non-numerical types (assertion-reason, statement-based, matching, T/F, comprehension)
 - [ ] Every question has complete solution
 - [ ] Every question has final answer
 - [ ] Difficulty distribution matches (20 easy, 40 moderate, 40 difficult)
@@ -1105,6 +1327,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 - [ ] Common mistakes mentioned where appropriate
 - [ ] No placeholder text or reference text
 - [ ] Each question is unique (no repetition)
+- [ ] Multi-step reasoning for moderate questions; multi-concept synthesis for hard questions
 
 ---
 
@@ -1156,12 +1379,144 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 ```
 
 ### MCQ Distribution:
-- **Easy (Q1-Q20):** 20 MCQs - Direct application
-- **Moderate (Q21-Q60):** 40 MCQs - Concept understanding
-- **Difficult (Q61-Q100):** 40 MCQs - {EXAM_LEVEL2} level
+- **Easy (Q1-Q20):** 20 MCQs - Direct application (can be standard, T/F, or simple statement MCQs)
+- **Moderate (Q21-Q60):** 40 MCQs - Concept understanding, assertion-reason, short passage-based, statement combination
+- **Difficult (Q61-Q100):** 40 MCQs - {EXAM_LEVEL2} level, multi-paragraph comprehension, matrix-match, multi-concept synthesis
+
+### MCQ Type Templates — Use ALL types in every MCQ set:
+
+#### Assertion-Reason MCQ Format:
+```markdown
+## Q[X]. [Topic Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Moderate / Hard
+**Exam:** {EXAM_LEVEL1} / {EXAM_LEVEL2}
+**Type:** Assertion-Reason
+
+### Assertion (A):
+[Statement]
+
+### Reason (R):
+[Statement]
+
+### Options:
+A) Both A and R are true and R is the correct explanation of A
+B) Both A and R are true but R is NOT the correct explanation of A
+C) A is true but R is false
+D) A is false but R is true
+
+### Answer: [Option letter] - [Brief justification]
+
+### Detailed Explanation:
+[Evaluate A and R independently, then check if R explains A]
+
+### Why Other Options Are Wrong:
+> [!WHY-WRONG]
+> - **A/B:** [Why not this option — e.g. "R does explain A but..." or "R does not explain A because..."]
+> - **C/D:** [Why not this option — e.g. "A is actually true because..."]
+```
+
+#### Statement-Combination MCQ Format:
+```markdown
+## Q[X]. [Topic Name]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Difficulty:** Moderate / Hard
+**Exam:** {EXAM_LEVEL1} / {EXAM_LEVEL2}
+**Type:** Statement-Combination
+
+### Statements:
+(i) [Statement 1]
+(ii) [Statement 2]
+(iii) [Statement 3]
+(iv) [Statement 4]
+
+### Question:
+Choose the correct option:
+
+### Options:
+A) (i) and (ii) only
+B) (ii) and (iii) only
+C) (i), (ii), and (iv) only
+D) All of the above
+
+### Answer: [Option letter]
+
+### Detailed Explanation:
+- **(i):** [True/False because...]
+- **(ii):** [True/False because...]
+- **(iii):** [True/False because...]
+- **(iv):** [True/False because...]
+
+### Why Other Options Are Wrong:
+> [!WHY-WRONG]
+> - **A:** [Why this combination is incomplete or has incorrect statements]
+> - **B:** [Why wrong]
+> - **D:** [Why wrong — e.g. "statement (iii) is actually false because..."]
+```
+
+#### Passage-Based MCQ Format (Multi-Paragraph Comprehension):
+```markdown
+## Passage [X]: [Title]
+**Topic:** [[Topic Name]]
+**Subtopic:** [Subtopic]
+**Exam:** {EXAM_LEVEL1} / {EXAM_LEVEL2}
+**Type:** Passage-Based
+
+### Passage:
+[2-3 paragraph passage with data, experimental description, or conceptual scenario]
+
+Paragraph 1: [Setup and context]
+Paragraph 2: [Data, observations, method]
+Paragraph 3 (optional): [Extended analysis, follow-up experiment]
+
+---
+
+### Q[X]a. [Question on passage — direct interpretation]
+**Difficulty:** Moderate
+
+| A | [Option] | [Why wrong] |
+| B | [Option] | CORRECT - [Why correct] |
+| C | [Option] | [Why wrong] |
+| D | [Option] | [Why wrong] |
+
+### Answer: B - [brief reason]
+
+### Detailed Explanation:
+[Reference specific sentences/data from the passage]
+
+### Why Other Options Are Wrong:
+> [!WHY-WRONG]
+> - **A:** [Why wrong — may be a distractor based on common misinterpretation]
+> - **C:** [Why wrong]
+> - **D:** [Why wrong]
+
+---
+
+### Q[X]b. [Question on passage — inference/calculation]
+**Difficulty:** Hard
+
+| A | [Option] | [Why wrong] |
+| B | [Option] | [Why wrong] |
+| C | [Option] | CORRECT - [Why correct] |
+| D | [Option] | [Why wrong] |
+
+### Answer: C - [brief reason]
+
+### Detailed Explanation:
+[Calculation or inference based on passage data]
+
+### Why Other Options Are Wrong:
+> [!WHY-WRONG]
+> - **A:** [Why wrong — common calculation mistake]
+> - **B:** [Why wrong]
+> - **D:** [Why wrong]
+```
 
 ### MCQ Pre-Delivery Checklist:
 - [ ] Exactly 100 MCQs generated
+- [ ] Includes variety: standard, assertion-reason, statement-combination, passage-based, matrix-match types
 - [ ] Every MCQ has correct answer identified
 - [ ] Every MCQ has detailed explanation
 - [ ] Every MCQ explains why ALL wrong options are wrong
@@ -1169,6 +1524,7 @@ $$E = 18 \times 10^3 \times \frac{4}{3} = 24 \times 10^3 \text{ N/C}$$
 - [ ] {EXAM_NAME} shortcut/insight included
 - [ ] Common traps identified
 - [ ] No placeholder text
+- [ ] Moderate+ MCQs require 2+ step reasoning, not single-step recall
 
 ---
 
@@ -1284,11 +1640,18 @@ $$[Formula with LaTeX]$$
 - Difficulty: Mix of Easy/Moderate/Hard
 ```
 
+### Quiz Difficulty Distribution:
+- **Easy (Q1-Q20):** 20 quizzes - Quick concept checks, direct formula recall
+- **Moderate (Q21-Q60):** 40 quizzes - 2-step reasoning, scenario-based, assertion-reason
+- **Hard (Q61-Q100):** 40 quizzes - Multi-step, passage-based, multi-concept application
+
 ### Quiz Pre-Delivery Checklist:
 - [ ] All 100 quiz items have answers
 - [ ] Each answer includes brief explanation
 - [ ] Topics distributed across chapter
 - [ ] Every quiz item has A-D options
+- [ ] At least 40% require multi-step reasoning (not single-step recall)
+- [ ] Include assertion-reason and scenario-based quiz items in moderate/hard levels
 
 ---
 
