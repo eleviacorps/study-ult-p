@@ -342,6 +342,10 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { summary: { type: "string" }, filesCreated: { type: "array" }, filesModified: { type: "array" }, issuesFixed: { type: "array" } },
     required: ["summary", "filesCreated", "filesModified", "issuesFixed"],
   },
+  search_web: {
+    properties: { query: { type: "string" } },
+    required: ["query"],
+  },
 };
 
 // Maximum tool result size (matches opencode's 50KB limit)
@@ -401,6 +405,60 @@ function formatToolError(name: string, detail: string): string {
 function truncateToolResult(result: string): string {
   if (result.length <= MAX_TOOL_RESULT_BYTES) return result;
   return result.substring(0, MAX_TOOL_RESULT_BYTES) + `\n... [truncated at ${MAX_TOOL_RESULT_BYTES} bytes; full content in workspace]`;
+}
+
+// DeepSeek sometimes puts file content in reasoning text instead of tool call args.
+// When write_file is missing content/path, try to extract from the assistant message.
+function autoFillWriteFileArgs(
+  args: Record<string, unknown>,
+  msgContent: string,
+  reasoningContent: string | undefined,
+): boolean {
+  const text = reasoningContent || msgContent || "";
+  if (!text) return false;
+  let filled = false;
+
+  // Case 1: Has path but no content — extract markdown from assistant message
+  if (args.path && !args.content) {
+    const md = extractMarkdown(text);
+    if (md) {
+      args.content = md;
+      filled = true;
+    }
+  }
+
+  // Case 2: Has content but no path — extract path from assistant message
+  if (args.content && !args.path) {
+    const p = extractFilePath(text);
+    if (p) {
+      args.path = p;
+      filled = true;
+    }
+  }
+
+  return filled;
+}
+
+// Extract the first markdown heading chain from text (used as write_file content)
+function extractMarkdown(text: string): string | null {
+  const lines = text.split("\n");
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || trimmed.startsWith("### ")) {
+      start = i;
+      break;
+    }
+  }
+  if (start === -1) return null;
+  return lines.slice(start).join("\n").trim();
+}
+
+// Extract a file path from assistant message text
+function extractFilePath(text: string): string | null {
+  // Match paths like "Sexual_Reproduction_in_flowering_Plants/notes/..."
+  const m = text.match(/([A-Za-z_][\w/]+\.md)/);
+  return m ? m[1] : null;
 }
 
 // ── Compaction helpers (inspired by opencode's anchored summarization) ──
@@ -601,6 +659,16 @@ async function runAgentTurn(
         continue;
       }
       _parseFailCount = 0;
+
+      // Auto-fill write_file args from assistant message when DeepSeek drops params
+      if (tc.function.name === "write_file") {
+        const hadPath = !!args.path;
+        const hadContent = !!args.content;
+        if (!hadPath || !hadContent) {
+          const filled = autoFillWriteFileArgs(args, msgContent, reasoningContent);
+          if (filled) tc.function.arguments = JSON.stringify(args);
+        }
+      }
 
       // Schema validation (like opencode's Schema.decodeUnknownEffect)
       const validationError = validateToolArgs(tc.function.name, args);
@@ -875,6 +943,48 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
 
     case "final_report":
       return JSON.stringify({ type: "final_report", ...args });
+
+    case "search_web": {
+      const query = (args.query as string) || "";
+      if (!query) return JSON.stringify({ error: "Missing query" });
+      try {
+        // Use DuckDuckGo Lite API (free, no key) — lightweight HTML response
+        const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+        const html = await res.text();
+        // Extract result snippets and URLs from the simple HTML table
+        const snippets: string[] = [];
+        const linkRe = /<a[^>]*class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+        const snippetRe = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+        let m: RegExpExecArray | null;
+        const links: string[] = [];
+        while ((m = linkRe.exec(html)) !== null) {
+          links.push(`${m[2]?.trim() || ""}: ${m[1]}`);
+        }
+        let i = 0;
+        while ((m = snippetRe.exec(html)) !== null && i < 5) {
+          const snippet = m[1]?.replace(/<[^>]+>/g, "").trim();
+          if (snippet) {
+            snippets.push(`${links[i] || `Result ${i + 1}`}\n${snippet}`);
+            i++;
+          }
+        }
+        if (snippets.length === 0) {
+          // Fallback: try textise dot iitty
+          const fallbackUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+          const fallbackRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(10_000) });
+          const fallbackHtml = await fallbackRes.text();
+          const fallbackSnippets = [...fallbackHtml.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
+            .slice(0, 5)
+            .map((s) => s[1]?.replace(/<[^>]+>/g, "").trim())
+            .filter(Boolean);
+          return JSON.stringify({ query, results: fallbackSnippets, source: "duckduckgo-html" });
+        }
+        return JSON.stringify({ query, results: snippets, source: "duckduckgo-lite" });
+      } catch (err) {
+        return JSON.stringify({ error: `Web search failed: ${err instanceof Error ? err.message : String(err)}`, query });
+      }
+    }
 
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });

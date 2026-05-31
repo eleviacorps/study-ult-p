@@ -105,12 +105,12 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Create or update a file in the workspace",
+      description: "Create or update a file in the workspace. BOTH parameters are REQUIRED. If you only provide one, the call fails. Always include both path AND content. Example: write_file(path='Electrostatics/core.md', content='# Electrostatics\\n...')",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "File path (e.g. 'Electrostatics/notes/gauss_law.md')" },
-          content: { type: "string", description: "Full file content in markdown" },
+          path: { type: "string", description: "File path (e.g. 'Electrostatics/notes/gauss_law.md'). REQUIRED — must be provided." },
+          content: { type: "string", description: "Full file content in markdown. REQUIRED — must be provided. Never omit this parameter." },
         },
         required: ["path", "content"],
       },
@@ -160,6 +160,20 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "search_web",
+      description: "Search the web for question papers, exam patterns, or topic references. Use ONLY when generating questions, MCQs, or any exam material — search for real question patterns from NEET/JEE/Board previous year papers to match difficulty and style. Provide a clear, specific search query.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query (e.g. 'NEET UG Sexual Reproduction in Flowering Plants previous year questions'). Be specific and include the exam name." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "final_report",
       description: "Call this when ALL work is complete AND all assessment issues are fixed. Provide a summary of everything generated and fixed.",
       parameters: {
@@ -185,6 +199,7 @@ export function getAgentSystemPrompt(examName?: string): string {
 - The SKILL defines the vault structure, note templates, question/MCQ/flashcard types, callout patterns, and quality checks.
 - The content is being generated for "${examName || "exam"}" preparation. Adapt terminology accordingly.
 - Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
+- Use search_web when generating questions, MCQs, or exam material to reference real previous-year question patterns and difficulty levels from the target exam.
 
 === WORKFLOW OVERVIEW ===
 1. ANALYZE input → extract ALL topics

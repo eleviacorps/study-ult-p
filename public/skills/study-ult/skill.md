@@ -16,6 +16,13 @@ description: "Transform raw educational content into a premium Obsidian vault fo
 ### Write-Once Rule
 Every file is written exactly once. Before calling write_file, check if the path already exists in the workspace via list_workspace. If it exists, do NOT rewrite it. Call read_file to see the current content, then move to the next missing file.
 
+### write_file Usage (CRITICAL — DeepSeek drops content param)
+Each write_file call MUST include BOTH required parameters. Failure to include both will cause a validation error:
+```text
+write_file(path="ChapterPath/notes/topic.md", content="# Topic Name\n\n...full content here...")
+```
+The `path` and `content` parameters are both REQUIRED. Never call write_file without content. If content is missing, the model will see an error and waste a turn retrying. Always write the full file content in the `content` parameter — do not ask the user to provide it.
+
 ### Priority Order
 1. Chapter core.md (write once, then never touch again)
 2. Note files (one per topic, 400+ lines)
@@ -26,13 +33,21 @@ Every file is written exactly once. Before calling write_file, check if the path
 7. Revision files
 
 ### No Planning Mode
-Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file. Do NOT output any reasoning, thinking, or planning text — just immediately output the tool call. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes. **Zero tokens spent on thinking. Only the tool call.**
+Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file with its full content in the write_file content parameter. Do NOT output any reasoning, thinking, or planning text — just immediately output the tool call with both path and content filled. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes. **Zero tokens spent on thinking. Only the tool call with path + content.**
 
 ### Execution Check
 After writing a file, immediately determine the next missing file. If you have written all files for a section (e.g. all notes), move to the next section (e.g. questions). Never go backward.
 
 ### On Output Truncation
 If you see "[Output exceeded token limit", that means your previous response was cut off. Do NOT recap or re-explain. Just output the single next tool call immediately with no preamble.
+
+### Question Difficulty (CRITICAL — matches target exam only)
+All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. Before generating any exam content, call **search_web** to fetch real previous-year question patterns and difficulty levels. Question types and difficulty distribution:
+- **{EXAM_LEVEL1} (e.g. NEET UG)**: 60% application-based + 40% factual recall. Questions MUST involve multi-step reasoning, data interpretation, or conceptual integration. No single-step factual recalls. Include assertion-reason, matching, and diagram-based questions.
+- **{EXAM_LEVEL2} (e.g. JEE Advanced)**: 80% application/synthesis. Include numerical answer-type, multi-concept problems, and atypical scenarios.
+- **Boards**: 60% conceptual + 30% application + 10% recall. Include value-based and case-based questions.
+
+Each question's Difficulty metadata field MUST reflect the actual difficulty relative to the target exam, not absolute difficulty. A "Medium" NEET question requires 2-3 step reasoning; a "Hard" NEET question requires multi-concept synthesis or contains a trap.
 
 ---
 
