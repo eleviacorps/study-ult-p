@@ -105,12 +105,12 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Create or update a file in the workspace. BOTH parameters are REQUIRED. If you only provide one, the call fails. Always include both path AND content. Example: write_file(path='Electrostatics/core.md', content='# Electrostatics\\n...')",
+      description: "Create or update a file in the workspace. BOTH parameters 'path' AND 'content' are ALWAYS required. If you write only 'path' without 'content', the call fails and you waste a turn. NEVER omit 'content'. Example with both params: write_file(path='Electrostatics/core.md', content='# Electrostatics\\n...full markdown content...')",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "File path (e.g. 'Electrostatics/notes/gauss_law.md'). REQUIRED — must be provided." },
-          content: { type: "string", description: "Full file content in markdown. REQUIRED — must be provided. Never omit this parameter." },
+          path: { type: "string", description: "File path (e.g. 'Electrostatics/notes/gauss_law.md'). MANDATORY — you MUST include this." },
+          content: { type: "string", description: "Full file content in markdown. MANDATORY — you MUST include this. Never omit content. The content is the actual file text you want to write." },
         },
         required: ["path", "content"],
       },

@@ -493,7 +493,7 @@ function extractFilePath(text: string): string | null {
 // ── Compaction helpers (inspired by opencode's anchored summarization) ──
 
 // How many recent turns to keep verbatim during compaction
-const COMPACTION_TAIL_TURNS = 2;
+const COMPACTION_TAIL_TURNS = 1;
 
 function findTailStartIndex(msgs: Record<string, unknown>[], turns: number): number {
   let found = 0;
@@ -670,7 +670,6 @@ async function runAgentTurn(
   if (toolCalls.length > 0) assistantMsg.tool_calls = toolCalls;
 
   if (toolCalls.length > 0) {
-    _writeFailCount = 0;
     const newMsgs = [...messages, assistantMsg];
     for (const tc of toolCalls) {
       if (abortFlag) break;
@@ -1093,17 +1092,16 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     // RAG disabled — it bloats the system message with excerpts, inflating payload past 500KB limit.
     // await injectRagContext(messages, chapterPath, chapterName, currentTurn, allToolCalls);
 
-    // Byte budget check — compact when payload approaches the 500KB Vercel Edge limit.
-    const PAYLOAD_BYTE_LIMIT = 220_000;
-    const currentBytes = JSON.stringify(messages).length;
-    if (currentBytes > PAYLOAD_BYTE_LIMIT || lastPromptTokens > 400_000) {
-      console.warn(`[Agent] Payload ${(currentBytes / 1024).toFixed(0)}KB, compacting to stay under 500KB limit`);
+    // Token budget check — compact when prompt approaches context limit.
+    // 265K tokens ≈ 80% of a 330K context window, leaving room for completion.
+    if (lastPromptTokens > 265_000) {
+      console.warn(`[Agent] Prompt ${(lastPromptTokens / 1024).toFixed(0)}K tokens, compacting to stay within context limit`);
       lastPromptTokens = 0;
       const systemMsg = messages[0];
       const userMsg = messages[1];
       const originalUserContent = typeof userMsg?.content === "string" ? userMsg.content : "";
 
-      // 1. Build file summary from workspace state
+      // 1. Build file summary from workspace state with content metadata
       const allFiles: string[] = [];
       for (const [p] of workspace.entries()) {
         if (p.startsWith(chapterPath) && p.endsWith(".md")) allFiles.push(p);
@@ -1115,7 +1113,14 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       const quizzes = allFiles.filter((f) => f.includes("/quizzes/"));
       const revision = allFiles.filter((f) => f.includes("/revision/"));
       const lastActions = allToolCalls.slice(-5).map((tc) => `${tc.name}(${Object.keys(tc.args).join(",")})`).join("; ");
-      const fileSummary = `Files written: ${allFiles.length} total (${notes.length} notes, ${questions.length} questions, ${flashcards.length} flashcards, ${quizzes.length} quizzes, ${revision.length} revision)`;
+
+      // Build file metadata — sizes and line counts so the LLM doesn't re-read to check
+      const fileDetails = allFiles.map((p) => {
+        const c = workspace.get(p) || "";
+        const lines = c.split("\n").length;
+        return `${p} (${c.length} bytes, ${lines} lines)`;
+      }).join("\n");
+      const fileSummary = `Files written: ${allFiles.length} total (${notes.length} notes, ${questions.length} questions, ${flashcards.length} flashcards, ${quizzes.length} quizzes, ${revision.length} revision)\n\nFile details:\n${fileDetails || "(none)"}\n\nIMPORTANT: You already know the content of these files from reading them. Do NOT re-read them unless you need to verify specific details. The workspace has this content. Use list_workspace to check what exists — it returns sizes and line counts. Use read_file ONLY when you need the actual content for a specific purpose.`;
 
       // 2. Preserve tail turns verbatim (last COMPACTION_TAIL_TURNS assistant+tool pairs)
       const tailStart = findTailStartIndex(messages, COMPACTION_TAIL_TURNS);
@@ -1145,7 +1150,7 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
           content: `[STATE SUMMARY — turn ${currentTurn}]
 ${fileSummary}
 Last actions: ${lastActions || "none"}
-Continue with the next task. Check workspace for current files.${notes.length < 11 ? " Topics still need detailed notes." : ""}${questions.length < 100 ? " Questions file remains to be written." : ""}${flashcards.length < 100 ? " Flashcards file remains to be written." : ""}${quizzes.length < 100 ? " Quizzes file remains to be written." : ""}`,
+Continue with the next task. Do NOT re-read files you already have — use the file details above to decide what to do next.`,
         };
         messages.push(systemMsg, userMsg, stateSummary, ...tailMsgs);
       }
