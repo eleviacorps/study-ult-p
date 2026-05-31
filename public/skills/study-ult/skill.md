@@ -42,12 +42,27 @@ After writing a file, immediately determine the next missing file. If you have w
 If you see "[Output exceeded token limit", that means your previous response was cut off. Do NOT recap or re-explain. Just output the single next tool call immediately with no preamble.
 
 ### Question Difficulty (CRITICAL — matches target exam only)
-All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. Before generating any exam content, call **search_web** to fetch real previous-year question patterns and difficulty levels. Question types and difficulty distribution:
-- **{EXAM_LEVEL1} (e.g. NEET UG)**: 60% application-based + 40% factual recall. Questions MUST involve multi-step reasoning, data interpretation, or conceptual integration. No single-step factual recalls. Include assertion-reason, matching, and diagram-based questions.
-- **{EXAM_LEVEL2} (e.g. JEE Advanced)**: 80% application/synthesis. Include numerical answer-type, multi-concept problems, and atypical scenarios.
-- **Boards**: 60% conceptual + 30% application + 10% recall. Include value-based and case-based questions.
+All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. Before generating any exam content, call **search_web** to fetch real previous-year question patterns and difficulty levels. These are the standard difficulty profiles per exam type:
 
-Each question's Difficulty metadata field MUST reflect the actual difficulty relative to the target exam, not absolute difficulty. A "Medium" NEET question requires 2-3 step reasoning; a "Hard" NEET question requires multi-concept synthesis or contains a trap.
+**{EXAM_LEVEL1}** — the primary/preliminary level (e.g. NEET UG, JEE Main, SAT, CBSE Boards, GCSE, CUET):
+- **NEET UG**: 60% application-based + 40% factual recall. Multi-step reasoning, data interpretation, assertion-reason, diagram-based. No single-step factual recalls. Medium = 2-3 step reasoning; Hard = multi-concept synthesis with traps.
+- **JEE Main**: 70% application + 30% conceptual. Numerical answer-type, multi-concept MCQs with distractors based on common mistakes.
+- **SAT**: Reading comprehension with evidence support, math with real-world application, data analysis from graphs/tables.
+- **CUET**: 50% conceptual clarity + 30% application + 20% factual. Passage-based, logical reasoning integration, multi-step problem solving.
+- **CBSE/State Boards**: 60% conceptual + 30% application + 10% recall. Value-based, case-based, and competency-focused questions.
+- **GCSE**: 50% knowledge recall + 30% application + 20% analysis. Include practical-based and data interpretation questions.
+- **AP/IB**: 40% conceptual understanding + 40% application + 20% synthesis. Free-response, data-based questions, experimental design.
+- **A-Level**: 30% recall + 40% application + 30% analysis/evaluation. Essay-style, data response, practical application questions.
+
+**{EXAM_LEVEL2}** — the advanced level (e.g. JEE Advanced, IB Higher Level, A-Level):
+- **JEE Advanced**: 80% application/synthesis. Numerical answer-type, multi-concept problems, atypical scenarios, matching, comprehension passages.
+- **AP/IB HL/SAT Subject Tests**: 60% application + 40% synthesis. Extended response, multi-part problems, experimental investigation, data analysis.
+- **A-Level**: 40% application + 40% analysis + 20% evaluation. Synoptic questions linking multiple topics, essay-based evaluation, practical design.
+- For exams where both levels are the same (e.g. NEET UG only has one level), treat both {EXAM_LEVEL1} and {EXAM_LEVEL2} equally.
+
+**CUET-specific**: Include domain-specific MCQs with passage comprehension, logical reasoning interleaved with subject knowledge, and numerical ability integration.
+
+General rule: Each question's **Difficulty** metadata field MUST reflect the actual difficulty relative to the target exam, not absolute difficulty. A Medium {EXAM_LEVEL1} question must require 2-3 step reasoning within the syllabus; a Hard one requires multi-concept synthesis or contains at least one trap/distractor that tests conceptual depth.
 
 ---
 
