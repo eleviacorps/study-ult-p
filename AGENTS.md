@@ -31,6 +31,10 @@ Fix 504 timeouts, the core.md rewrite loop, and 413 request-too-large errors. Im
 12. **Provider timeout removed** — reverted 20s AbortController. Edge function's 60s wall limit is the safety net.
 13. **504 retry** — 3 attempts with 2s/4s backoff.
 14. **Auth kept** — Supabase auth untouched.
+15. **LLM-powered compaction** — inspired by opencode's anchored summarization. When compaction fires, calls the LLM with a structured prompt requesting a 7-section summary (Goal, Constraints, Progress, Key Decisions, Next Steps, Critical Context, Relevant Files). Falls back to file-count summary if LLM call fails.
+16. **Tail preservation** — keeps the last `COMPACTION_TAIL_TURNS = 2` assistant+tool message pairs intact during compaction. Prevents context discontinuity.
+17. **Tool output pruning** — replaces tool result content >500 chars with `"[Old tool result content cleared]"` on messages not in the preserved tail. Protected tools (skill) never pruned.
+18. **Doom loop threshold tightened** — `MAX_CONSECUTIVE_SAME_ACTION: 4 → 3` (matching opencode's pattern). Catches infinite loops one turn earlier.
 
 ### Test Results (Sexual Reproduction in Flowering Plants chapter)
 - **No 504s** — SSE streaming works throughout 85+ turns.
@@ -38,11 +42,6 @@ Fix 504 timeouts, the core.md rewrite loop, and 413 request-too-large errors. Im
 - **8 notes + 100_questions.md + 100_mcqs.md + 100_flashcards.md + 100_quizzes.md + revision files created** — all indexed into RAG.
 - **413 error at turn 85** — payload hit 542KB > 500KB Vercel Edge limit. Cause: compaction threshold was 800K tokens but prompt tokens only reached 97K → compaction never fired → messages accumulated for 85+ turns.
 - **embedSection fired correctly** — at section transitions (notes → questions → other → revision), 69 + 63 + 72 + 54 chunks embedded.
-
-### Fix for 413
-- Compaction switched from token-based (800K threshold) to byte-based (220KB threshold).
-- RAG injection disabled (was adding excerpts to system message every turn).
-- Compaction now fires at ~220KB, stays well under 500KB limit.
 
 ### Next Steps
 1. **Deploy and test** — verify no 413 errors, compaction fires appropriately, agent completes full generation.
@@ -59,7 +58,7 @@ Fix 504 timeouts, the core.md rewrite loop, and 413 request-too-large errors. Im
 - **Skill needs "write once" and "no planning" rules** — The current skill's "Analyze Input → Topic Extraction → Vault Structure → Metadata → ... before writing content" flow encourages planning loops. Adding `RULES THAT OVERRIDE EVERYTHING BELOW` at the top of the skill file should break the core.md rewrite loop at the instruction level.
 
 ## Critical Context
-- **Compaction mechanics** (`agent-worker.ts:557-578`): when `payloadEstimate > 180_000`, builds a `[STATE SUMMARY]` user message with file counts by section (notes/questions/flashcards/quizzes/revision), total file count, last 5 tool actions, and hints about what's still needed (e.g., `"Questions file remains to be written."`). Only system + original user message + state summary survive. Multiple compactions are safe — each rebuilds from current workspace state.
+- **Compaction mechanics** (`agent-worker.ts:820-879`): when `JSON.stringify(messages).length > 220_000`, calls the LLM with a structured compaction prompt (7 sections: Goal, Constraints, Progress, Key Decisions, Next Steps, Critical Context, Relevant Files). Falls back to file-count summary if LLM call fails. Preserves last 2 turns as tail. Prunes tool outputs >500 chars in non-tail messages. Rebuilds messages as: system + original user + summary + tail.
 - **Default vault** (`vault-data.json`): 31 notes across 4 Physics chapters. Biology notes come from localStorage (`mergeAgentNotes` from prior agent runs), loaded into workspace but not counted in the 31.
 - **`write_file` handler**: guards against placeholder content. Stores in workspace + queues store-only via `queueDocument`. Returns `{success, path, bytes}`.
 - **Core.md rewrite guard**: if path ends with `core.md` and already exists in workspace, returns error with `"core.md already exists. Read it, then move to creating notes."`

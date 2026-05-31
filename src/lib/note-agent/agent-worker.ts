@@ -74,7 +74,7 @@ let _lastToolArgsJsonHash = "";
 let _readCache = new Map<string, string>();
 
 const MAX_CONSECUTIVE_PARSE_FAILS = 3;
-const MAX_CONSECUTIVE_SAME_ACTION = 4;
+const MAX_CONSECUTIVE_SAME_ACTION = 3;
 
 // ── Retrieval state tracking — prevents loops and redundant searches ──
 
@@ -313,7 +313,113 @@ async function parseStreamingResponse(res: Response): Promise<{
   return { message, usage, truncated: truncatedToolCalls };
 }
 
-// ── Agent turn ──
+// ── Compaction helpers (inspired by opencode's anchored summarization) ──
+
+// How many recent turns to keep verbatim during compaction
+const COMPACTION_TAIL_TURNS = 2;
+
+function findTailStartIndex(msgs: Record<string, unknown>[], turns: number): number {
+  let found = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i]?.role === "assistant" && Array.isArray(msgs[i]?.tool_calls) && (msgs[i]?.tool_calls as unknown[]).length > 0) {
+      found++;
+      if (found >= turns) return i;
+    }
+  }
+  return -1;
+}
+
+function pruneToolOutputs(msgs: Record<string, unknown>[], protectedTools: Set<string>): void {
+  for (const msg of msgs) {
+    if (msg?.role !== "tool") continue;
+    const name = typeof msg.name === "string" ? msg.name : "";
+    if (protectedTools.has(name)) continue;
+    if (typeof msg.content === "string" && msg.content.length > 500) {
+      msg.content = "[Old tool result content cleared]";
+    }
+  }
+}
+
+async function generateCompactionSummary(
+  systemContent: string,
+  originalUserContent: string,
+  fileSummary: string,
+  lastActions: string,
+  currentTurn: number,
+): Promise<string> {
+  const compactionMessages: Record<string, unknown>[] = [
+    {
+      role: "system" as const,
+      content: `You are a context compaction assistant for a note-generation system. Summarize the progress into a structured anchor document. Focus ONLY on what still matters. The newest turns may be kept verbatim outside your summary, so cover only the older context.
+
+Output format (use exactly these sections):
+
+## Goal
+- [single-sentence task summary]
+
+## Constraints & Preferences
+- [relevant constraints or "(none)"]
+
+## Progress
+### Done
+- [completed work or "(none)"]
+### In Progress
+- [current work or "(none)"]
+### Blocked
+- [blockers or "(none)"]
+
+## Key Decisions
+- [decisions made or "(none)"]
+
+## Next Steps
+- [ordered next actions]
+
+## Critical Context
+- [important facts, file paths, exam vars]
+
+## Relevant Files
+- [key files written so far]`,
+    },
+    {
+      role: "user" as const,
+      content: `Original task: ${originalUserContent}
+
+Current workspace state:
+${fileSummary}
+
+Last 5 tool actions: ${lastActions}
+
+Current turn: ${currentTurn}
+
+Generate a compact structured summary of progress so far. Focus on what's been done and what remains.`,
+    },
+  ];
+
+  try {
+    const res = await fetch("/api/llm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: compactionMessages,
+        stream: false,
+        max_tokens: 2048,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`[Agent] Compaction LLM call failed (${res.status}), using file-based fallback`);
+      return "";
+    }
+
+    const rawText = await res.text();
+    const data = JSON.parse(rawText);
+    return data.choices?.[0]?.message?.content || "";
+  } catch (err) {
+    console.warn("[Agent] Compaction LLM call error:", err);
+    return "";
+  }
+}
 
 async function runAgentTurn(
   messages: Record<string, unknown>[],
@@ -718,11 +824,12 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     const currentBytes = JSON.stringify(messages).length;
     if (currentBytes > PAYLOAD_BYTE_LIMIT || lastPromptTokens > 400_000) {
       console.warn(`[Agent] Payload ${(currentBytes / 1024).toFixed(0)}KB, compacting to stay under 500KB limit`);
-      // Reset counter so we don't re-compact every turn
       lastPromptTokens = 0;
       const systemMsg = messages[0];
       const userMsg = messages[1];
-      // Build a structured state summary that replaces verbose tool chains
+      const originalUserContent = typeof userMsg?.content === "string" ? userMsg.content : "";
+
+      // 1. Build file summary from workspace state
       const allFiles: string[] = [];
       for (const [p] of workspace.entries()) {
         if (p.startsWith(chapterPath) && p.endsWith(".md")) allFiles.push(p);
@@ -734,16 +841,41 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       const quizzes = allFiles.filter((f) => f.includes("/quizzes/"));
       const revision = allFiles.filter((f) => f.includes("/revision/"));
       const lastActions = allToolCalls.slice(-5).map((tc) => `${tc.name}(${Object.keys(tc.args).join(",")})`).join("; ");
-      const stateSummary = {
-        role: "user" as const,
-        content: `[STATE SUMMARY — turn ${currentTurn}]
-Files written: ${allFiles.length} total (${notes.length} notes, ${questions.length} questions, ${flashcards.length} flashcards, ${quizzes.length} quizzes, ${revision.length} revision)
+      const fileSummary = `Files written: ${allFiles.length} total (${notes.length} notes, ${questions.length} questions, ${flashcards.length} flashcards, ${quizzes.length} quizzes, ${revision.length} revision)`;
+
+      // 2. Preserve tail turns verbatim (last COMPACTION_TAIL_TURNS assistant+tool pairs)
+      const tailStart = findTailStartIndex(messages, COMPACTION_TAIL_TURNS);
+      const tailMsgs = tailStart >= 0 ? messages.slice(tailStart) : [];
+
+      // 3. Prune tool outputs in the old messages (not in tail)
+      const oldMsgs = tailStart >= 0 ? messages.slice(0, tailStart) : messages;
+      pruneToolOutputs(oldMsgs, new Set(["skill"]));
+
+      // 4. Generate LLM-powered compaction summary
+      const summary = await generateCompactionSummary(
+        typeof systemMsg?.content === "string" ? systemMsg.content : "",
+        originalUserContent,
+        fileSummary,
+        lastActions,
+        currentTurn,
+      );
+
+      // 5. Rebuild messages: system + original user + summary + tail turns
+      messages.length = 0;
+      if (summary) {
+        messages.push(systemMsg, userMsg, { role: "user", content: summary }, ...tailMsgs);
+      } else {
+        // Fallback: use file-count summary if LLM compaction failed
+        const stateSummary = {
+          role: "user" as const,
+          content: `[STATE SUMMARY — turn ${currentTurn}]
+${fileSummary}
 Last actions: ${lastActions || "none"}
 Continue with the next task. Check workspace for current files.${notes.length < 11 ? " Topics still need detailed notes." : ""}${questions.length < 100 ? " Questions file remains to be written." : ""}${flashcards.length < 100 ? " Flashcards file remains to be written." : ""}${quizzes.length < 100 ? " Quizzes file remains to be written." : ""}`,
-      };
-      messages.length = 0;
-      messages.push(systemMsg, userMsg, stateSummary);
-      console.log(`[Agent] Compacted to ${Math.round(JSON.stringify({ messages, tools }).length / 1024)}KB`);
+        };
+        messages.push(systemMsg, userMsg, stateSummary, ...tailMsgs);
+      }
+      console.log(`[Agent] Compacted to ${Math.round(JSON.stringify({ messages, tools }).length / 1024)}KB (${tailMsgs.length > 0 ? `preserved ${COMPACTION_TAIL_TURNS} tail turns` : "no tail"})`);
     }
 
     try {
