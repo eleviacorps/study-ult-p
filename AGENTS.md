@@ -5,7 +5,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 ## Goal
-Fix 504 timeouts, the core.md rewrite loop, and 413 request-too-large errors. Implement SSE streaming to eliminate 504s, add write-once file rules to stop the core.md loop, disable RAG to stop payload bloat, and switch compaction from token-based to byte-based to stay under 500KB limit.
+Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and read-file loops. Implement SSE streaming to eliminate 504s, add write-once file rules, disable RAG to stop payload bloat, fix assess_quality regex to stop read loops, and use 1M token compaction.
 
 ## Constraints & Preferences
 - Do NOT remove Supabase auth from `/api/llm/route.ts` — needed for security.
@@ -13,68 +13,76 @@ Fix 504 timeouts, the core.md rewrite loop, and 413 request-too-large errors. Im
 - Skill instructions (43KB skill.md + 14KB references) must NOT be truncated.
 - Vercel Edge Function has 60s wall timeout on Hobby plan and 500KB request limit.
 - RAG disabled because injected excerpts bloat the system message past the 500KB limit over many turns.
-- Compaction is byte-based (not token-based) because the 413 error is about byte size, not token count.
+- DeepSeek supports 1M token context — compaction fires at 1M prompt tokens.
+- No subject/core.md — only chapter-level core.md is generated.
 
 ## Progress
 ### Done
-1. **SSE streaming** — agent-worker.ts `runAgentTurn` sends `stream: true`. New `parseStreamingResponse()` reads SSE chunks from `res.body.getReader()`, reconstructs content + tool_calls + reasoning_content from delta events. TTFB drops from ~30s → ~1s. The edge function returns at TTFB, eliminating 504s.
-2. **Token-based compaction (replaced)** — was `COMPACT_TOKEN_THRESHOLD = 800_000` (80% of 1M context). Never fired because prompt tokens maxed at ~97K.
-3. **Byte-based compaction** — checks `JSON.stringify(messages).length` every turn. Fires at 220KB, well under the 500KB edge limit. Builds `[STATE SUMMARY]` with file counts + last 5 actions + hints. Keeps system + user + summary, drops everything else.
-4. **RAG disabled** — `injectRagContext` call commented out in the agent loop. The injected excerpts accumulated in the system message, bloating payload past 500KB. Code kept in file for future re-enable.
-5. **max_tokens raised** — 4096 → 32768 in both `agent-worker.ts` (body) and `route.ts` (cap). Gives room for reasoning (~16K) + tool call content (~16K).
-6. **write_file compaction deletes content** — `delete a.content` instead of `[FILE STORED — ...]` placeholder.
-7. **Placeholder guard** — read_file/write_file detect and reject placeholder content. Startup scan cleans corrupted entries.
-8. **Core.md rewrite guard** — write_file rejects path ending with `core.md` if it already exists in workspace.
-9. **Write-once + No-Planning rules** — `RULES THAT OVERRIDE EVERYTHING BELOW` section in skill.md.
-10. **Finish-reason detection** — `parseStreamingResponse` tracks `choice.finish_reason`; on `"length"`, drops truncated tool calls instead of pushing invalid JSON to handler.
-11. **Continuation prompt on truncation** — when all tool calls dropped by `finish_reason: "length"`, injects user continuation prompt instead of killing agent.
-12. **Provider timeout removed** — reverted 20s AbortController. Edge function's 60s wall limit is the safety net.
-13. **504 retry** — 3 attempts with 2s/4s backoff.
-14. **Auth kept** — Supabase auth untouched.
-15. **LLM-powered compaction** — inspired by opencode's anchored summarization. When compaction fires, calls the LLM with a structured prompt requesting a 7-section summary (Goal, Constraints, Progress, Key Decisions, Next Steps, Critical Context, Relevant Files). Falls back to file-count summary if LLM call fails.
-16. **Tail preservation** — keeps the last `COMPACTION_TAIL_TURNS = 2` assistant+tool message pairs intact during compaction. Prevents context discontinuity.
-17. **Tool output pruning** — replaces tool result content >500 chars with `"[Old tool result content cleared]"` on messages not in the preserved tail. Protected tools (skill) never pruned.
-18. **Doom loop threshold tightened** — `MAX_CONSECUTIVE_SAME_ACTION: 4 → 3` (matching opencode's pattern). Catches infinite loops one turn earlier.
+1. **SSE streaming** — agent-worker.ts `runAgentTurn` sends `stream: true`. `parseStreamingResponse()` reads SSE chunks from `res.body.getReader()`, reconstructs content + tool_calls + reasoning_content from delta events. TTFB drops from ~30s → ~1s.
+2. **LLM-powered compaction** — calls `/api/llm` with `stream: false` and compaction-specific system prompt requesting 7-section structured output. Falls back to file-count summary if LLM call fails.
+3. **Tail preservation** — `COMPACTION_TAIL_TURNS = 1`. Preserves last 1 assistant+tool pair during compaction.
+4. **Tool output pruning** — replaces tool result content >500 chars with `"[Old tool result content cleared]"` on non-tail messages. Protected tools (skill) never pruned.
+5. **Core.md rewrite guard** — write_file handler returns error if path ends with `core.md` and already exists in workspace.
+6. **write_file content compaction** — uses `delete a.content` instead of `[FILE STORED — ...]` placeholder. Stops LLM copying placeholder into new write calls.
+7. **Placeholder guard** — read_file falls back to RAG on `[FILE STORED —` content. write_file rejects placeholder content. Startup cleans corrupted entries.
+8. **Finish-reason detection** — `parseStreamingResponse()` tracks `choice.finish_reason`. On `"length"`, drops truncated tool calls with invalid JSON args.
+9. **Continuation prompt on truncation** — when all tool calls dropped by `finish_reason: "length"`, injects continuation prompt as user message.
+10. **Doom loop threshold** — `MAX_CONSECUTIVE_SAME_ACTION = 3`.
+11. **Schema-based argument validation** — `TOOL_SCHEMAS` maps each tool to required params and types. `validateToolArgs()` checks before execution.
+12. **formatToolError with schema details** — error messages include full parameter list (name, type, required/optional) plus `_hint: "fix_args"`.
+13. **Automatic output truncation** — `truncateToolResult()` caps all tool results at 50KB.
+14. **Execution context tracking** — `_toolCallSequence` counter + `_toolExecLog` array records `{seq, name, id, args, startedAt, durationMs, truncated}` for every tool call.
+15. **list_workspace with file metadata** — returns `size` (bytes) and `lines` (line count) per file.
+16. **read_file full-read cache** — `_fullReadCache` stores full reads keyed by path, evicted after 30s TTL. Invalidated on write_file.
+17. **write_file auto-fill** — `autoFillWriteFileArgs()` extracts markdown from assistant's reasoning text when DeepSeek drops `content` from tool call args.
+18. **write_file cross-turn failure tracker** — `_writeFailCount` persists across turns. After 2 consecutive failures, injects `[REMINDER: ...]` with tool response + user message. All run counters reset at start.
+19. **search_web tool** — added to `NOTE_AGENT_TOOLS`. Proxies through `/api/web-search` server route to avoid CORS. Empty-result guard: after 3 consecutive empty results, returns stop signal.
+20. **Web search proxy** — `src/app/api/web-search/route.ts` fetches DuckDuckGo server-side. Parser rewritten with 4 fallback strategies: `result__a/snippet` pairs → `class="result"` divs → `h2.result__title` links → raw snippet extraction.
+21. **Exam difficulty guidelines** — skill.md updated with NEET UG, JEE Main, CUET, CBSE/Boards, SAT, AP, IB, GCSE, A-Level difficulty profiles.
+22. **Shared Worker persistence** — converted from `Worker` to `SharedWorker` + fallback to DedicatedWorker. On page reconnection, worker sends latest state.
+23. **Token-based compaction at 1M** — removed byte-based 220KB and token-based 265K. Compaction fires when `lastPromptTokens > 1_000_000` (for 1M context model).
+24. **MCQ count regex fixed** — was `/### Q/` (H3) but template uses `## Q` (H2). This was the root cause of the 100_mcqs.md read loop: assess_quality always returned mcqCount=0, LLM kept re-reading to verify.
+25. **Sliding window relaxed** — threshold increased from 8 to 80 messages. No longer aggressively drops context. Compaction at 1M handles context trimming.
+26. **All run counters reset at start** — `_writeFailCount`, `_writeFailInjected`, `_emptySearchCount`, `_fullReadCache.clear()` added to start handler.
+27. **Subject core.md removed** — Step 2B (Subject Core.md Template) deleted from skill.md. Only chapter-level core.md is generated. Prevents Biology/core.md rewrite loop.
+28. **Write-then-assess flow** — skill.md Priority Order restructured: Phase 1 (write all files: core.md → notes → concept map → questions → MCQs → flashcards → quizzes → revision), Phase 2 (assess once at end with detailed=true, fix issues, final_report). No assess_quality during writing phase.
+29. **Search_web instruction limited** — skill.md now says "call search_web ONCE. If empty, proceed using your knowledge — do NOT retry."
+30. **Vault Creation Order simplified** — no subject folder/core.md creation, only chapter-level files.
 
-### Test Results (Sexual Reproduction in Flowering Plants chapter)
-- **No 504s** — SSE streaming works throughout 85+ turns.
-- **No core.md rewrite** — Biology/core.md and chapter core.md written once each.
-- **8 notes + 100_questions.md + 100_mcqs.md + 100_flashcards.md + 100_quizzes.md + revision files created** — all indexed into RAG.
-- **413 error at turn 85** — payload hit 542KB > 500KB Vercel Edge limit. Cause: compaction threshold was 800K tokens but prompt tokens only reached 97K → compaction never fired → messages accumulated for 85+ turns.
-- **embedSection fired correctly** — at section transitions (notes → questions → other → revision), 69 + 63 + 72 + 54 chunks embedded.
+### In Progress
+- **Opencode-style tool calling** — schema validation, output truncation, execution context all implemented. Permission gating and task tool pending.
 
-### Next Steps
-1. **Deploy and test** — verify no 413 errors, compaction fires appropriately, agent completes full generation.
-2. **Monitor compaction** — should fire every ~40-50 turns, keeping payload around ~220KB.
-3. **If RAG needed later** — re-enable `injectRagContext` call but either cap the number of excerpts or reduce their size.
+### Blocked
+- **Web search unreliable** — DuckDuckGo sometimes returns empty results even with the fix. LLM falls back to its own knowledge.
+- **write_file content issue** — DeepSeek sometimes generates completely empty tool calls (`Write {}`) with no content in reasoning text either. Auto-fill + reminder + cross-turn detection are mitigations.
 
 ## Key Decisions
-- **Structured compaction over message truncation** — Instead of dropping the tail of messages (which orphans tool calls and loses context), replace all accumulated tool chains with a single structured state summary. The workspace is the ground truth; the LLM can read any file. No extra LLM call needed. Multiple compaction cycles are safe.
-- **Compact tool results by default** (`read_file`, `assess_quality`) — full content available via optional parameters. Runtime budget measure, not knowledge truncation.
-- **Checkpoint-based embedding** — separates storage (fast) from embedding (slow, batched, API-costly). Checkpoints align with agent's natural phases (notes → questions → revision).
-- **Skill context NOT truncated** — 58KB of skill instructions preserved. Payload managed by compaction rather than modifying instructions.
-- **Pipe provider response through Edge function** — `return new Response(res.body, ...)` instead of `await res.text()`. Function returns in ~1-3s (TTFB from provider) instead of waiting for full generation.
-- **delete a.content over [FILE STORED — ...]** — The old compaction replaced content with a placeholder string. The LLM repeatedly copied this placeholder back into new write_file calls, causing guard rejections and agent confusion. Deleting the content field entirely breaks this copy chain.
-- **Skill needs "write once" and "no planning" rules** — The current skill's "Analyze Input → Topic Extraction → Vault Structure → Metadata → ... before writing content" flow encourages planning loops. Adding `RULES THAT OVERRIDE EVERYTHING BELOW` at the top of the skill file should break the core.md rewrite loop at the instruction level.
+- **Token-based compaction at 1M** — DeepSeek supports 1M context, so compaction fires near the limit. Removed both byte-based 220KB and earlier 265K token thresholds.
+- **Sliding window at 80** — Compaction handles context management; sliding window is just a safety net for extreme message counts. High threshold prevents premature context loss.
+- **MCQ regex fix as read-loop root cause** — The assess_quality function counted MCQs with `/### Q/` but the template produces `## Q`. Zero count caused the LLM to re-read the file every turn, creating an infinite read loop. Fixing the regex breaks the loop.
+- **No subject core.md** — Prevents the LLM from writing Biology/core.md during Biology chapter generation. Only the chapter core.md is needed for single-chapter work.
+- **Write-then-assess pipeline** — Prevents interleaved write/read/assess/fix cycles. All files are generated first, then assessed once. Assessment identifies all issues, then fixes are applied.
+- **4-strategy DuckDuckGo parser** — DDG changes HTML structure frequently. Multiple extraction strategies increase resilience. If all fail, the empty-result guard stops retrying after 3 attempts.
+- **All run counters reset** — Prevents state leakage between consecutive agent runs. Particularly important for write_file failure tracker and search_web empty counter.
 
 ## Critical Context
-- **Compaction mechanics** (`agent-worker.ts:820-879`): when `JSON.stringify(messages).length > 220_000`, calls the LLM with a structured compaction prompt (7 sections: Goal, Constraints, Progress, Key Decisions, Next Steps, Critical Context, Relevant Files). Falls back to file-count summary if LLM call fails. Preserves last 2 turns as tail. Prunes tool outputs >500 chars in non-tail messages. Rebuilds messages as: system + original user + summary + tail.
-- **Default vault** (`vault-data.json`): 31 notes across 4 Physics chapters. Biology notes come from localStorage (`mergeAgentNotes` from prior agent runs), loaded into workspace but not counted in the 31.
-- **`write_file` handler**: guards against placeholder content. Stores in workspace + queues store-only via `queueDocument`. Returns `{success, path, bytes}`.
-- **Core.md rewrite guard**: if path ends with `core.md` and already exists in workspace, returns error with `"core.md already exists. Read it, then move to creating notes."`
-- **`read_file` handler**: if workspace content starts with `[FILE STORED —`, falls back to RAG `getDocument()`. Prevents placeholder leakage.
+- **Compaction mechanics** (`agent-worker.ts:1100-1161`): when `lastPromptTokens > 1_000_000`, calls the LLM with a structured compaction prompt (7 sections). Falls back to file-count summary. Preserves last 1 turn as tail. Prunes tool outputs >500 chars. Rebuilds messages as: system + original user + summary + tail.
+- **MCQ regex** (`agent-worker.ts:922`): `/## Q\d+\./g` matches `## Q1.` (H2). Template uses `## Q[X].` format. Questions use same H2 pattern. Quizzes use `### Q` (H3) — correct.
+- **Default vault** (`vault-data.json`): 31 notes across 4 Physics chapters. Biology notes come from localStorage (`mergeAgentNotes` from prior agent runs).
+- **`write_file` handler**: guards against placeholder content and core.md rewrite. Stores in workspace + queues store-only via `queueDocument`.
+- **`read_file` handler**: falls back to RAG on placeholder content. Full-read cache with 30s TTL. Compact read cache per-path.
 - **`embedSection(section)`**: batch-embeds all null-embedding chunks for a section. Idempotent.
-- **RAG context injection**: commented out (disabled). 3 excerpts were appended to system message every turn, bloating payload past 500KB. Code kept for future re-enable.
-- Read cache: compact results cached per-path. Cleared on write_file. Falls back to RAG for workspace misses.
-- `_writeVersion` increments on every document write, busting retrieval cache globally.
-- Embedding quota: 100 req/min, 1000 req/day. Each req embeds up to 10 chunks.
+- **RAG context injection**: commented out (disabled). Code kept for future re-enable.
+- **Search_web empty guard**: 3 consecutive empty results → stops further search_web calls for the run. Counter resets on any non-empty result.
+- **Embedding quota**: 100 req/min, 1000 req/day. Each req embeds up to 10 chunks.
+- **Mobile support**: Shared Workers work on Chrome for Android. The app tab must stay open during generation.
+- **`delete a.content`**: write_file arguments have content deleted after execution. LLM sees `{"path":"..."}` with no content, preventing copy-chain.
 
 ## Relevant Files
-- `src/lib/note-agent/agent-worker.ts` — agent loop, compaction (state summary builder), loop guards, write_file/read_file with placeholder detection, section transition auto-detect, embedSection caller.
-- `src/lib/note-agent/rag-store.ts` — queueDocument, processDocumentQueue, searchDocuments (chapter-indexed + token-overlap + cache), embedSection, DB v2→v3.
-- `src/lib/note-agent/vector-store.ts` — re-exports all rag-store functions.
-- `src/lib/note-agent/embeddings.ts` — embedTexts, extractTokens, computeTF/IDF, computeContentHash. Auto-probes Gemini provider on load.
-- `src/app/api/embeddings/route.ts` — Gemini-native support, auto-detects provider from base URL.
-- `src/lib/load-skill.ts` — loads 43KB skill.md + 5 reference files (14KB). Not truncated.
-- `src/lib/llm-agent.ts` — runAgentTurn (max_tokens 4096), NOTE_AGENT_TOOLS.
-- `src/app/api/llm/route.ts` — Edge Runtime, stream-through, 500KB request limit.
+- `src/lib/note-agent/agent-worker.ts` — agent loop, compaction (1M token threshold, LLM-powered + tail 1), loop guards, write_file/read_file with placeholder detection, section transition auto-detect, embedSection caller, schema validation + truncation + execution context, search_web handler with empty guard, sliding window (80 threshold), all run counters.
+- `src/lib/note-agent/agent-bridge.ts` — creates SharedWorker (fallback to Worker), port-based messaging, handles reconnection, persists state to IndexedDB.
+- `src/lib/llm-agent.ts` — `NOTE_AGENT_TOOLS` defines all 7 tools. `getAgentSystemPrompt()` generates system message.
+- `public/skills/study-ult/skill.md` — 43KB skill file. Write-once + No-Planning + No Subject Core.md rules. Write-then-assess flow. Search_web limiter. Exam difficulty guidelines.
+- `src/app/api/web-search/route.ts` — DuckDuckGo HTML search proxy with 4-strategy parser. Returns title/link/snippet.
+- `src/app/api/llm/route.ts` — Edge Runtime, auth check, 500KB payload cap, 32768 max_tokens cap, streaming passthrough.
+- `AGENTS.md` — this file full progress log, key decisions, critical context.

@@ -109,6 +109,7 @@ const FULL_READ_CACHE_TTL = 30_000; // 30s
 const MAX_CONSECUTIVE_PARSE_FAILS = 3;
 const MAX_WRITE_FAILS = 2;
 const MAX_CONSECUTIVE_SAME_ACTION = 3;
+let _emptySearchCount = 0;
 
 // ── Retrieval state tracking — prevents loops and redundant searches ──
 
@@ -919,7 +920,7 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
         return (c.match(pattern) || []).length;
       };
       const qCount = readCount(`${chapterPath}/questions/100_questions.md`, /## Q\d+\./g);
-      const mcqCount = readCount(`${chapterPath}/questions/100_mcqs.md`, /### Q\d+\./g);
+      const mcqCount = readCount(`${chapterPath}/questions/100_mcqs.md`, /## Q\d+\./g);
       const flashCount = readCount(`${chapterPath}/flashcards/100_flashcards.md`, /## FC\d+\./g);
       const quizCount = readCount(`${chapterPath}/quizzes/100_quizzes.md`, /### Q\d+\./g);
       summary.questionCount = qCount;
@@ -993,8 +994,14 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
         const data = await res.json();
         const results: { title?: string; snippet?: string }[] = data.results || [];
         if (results.length === 0) {
-          return JSON.stringify({ query, results: [], warning: "No results found" });
+          _emptySearchCount++;
+          if (_emptySearchCount >= 3) {
+            _emptySearchCount = 0;
+            return JSON.stringify({ query, results: [], warning: "No results found for 3 consecutive searches. Web search is unreliable for this topic. Proceed using the LLM's knowledge — do NOT call search_web again." });
+          }
+          return JSON.stringify({ query, results: [], warning: "No results found. Try a more specific query or proceed using your knowledge." });
         }
+        _emptySearchCount = 0;
         return JSON.stringify({
           query,
           results: results.map((r: { title?: string; snippet?: string }) => `${r.title || ""}${r.title ? ": " : ""}${r.snippet || ""}`.trim()).filter(Boolean),
@@ -1053,7 +1060,11 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   _lastFilePath = "";
   _lastToolName = "";
   _lastToolArgsJsonHash = "";
+  _writeFailCount = 0;
+  _writeFailInjected = false;
+  _emptySearchCount = 0;
   _readCache.clear();
+  _fullReadCache.clear();
   resetPendingEmbeds();
   _lastWrittenSection = null;
 
@@ -1096,8 +1107,8 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     // await injectRagContext(messages, chapterPath, chapterName, currentTurn, allToolCalls);
 
     // Token budget check — compact when prompt approaches context limit.
-    // 265K tokens ≈ 80% of a 330K context window, leaving room for completion.
-    if (lastPromptTokens > 265_000) {
+    // 1M tokens — the DeepSeek model supports a 1M context window.
+    if (lastPromptTokens > 1_000_000) {
       console.warn(`[Agent] Prompt ${(lastPromptTokens / 1024).toFixed(0)}K tokens, compacting to stay within context limit`);
       lastPromptTokens = 0;
       const systemMsg = messages[0];
@@ -1209,7 +1220,8 @@ Continue with the next task. Do NOT re-read files you already have — use the f
       currentTurn++;
 
       // Sliding window: preserve complete tool_call↔tool chains
-      if (messages.length > 8) {
+      // High threshold (80) since compaction handles context at 1M tokens
+      if (messages.length > 80) {
         const tail: Record<string, unknown>[] = [];
         let pendingTools = 0;
         for (let i = messages.length - 1; i >= 0; i--) {

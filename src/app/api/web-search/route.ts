@@ -15,28 +15,57 @@ export async function POST(request: Request) {
 
     // Parse result snippets from DuckDuckGo HTML response
     const results: { title: string; link: string; snippet: string }[] = [];
-    const resultBlocks = html.match(/<div[^>]*class="[^"]*result[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi) || [];
 
-    for (const block of resultBlocks.slice(0, 8)) {
-      const titleMatch = block.match(/<a[^>]*rel="nofollow"[^>]*>([\s\S]*?)<\/a>/i);
-      const linkMatch = block.match(/<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>/i);
-      const snippetMatch = block.match(/<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i);
-      if (titleMatch || snippetMatch) {
+    // Strategy 1: result__a / result__snippet link pairs (modern DDG)
+    const titleMatches = [...html.matchAll(/<a[^>]*class="result__a"[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+    const snippetMatches = [...html.matchAll(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)];
+
+    for (let i = 0; i < Math.min(titleMatches.length, 8); i++) {
+      results.push({
+        title: titleMatches[i][2].replace(/<[^>]+>/g, "").trim(),
+        link: titleMatches[i][1],
+        snippet: snippetMatches[i] ? snippetMatches[i][1].replace(/<[^>]+>/g, "").trim() : "",
+      });
+    }
+
+    // Strategy 2: <div class="result"> blocks (older DDG)
+    if (results.length === 0) {
+      const resultDivs = [...html.matchAll(/<div[^>]*class="[^"]*\bresult\b[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi)];
+      for (const block of resultDivs.slice(0, 8)) {
+        const title = block[1].match(/<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+        const snippet = block[1].match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
+        if (title || snippet) {
+          results.push({
+            title: title ? title[2].replace(/<[^>]+>/g, "").trim() : "",
+            link: title ? title[1] : "",
+            snippet: snippet ? snippet[1].replace(/<[^>]+>/g, "").trim() : "",
+          });
+        }
+      }
+    }
+
+    // Strategy 3: <h2 class="result__title"> links (alternative DDG)
+    if (results.length === 0) {
+      const h2Links = [...html.matchAll(/<h2[^>]*class="result__title"[^>]*>[\s\S]*?<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/gi)];
+      const snippetTexts = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)];
+      for (let i = 0; i < Math.min(h2Links.length, 8); i++) {
         results.push({
-          title: titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : "",
-          link: linkMatch ? linkMatch[1] : "",
-          snippet: snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, "").trim() : "",
+          title: h2Links[i][2].replace(/<[^>]+>/g, "").trim(),
+          link: h2Links[i][1],
+          snippet: snippetTexts[i] ? snippetTexts[i][1].replace(/<[^>]+>/g, "").trim() : "",
         });
       }
     }
 
-    // Fallback: extract from raw HTML if structured parsing yielded nothing
+    // Strategy 4: raw snippet extraction as last resort
     if (results.length === 0) {
-      const snippets = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
+      const rawSnippets = [...html.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
         .slice(0, 5)
         .map((s) => s[1].replace(/<[^>]+>/g, "").trim())
         .filter(Boolean);
-      return NextResponse.json({ query, results: snippets.map((s) => ({ title: "", link: "", snippet: s })), source: "duckduckgo-html-fallback" });
+      for (const s of rawSnippets) {
+        results.push({ title: "", link: "", snippet: s });
+      }
     }
 
     return NextResponse.json({ query, results, source: "duckduckgo-html" });

@@ -16,6 +16,9 @@ description: "Transform raw educational content into a premium Obsidian vault fo
 ### Write-Once Rule
 Every file is written exactly once. Before calling write_file, check if the path already exists in the workspace via list_workspace. If it exists, do NOT rewrite it. Call read_file to see the current content, then move to the next missing file.
 
+### No Subject Core.md
+Do NOT create a subject-level core.md (e.g., Biology/core.md). Only create the chapter-level core.md (e.g., Sexual_Reproduction_in_flowering_Plants/core.md). The subject core.md is not needed for single-chapter generation.
+
 ### write_file Usage (CRITICAL — DeepSeek drops content param)
 Each write_file call MUST include BOTH required parameters. Failure to include both will cause a validation error:
 ```text
@@ -23,14 +26,28 @@ write_file(path="ChapterPath/notes/topic.md", content="# Topic Name\n\n...full c
 ```
 The `path` and `content` parameters are both REQUIRED. Never call write_file without content. If content is missing, the model will see an error and waste a turn retrying. Always write the full file content in the `content` parameter — do not ask the user to provide it.
 
-### Priority Order
+### Priority Order — WRITE ALL FIRST, ASSESS ONCE AT END
 1. Chapter core.md (write once, then never touch again)
 2. Note files (one per topic, 400+ lines)
-3. Questions file
-4. MCQs file
-5. Flashcards file
-6. Quizzes file
-7. Revision files
+3. Concept connection map
+4. Questions file
+5. MCQs file
+6. Flashcards file
+7. Quizzes file
+8. Revision files (formula sheet, one-shot revision, common mistakes, derivations)
+
+### Assessment Phase — ONLY after ALL files are written
+After ALL 8 steps above are complete, call assess_quality once with detailed=true to check:
+- Note line counts (must be 400+)
+- Question counts (100+ each)
+- Parser format compliance
+- Placeholder detection
+- Broken wikilinks
+
+Then fix any issues found. Do NOT call assess_quality during the writing phase — that causes read loops.
+
+### Search_web Limitation
+Call search_web at most ONCE at the start. If it returns no results, proceed immediately using your knowledge — do NOT retry with different queries. Web search is unreliable for exam-specific content.
 
 ### No Planning Mode
 Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file with its full content in the write_file content parameter. Do NOT output any reasoning, thinking, or planning text — just immediately output the tool call with both path and content filled. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes. **Zero tokens spent on thinking. Only the tool call with path + content.**
@@ -42,7 +59,7 @@ After writing a file, immediately determine the next missing file. If you have w
 If you see "[Output exceeded token limit", that means your previous response was cut off. Do NOT recap or re-explain. Just output the single next tool call immediately with no preamble.
 
 ### Question Difficulty (CRITICAL — matches target exam only)
-All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. Before generating any exam content, call **search_web** to fetch real previous-year question patterns and difficulty levels. These are the standard difficulty profiles per exam type:
+All questions, MCQs, and quizzes MUST match the actual difficulty of the target exam. Before generating any exam content, call **search_web** ONCE to fetch real previous-year question patterns and difficulty levels. If search_web returns no results, proceed using your knowledge — do NOT retry. These are the standard difficulty profiles per exam type:
 
 **{EXAM_LEVEL1}** — the primary/preliminary level (e.g. NEET UG, JEE Main, SAT, CBSE Boards, GCSE, CUET):
 - **NEET UG**: 60% application-based + 40% factual recall. Multi-step reasoning, data interpretation, assertion-reason, diagram-based. No single-step factual recalls. Medium = 2-3 step reasoning; Hard = multi-concept synthesis with traps.
@@ -109,25 +126,21 @@ Write these exact files under the generated chapter path:
 ```
 study-ult Progress:
 
-- [ ] Step 1: Analyze Input
-  - [ ] 1.1 Detect subject/chapter
-  - [ ] 1.2 Map all topics/subtopics
-  - [ ] 1.3 Note any OCR corruption (reconstruct intelligently)
-- [ ] Step 2: Create Vault Structure
-- [ ] Step 3: Generate Chapter Metadata
-- [ ] Step 4: Generate Ultra-Detailed Notes
-- [ ] Step 5: Generate Formula Cheat Sheet
-- [ ] Step 6: Generate Concept Connection Map
-- [ ] Step 7: Generate 100+ Questions
-- [ ] Step 8: Generate 100+ MCQs
-- [ ] Step 9: Generate 100+ Flashcards
-- [ ] Step 10: Generate 100+ Quizzes
-- [ ] Step 11: Generate Important Derivations
-- [ ] Step 12: Generate Common Mistakes Section
-- [ ] Step 13: Generate {EXAM_LEVEL2} Thinking
-- [ ] Step 14: Generate One-Shot Revision Sheet
-- [ ] Step 15: Generate Graph Explanations
-- [ ] Step 16: Pre-Delivery Checklist
+=== PHASE 1: GENERATE ALL FILES ===
+- [ ] Step 1: Analyze Input (detect subject/chapter, map topics)
+- [ ] Step 2: Write chapter core.md (once, then never touch)
+- [ ] Step 3: Write all note files (one per topic, 400+ lines each)
+- [ ] Step 4: Write concept connection map
+- [ ] Step 5: Write 100_questions.md (100 solved questions)
+- [ ] Step 6: Write 100_mcqs.md (100 MCQs with explanations)
+- [ ] Step 7: Write 100_flashcards.md (100 flashcards)
+- [ ] Step 8: Write 100_quizzes.md (100 quizzes)
+- [ ] Step 9: Write revision files (formula sheet, one-shot, mistakes, derivations)
+
+=== PHASE 2: ASSESS & FIX (ONLY ONCE AT END) ===
+- [ ] Step 10: Call assess_quality with detailed=true to check everything
+- [ ] Step 11: Fix all issues found
+- [ ] Step 12: Call final_report when done
 ```
 
 ---
@@ -217,145 +230,16 @@ study-ult Progress:
 
 ### Vault Creation Order
 
-1. Create subject folder
-2. Create subject core.md with all chapter links
-3. Create chapter folder
-4. Create chapter core.md with ALL topic navigation
-5. Create subfolders (notes, questions, flashcards, quizzes, revision)
-6. Generate all content files
-
-## Step 2B: Subject Core.md Template - COMPLETE VAULT NAVIGATION
-
-This is the MASTER navigation file for the ENTIRE SUBJECT. It MUST link to ALL chapters and resources.
-
-```markdown
-# <Subject> (e.g., Physics)
-#<Subject> {EXAM_TAGS}
-
----
-
-## 📋 Subject Overview
-
-| Field | Value |
-|-------|-------|
-| **Subject** | <Subject Name> |
-| **Total Chapters** | <X> |
-| **Exam Relevance** | {EXAM_LEVEL1}: 🔴 High | {EXAM_LEVEL2}: 🔴 High | Boards: 🔴 High |
-
----
-
-## 📊 Subject Weightage ({EXAM_NAME})
-
-| Chapter | {EXAM_LEVEL1} Weight | {EXAM_LEVEL2} Weight | Priority |
-|---------|-----------------|---------------------|-----------|
-| [[Chapter 1]] | X-X marks | X-X marks | 🔴 Very High |
-| [[Chapter 2]] | X-X marks | X-X marks | 🔴 Very High |
-| [[Chapter 3]] | X-X marks | X-X marks | 🟡 High |
-
----
-
-## 📚 Complete Chapter List
-
-### 🔴 High Priority Chapters (Cover First)
-| # | Chapter | Topics | Questions | Priority |
-|---|---------|--------|-----------|----------|
-| 1 | [[Chapter 1 Name]] | X topics | [[100 Questions]] | 🔴 Very High |
-| 2 | [[Chapter 2 Name]] | X topics | [[100 Questions]] | 🔴 Very High |
-
-### 🟡 Medium Priority Chapters
-| # | Chapter | Topics | Questions | Priority |
-|---|---------|--------|-----------|----------|
-| 3 | [[Chapter 3 Name]] | X topics | [[100 Questions]] | 🟡 High |
-| 4 | [[Chapter 4 Name]] | X topics | [[100 Questions]] | 🟡 High |
-
-### 🟢 Lower Priority Chapters
-| # | Chapter | Topics | Questions | Priority |
-|---|---------|--------|-----------|----------|
-| 5 | [[Chapter 5 Name]] | X topics | [[100 Questions]] | 🟢 Moderate |
-
----
-
-## 📖 Study Resources by Chapter
-
-### Chapter 1: [[Chapter Name]]
-- **Notes:** [[Topic 1]], [[Topic 2]], [[Topic 3]], ...
-- **Questions:** [[100 Questions]], [[100 MCQs]], [[{EXAM_NAME} Main]], [[{EXAM_NAME} Advanced]]
-- **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
-- **Status:** ⬜ Not Started / 🟡 In Progress / ✅ Completed
-
-### Chapter 2: [[Chapter Name]]
-- **Notes:** [[Topic 1]], [[Topic 2]], [[Topic 3]], ...
-- **Questions:** [[100 Questions]], [[100 MCQs]], [[{EXAM_NAME} Main]], [[{EXAM_NAME} Advanced]]
-- **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
-- **Status:** ⬜ Not Started / 🟡 In Progress / ✅ Completed
-
-### Chapter N: [[Final Chapter Name]]
-- **Notes:** [[Topic 1]], [[Topic 2]], [[Topic 3]]
-- **Questions:** [[100 Questions]], [[100 MCQs]], [[{EXAM_NAME} Main]], [[{EXAM_NAME} Advanced]]
-- **Revision:** [[Formula Sheet]], [[One-Shot Revision]], [[Common Mistakes]]
-- **Status:** Completed
-
----
-
-## 🎯 Quick Access by Type
-
-### 📝 All Notes
-- [[Chapter 1 Notes]] → [[Topic 1]], [[Topic 2]], [[Topic 3]]
-- [[Chapter 2 Notes]] → [[Topic 1]], [[Topic 2]], [[Topic 3]]
-
-### 📋 All Questions
-- [[All 100 Questions]] (organized by chapter)
-- [[All 100 MCQs]] (organized by chapter)
-
-### 📖 Revision
-- [[Complete Formula Sheet for <Subject>]]
-- [[One-Shot Revision - Full Subject]]
-- [[All Common Mistakes]]
-
----
-
-## 📈 Recommended Study Order
-
-### For {EXAM_LEVEL1} (Quick Revision):
-1. ⬜ [[Chapter with Highest Weightage]]
-2. ⬜ [[Chapter with 2nd Highest Weightage]]
-3. ⬜ [[Chapter with 3rd Highest Weightage]]
-
-### For {EXAM_LEVEL2} (Deep Study):
-1. ⬜ [[Chapter 1]] - Complete with derivations
-2. ⬜ [[Chapter 2]] - Complete with derivations
-3. ⬜ [[Chapter 3]] - Complete with derivations
-
----
-
-## 🎓 Subject-Level Formula Sheet
-[[Complete Formula Sheet - All Chapters Combined]]
-
----
-
-## 📊 Progress Tracker
-
-| Chapter | Notes | Questions | Revision | Status |
-|---------|-------|-----------|----------|--------|
-| [[Chapter 1]] | ⬜ | ⬜ | ⬜ | Not Started |
-| [[Chapter 2]] | ⬜ | ⬜ | ⬜ | Not Started |
-| [[Chapter 3]] | ⬜ | ⬜ | ⬜ | Not Started |
-
-**Overall Progress:** X/Y chapters completed
-
----
-
-## 🔗 Inter-Chapter Connections
-
-- [[Chapter 1]] → Foundation for → [[Chapter 2]]
-- [[Chapter 2]] → Builds on → [[Chapter 1]], → Foundation for → [[Chapter 3]]
-- [[Chapter 3]] → Builds on → [[Chapter 2]]
-
----
-
-*Tags: #<Subject> {EXAM_TAGS}*
-*Last Updated: <Current Date>*
-```
+Note: Only chapter-level files are created. No subject/core.md.
+1. Create chapter folder (write_file creates directories automatically)
+2. Create chapter core.md with ALL topic navigation
+3. Create all note files (one per topic)
+4. Create concept connection map
+5. Create question files (100_questions.md, 100_mcqs.md)
+6. Create flashcard files (100_flashcards.md)
+7. Create quiz files (100_quizzes.md)
+8. Create revision files
+9. Assess all files at once with assess_quality
 
 ---
 
@@ -1579,7 +1463,6 @@ $$[All key formulas in one place]$$
 - [ ] Conceptual traps highlighted
 
 ### Navigation Check ✅
-- [ ] Subject core.md links to all chapters
 - [ ] Chapter core.md links to all topics
 - [ ] Chapter core.md links to all question files
 - [ ] Chapter core.md links to all revision files
