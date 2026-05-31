@@ -22,12 +22,29 @@ Fix 504 timeouts and the core.md rewrite loop in the note agent. Implement SSE s
 4. **504 retry** — status 504 triggers retry with 2s/4s backoff, up to 3 attempts. Each attempt is a fresh edge function invocation.
 5. **Auth kept** — reverted the try-catch removal of Supabase auth.
 6. **Provider timeout removed** — reverted the 20s AbortController. Edge function's 60s wall limit is the safety net.
-7. **max_tokens raised** — 4096 → 16384 in both `agent-worker.ts` (body) and `route.ts` (cap). A 400+ line note fits in one turn.
+7. **max_tokens raised** — 4096 → 32768 in both `agent-worker.ts` (body) and `route.ts` (cap). A 400+ line note fits in one turn.
 8. **write_file compaction deletes content** — instead of replacing with `[FILE STORED — ...]`, now `delete a.content`. LLM cannot copy a placeholder into a new write call.
 9. **Placeholder guard** — read_file detects content starting with `[FILE STORED —` and falls back to RAG. write_file rejects placeholder content. Startup scan cleans corrupted entries.
 10. **mode: "full"** — read_file with `full: true` includes `"mode": "full"` in the JSON result.
 11. **Core.md rewrite guard** — write_file handler checks if path ends with `core.md` and already exists in workspace; if so, returns error instructing to read it and move to creating notes.
 12. **Write-once + No-Planning rules** added to `skill.md` — a `RULES THAT OVERRIDE EVERYTHING BELOW` section at the top of the skill file instructs: write each file exactly once, use priority order (core.md → notes → questions → MCQs → flashcards → quizzes → revision), never plan or redesign existing files, produce exactly one new file per turn.
+13. **Finish-reason detection** — `parseStreamingResponse` tracks `choice.finish_reason`. On `"length"`, drops truncated tool calls whose arguments aren't valid JSON instead of pushing them to the handler.
+14. **Continuation prompt on truncation** — when `finish_reason: "length"` drops all tool calls, `runAgentTurn` injects a user continuation prompt ("Continue immediately...") instead of letting the agent terminate or hit 3 consecutive parse failures.
+15. **Truncation instruction in skill** — "On Output Truncation" rule tells the LLM to output the next tool call immediately with no preamble if it sees the truncation signal.
+
+### Test Results (Sexual Reproduction in Flowering Plants chapter)
+- **No 504s** — SSE streaming works perfectly throughout 29 turns.
+- **Core.md written once** — Biology/core.md created on turn 1, never rewritten. Chapter core.md created once on turn 3.
+- **8 notes created** — all ~400+ lines, indexed into RAG with section transitions detected.
+- **embedSection("notes") fired** — 104 chunks embedded in one batch at section transition.
+- **Failure at transition** — after completing all notes, the model spent ~16K tokens on `reasoning_content` (model-internal chain-of-thought), hit `max_tokens=16384` mid-tool-call, then hit 3 consecutive parse failures on empty/incomplete tool calls → "Too many malformed tool calls".
+- **Token pattern** — when writing notes: completion=1-8K; after all notes done: completion=16,383-16,385 (hitting limit every turn). Root cause: model burns all output tokens on reasoning about "what to do next".
+
+### Fix for truncation
+- `max_tokens` raised 16384→32768 in both worker and route
+- `finish_reason: "length"` now detected; truncated tool calls dropped instead of failing parse
+- Continuation prompt injected when all tool calls truncated, resetting the agent instead of killing it
+- Skill rule added: "Zero tokens spent on thinking. Only the tool call."
 
 ### In Progress
 - **Testing** — need to deploy and verify the agent writes core.md once, progresses to notes, and does not loop.

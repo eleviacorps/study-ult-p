@@ -26,10 +26,13 @@ Every file is written exactly once. Before calling write_file, check if the path
 7. Revision files
 
 ### No Planning Mode
-Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes.
+Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file. Do NOT output any reasoning, thinking, or planning text — just immediately output the tool call. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes. **Zero tokens spent on thinking. Only the tool call.**
 
 ### Execution Check
 After writing a file, immediately determine the next missing file. If you have written all files for a section (e.g. all notes), move to the next section (e.g. questions). Never go backward.
+
+### On Output Truncation
+If you see "[Output exceeded token limit", that means your previous response was cut off. Do NOT recap or re-explain. Just output the single next tool call immediately with no preamble.
 
 ---
 

@@ -209,6 +209,7 @@ async function injectRagContext(
 async function parseStreamingResponse(res: Response): Promise<{
   message: Record<string, unknown>;
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  truncated?: boolean;
 }> {
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
@@ -218,6 +219,7 @@ async function parseStreamingResponse(res: Response): Promise<{
   const reasoningParts: string[] = [];
   const toolCalls: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {};
   let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
+  let finishReason: string | undefined;
 
   try {
     while (true) {
@@ -244,6 +246,8 @@ async function parseStreamingResponse(res: Response): Promise<{
 
         const choice = chunk.choices?.[0];
         if (!choice) continue;
+
+        if (choice.finish_reason) finishReason = choice.finish_reason;
 
         const delta = choice.delta;
         if (!delta) continue;
@@ -278,13 +282,35 @@ async function parseStreamingResponse(res: Response): Promise<{
   const content = contentParts.join("") || null;
   const message: Record<string, unknown> = { role: "assistant", content };
   if (reasoningParts.length > 0) message.reasoning_content = reasoningParts.join("");
+  let truncatedToolCalls = false;
   if (Object.keys(toolCalls).length > 0) {
-    message.tool_calls = Object.keys(toolCalls)
-      .sort((a, b) => Number(a) - Number(b))
-      .map((k) => toolCalls[Number(k)]);
+    // If stream was cut short by max_tokens, tool call arguments may be incomplete JSON
+    if (finishReason === "length") {
+      const validToolCalls: Record<number, typeof toolCalls[0]> = {};
+      for (const [k, tc] of Object.entries(toolCalls)) {
+        try {
+          JSON.parse(tc.function.arguments);
+          validToolCalls[Number(k)] = tc;
+        } catch {
+          console.warn(`[Agent] dropping truncated tool call ${tc.function.name}: arguments not valid JSON`);
+          truncatedToolCalls = true;
+        }
+      }
+      if (Object.keys(validToolCalls).length > 0) {
+        message.tool_calls = Object.keys(validToolCalls)
+          .sort((a, b) => Number(a) - Number(b))
+          .map((k) => validToolCalls[Number(k)]);
+      } else if (truncatedToolCalls && content === null) {
+        console.warn("[Agent] all tool calls truncated by max_tokens, returning empty response");
+      }
+    } else {
+      message.tool_calls = Object.keys(toolCalls)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => toolCalls[Number(k)]);
+    }
   }
 
-  return { message, usage };
+  return { message, usage, truncated: truncatedToolCalls };
 }
 
 // ── Agent turn ──
@@ -305,7 +331,7 @@ async function runAgentTurn(
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
-      max_tokens: 16384,
+      max_tokens: 32768,
       stream: true,
     }),
   });
@@ -323,13 +349,30 @@ async function runAgentTurn(
   }
 
   // Parse SSE stream from the provider — TTFB is ~1s (first token), not 30s (full generation)
-  const { message: msg, usage } = await parseStreamingResponse(res);
+  const { message: msg, usage, truncated } = await parseStreamingResponse(res);
 
   const msgContent = (msg.content as string) || "";
   const reasoningContent = msg.reasoning_content as string | undefined;
   const toolCalls = (msg.tool_calls as ToolCall[]) || [];
 
   console.log(`[Tokens] ${usage ? `prompt=${usage.prompt_tokens} completion=${usage.completion_tokens} total=${usage.total_tokens}` : "usage not reported (streaming)"}`);
+
+  // When max_tokens truncated the output mid-tool-call, inject a continuation prompt
+  // instead of failing or terminating the agent.
+  if (truncated && toolCalls.length === 0) {
+    console.warn("[Agent] output truncated by max_tokens, injecting continuation prompt");
+    const continuation: Record<string, unknown> = {
+      role: "user",
+      content: "[Output exceeded token limit. Continue immediately with your next action — do NOT explain, plan, or recap. Just output the next tool call.]",
+    };
+    return {
+      newMessages: [...messages, continuation],
+      steps: [],
+      finished: false,
+      content: "(truncated)",
+      usage,
+    };
+  }
 
   const step: AgentStep = {
     turn: 0,
