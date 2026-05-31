@@ -305,7 +305,7 @@ async function runAgentTurn(
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
-      max_tokens: 4096,
+      max_tokens: 16384,
       stream: true,
     }),
   });
@@ -366,13 +366,13 @@ async function runAgentTurn(
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
     // Compact write_file arguments in the assistant message to stop context bloat
+    // Remove the content field entirely — LLM should read_file if it needs content,
+    // never copy from compacted args (which caused placeholder leakage bugs).
     for (const tc2 of toolCalls) {
       if (tc2.function.name !== "write_file") continue;
       try {
         const a = JSON.parse(tc2.function.arguments);
-        const content = a.content as string;
-        const excerpt = (content || "").replace(/\n/g, " ").substring(0, 150).trim();
-        a.content = `[FILE STORED — path: ${a.path}, bytes: ${(content || "").length}, excerpt: ${excerpt}...]`;
+        delete a.content;
         tc2.function.arguments = JSON.stringify(a);
       } catch { /* leave as-is if compact fails */ }
     }
