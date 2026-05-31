@@ -49,16 +49,9 @@ export async function loadSkill(examPreset?: ExamPreset): Promise<SkillFiles> {
     }
   }
 
-  // ── Compact combined version ──
-  // Truncate skill.md to the first 8000 chars (~8KB) to control payload.
-  // Full skill is always available via loadSkill() if needed.
-  let combined = `# SKILL: Study Material Generator\n\n`;
-  combined += skill.length > 8000 ? skill.substring(0, 8000) + "\n... [skill.md truncated — key instructions preserved]" : skill;
-  combined += `\n\n`;
-
+  let combined = `# SKILL: Study Material Generator\n\n${skill}\n\n`;
   for (const ref of references) {
-    const excerpt = ref.content.length > 800 ? ref.content.substring(0, 800) + "\n... [truncated]" : ref.content;
-    combined += `\n---\n# REFERENCE: ${ref.name}\n\n${excerpt}\n`;
+    combined += `\n---\n# REFERENCE: ${ref.name}\n\n${ref.content}\n`;
   }
 
   const result: SkillFiles = { skill, references, combined };

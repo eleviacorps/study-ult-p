@@ -545,8 +545,8 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
     // Payload budget check — reject oversized conversations before sending to LLM
     const payloadEstimate = JSON.stringify({ messages, tools }).length;
-    if (payloadEstimate > 200_000) {
-      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 200KB budget, forcing window truncation`);
+    if (payloadEstimate > 150_000) {
+      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 150KB budget, forcing window truncation`);
       const truncated = [messages[0], messages[1], ...messages.slice(-4)];
       messages.length = 0;
       messages.push(...truncated);
