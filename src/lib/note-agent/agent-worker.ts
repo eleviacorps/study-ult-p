@@ -71,9 +71,14 @@ let _consecutiveSameFile = 0;
 let _lastFilePath = "";
 let _lastToolName = "";
 let _lastToolArgsJsonHash = "";
+let _writeFailCount = 0;
+let _writeFailInjected = false;
 let _readCache = new Map<string, string>();
+const _fullReadCache = new Map<string, { result: string; timestamp: number }>();
+const FULL_READ_CACHE_TTL = 30_000; // 30s
 
 const MAX_CONSECUTIVE_PARSE_FAILS = 3;
+const MAX_WRITE_FAILS = 2;
 const MAX_CONSECUTIVE_SAME_ACTION = 3;
 
 // ── Retrieval state tracking — prevents loops and redundant searches ──
@@ -379,6 +384,20 @@ function validateToolArgs(name: string, args: Record<string, unknown>): string |
   return null;
 }
 
+// Format validation error with tool schema details (like opencode's InvalidArgumentsError)
+function formatToolError(name: string, detail: string): string {
+  const schema = TOOL_SCHEMAS[name];
+  let msg = `The ${name} tool was called with invalid arguments: ${detail}.\n`;
+  if (schema) {
+    const params = Object.entries(schema.properties)
+      .map(([k, v]) => `  "${k}" (${v.type})${schema.required.includes(k) ? " — required" : " — optional"}`)
+      .join("\n");
+    msg += `Expected parameters:\n${params}\n`;
+  }
+  msg += "Please rewrite the input so it satisfies the expected schema.";
+  return JSON.stringify({ error: msg, _hint: "fix_args" });
+}
+
 function truncateToolResult(result: string): string {
   if (result.length <= MAX_TOOL_RESULT_BYTES) return result;
   return result.substring(0, MAX_TOOL_RESULT_BYTES) + `\n... [truncated at ${MAX_TOOL_RESULT_BYTES} bytes; full content in workspace]`;
@@ -564,6 +583,7 @@ async function runAgentTurn(
   if (toolCalls.length > 0) assistantMsg.tool_calls = toolCalls;
 
   if (toolCalls.length > 0) {
+    _writeFailCount = 0;
     const newMsgs = [...messages, assistantMsg];
     for (const tc of toolCalls) {
       if (abortFlag) break;
@@ -585,11 +605,26 @@ async function runAgentTurn(
       // Schema validation (like opencode's Schema.decodeUnknownEffect)
       const validationError = validateToolArgs(tc.function.name, args);
       if (validationError) {
-        const errBody = JSON.stringify({ error: validationError });
+        // Track write_file failures to break retry loops
+        if (tc.function.name === "write_file") {
+          _writeFailCount++;
+          if (_writeFailCount >= MAX_WRITE_FAILS && !_writeFailInjected) {
+            _writeFailInjected = true;
+            const reminder: Record<string, unknown> = {
+              role: "user",
+              content: "[REMINDER: write_file requires both \"path\" (string) and \"content\" (string) parameters. The content must be the full file content. If you already wrote the content file before, use read_file to check it instead of trying to rewrite it.]",
+            };
+            newMsgs.push(reminder);
+            step.toolCalls.push({ name: tc.function.name, args: {}, result: JSON.stringify({ error: "write_file retry limit reached — reminder injected" }) });
+            continue;
+          }
+        }
+        const errBody = formatToolError(tc.function.name, validationError);
         step.toolCalls.push({ name: tc.function.name, args: {}, result: errBody });
         newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
         continue;
       }
+      _writeFailCount = 0;
 
       // Execute with output truncation (like opencode's tool wrap())
       const seq = ++_toolCallSequence;
@@ -646,7 +681,8 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       }
       if (!content) return JSON.stringify({ error: "Missing content", path });
       workspace.set(path, content);
-      _readCache.delete(path); // invalidate cached read
+      _readCache.delete(path);
+      _fullReadCache.delete(path);
       const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
       const section = path.includes("/notes/") ? "notes" : path.includes("/questions/") ? "questions" : path.includes("/revision/") ? "revision" : "other";
       // Queue for batch indexing — store-only, no embed
@@ -666,9 +702,19 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       const path = args.path as string;
       const needsFull = args.full === true;
 
-      // Per-path read cache — avoid re-reading same file repeatedly
-      const cached = _readCache.get(path);
-      if (cached !== undefined && !needsFull) return cached;
+      // Full-read cache with TTL — avoids repeat reads of same file
+      if (needsFull) {
+        const cached = _fullReadCache.get(path);
+        if (cached && Date.now() - cached.timestamp < FULL_READ_CACHE_TTL) {
+          return cached.result;
+        }
+      }
+
+      // Compact read cache (immortal, since compact reads are just metadata)
+      if (!needsFull) {
+        const cached = _readCache.get(path);
+        if (cached !== undefined) return cached;
+      }
 
       let content = workspace.get(path);
 
@@ -695,6 +741,7 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
           const truncated = content.length > MAX_TOOL_RESULT_BYTES;
           const body = truncated ? content.substring(0, MAX_TOOL_RESULT_BYTES) : content;
           result = JSON.stringify({ path, content: body, size: content.length, mode: "full", truncated });
+          _fullReadCache.set(path, { result, timestamp: Date.now() });
         } else {
           const excerpt = content.replace(/\n/g, " ").substring(0, 300).trim();
           result = JSON.stringify({ path, size: content.length, excerpt, mode: "compact" });
@@ -707,10 +754,16 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
     }
 
     case "list_workspace": {
-      const entries = Array.from(workspace.keys()).map((p) => ({
-        name: p,
-        type: p.includes("/") ? "file" : "directory",
-      }));
+      const entries = Array.from(workspace.keys()).map((p) => {
+        const content = workspace.get(p) || "";
+        const lines = content ? content.split("\n").length : 0;
+        return {
+          name: p,
+          type: p.includes("/") ? "file" : "directory",
+          size: content.length,
+          lines,
+        };
+      });
       return JSON.stringify({ entries });
     }
 
