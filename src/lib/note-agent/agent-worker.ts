@@ -429,6 +429,7 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
 
       // Ignore placeholder strings that leaked into workspace from compacted tool call args
       if (content && content.startsWith("[FILE STORED —")) {
+        console.warn(`[Agent] read_file: ignored placeholder in workspace for "${path}" (${content.length} bytes), falling back to RAG`);
         content = undefined;
       }
 
@@ -446,7 +447,7 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       if (content) {
         let result: string;
         if (needsFull) {
-          result = JSON.stringify({ path, content, size: content.length });
+          result = JSON.stringify({ path, content, size: content.length, mode: "full" });
         } else {
           const excerpt = content.replace(/\n/g, " ").substring(0, 300).trim();
           result = JSON.stringify({ path, size: content.length, excerpt, mode: "compact" });
@@ -599,7 +600,20 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   // Seed workspace with vault notes for reference
   workspace = new Map<string, string>();
   for (const n of vaultNotes) {
+    // Skip notes whose content is a compacted placeholder from previous buggy runs
+    if (n.content && n.content.startsWith("[FILE STORED —")) {
+      console.warn(`[Agent] skipping corrupted vault note: ${n.path} (placeholder content)`);
+      continue;
+    }
     workspace.set(n.path, n.content);
+  }
+
+  // Clean any remaining corrupted entries — scan workspace for placeholder content
+  for (const [p, c] of workspace.entries()) {
+    if (c.startsWith("[FILE STORED —")) {
+      console.warn(`[Agent] cleaning corrupted workspace entry: ${p}`);
+      workspace.delete(p);
+    }
   }
 
   ragChapterPath = chapterPath;
