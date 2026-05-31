@@ -11,6 +11,26 @@ description: "Transform raw educational content into a premium Obsidian vault fo
 
 **Target: Every topic note must be 400+ lines of premium coaching institute material.**
 
+## RULES THAT OVERRIDE EVERYTHING BELOW
+
+### Write-Once Rule
+Every file is written exactly once. Before calling write_file, check if the path already exists in the workspace via list_workspace. If it exists, do NOT rewrite it. Call read_file to see the current content, then move to the next missing file.
+
+### Priority Order
+1. Chapter core.md (write once, then never touch again)
+2. Note files (one per topic, 400+ lines)
+3. Questions file
+4. MCQs file
+5. Flashcards file
+6. Quizzes file
+7. Revision files
+
+### No Planning Mode
+Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes.
+
+### Execution Check
+After writing a file, immediately determine the next missing file. If you have written all files for a section (e.g. all notes), move to the next section (e.g. questions). Never go backward.
+
 ---
 
 ## STRICT PARSER CONTRACT - FOLLOW EXACTLY

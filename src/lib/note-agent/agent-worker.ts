@@ -394,6 +394,10 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
   switch (name) {
     case "write_file": {
       const path = args.path as string;
+      // Reject rewriting core.md if it already exists — prevents the obsessional loop
+      if (path.endsWith("core.md") && workspace.has(path)) {
+        return JSON.stringify({ error: `core.md already exists. Read it, then move to creating notes.`, path });
+      }
       const content = args.content as string | undefined;
       // Reject placeholder strings that would corrupt workspace content
       if (content && content.startsWith("[FILE STORED —")) {
