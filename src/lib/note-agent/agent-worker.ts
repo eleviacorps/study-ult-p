@@ -313,6 +313,77 @@ async function parseStreamingResponse(res: Response): Promise<{
   return { message, usage, truncated: truncatedToolCalls };
 }
 
+// ── OpenCode-style tool calling system ──
+
+// Tool parameter schemas extracted from NOTE_AGENT_TOOLS for runtime validation
+const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; description?: string }>; required: string[] }> = {
+  write_file: {
+    properties: { path: { type: "string" }, content: { type: "string" } },
+    required: ["path", "content"],
+  },
+  read_file: {
+    properties: { path: { type: "string" }, full: { type: "boolean" } },
+    required: ["path"],
+  },
+  list_workspace: {
+    properties: {},
+    required: [],
+  },
+  assess_quality: {
+    properties: { chapterPath: { type: "string" }, detailed: { type: "boolean" } },
+    required: ["chapterPath"],
+  },
+  final_report: {
+    properties: { summary: { type: "string" }, filesCreated: { type: "array" }, filesModified: { type: "array" }, issuesFixed: { type: "array" } },
+    required: ["summary", "filesCreated", "filesModified", "issuesFixed"],
+  },
+};
+
+// Maximum tool result size (matches opencode's 50KB limit)
+const MAX_TOOL_RESULT_BYTES = 50 * 1024;
+
+// Execution context for tool calls (like opencode's tool execution context)
+let _toolCallSequence = 0;
+interface ToolExecution {
+  seq: number;
+  name: string;
+  id: string;
+  args: Record<string, unknown>;
+  startedAt: number;
+  durationMs: number;
+  truncated: boolean;
+}
+const _toolExecLog: ToolExecution[] = [];
+const MAX_TOOL_EXEC_LOG = 100;
+
+function validateToolArgs(name: string, args: Record<string, unknown>): string | null {
+  const schema = TOOL_SCHEMAS[name];
+  if (!schema) return null;
+  for (const field of schema.required) {
+    if (args[field] === undefined || args[field] === null) {
+      return `Missing required parameter "${field}" for ${name}`;
+    }
+  }
+  for (const [key, def] of Object.entries(schema.properties)) {
+    if (args[key] === undefined) continue;
+    if (def.type === "string" && typeof args[key] !== "string") {
+      return `Parameter "${key}" for ${name} must be a string, got ${typeof args[key]}`;
+    }
+    if (def.type === "boolean" && typeof args[key] !== "boolean") {
+      return `Parameter "${key}" for ${name} must be boolean, got ${typeof args[key]}`;
+    }
+    if (def.type === "array" && !Array.isArray(args[key])) {
+      return `Parameter "${key}" for ${name} must be an array, got ${typeof args[key]}`;
+    }
+  }
+  return null;
+}
+
+function truncateToolResult(result: string): string {
+  if (result.length <= MAX_TOOL_RESULT_BYTES) return result;
+  return result.substring(0, MAX_TOOL_RESULT_BYTES) + `\n... [truncated at ${MAX_TOOL_RESULT_BYTES} bytes; full content in workspace]`;
+}
+
 // ── Compaction helpers (inspired by opencode's anchored summarization) ──
 
 // How many recent turns to keep verbatim during compaction
@@ -510,7 +581,28 @@ async function runAgentTurn(
         continue;
       }
       _parseFailCount = 0;
-      const result = await handler(tc.function.name, args);
+
+      // Schema validation (like opencode's Schema.decodeUnknownEffect)
+      const validationError = validateToolArgs(tc.function.name, args);
+      if (validationError) {
+        const errBody = JSON.stringify({ error: validationError });
+        step.toolCalls.push({ name: tc.function.name, args: {}, result: errBody });
+        newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
+        continue;
+      }
+
+      // Execute with output truncation (like opencode's tool wrap())
+      const seq = ++_toolCallSequence;
+      const startedAt = Date.now();
+      const raw = await handler(tc.function.name, args);
+      const durationMs = Date.now() - startedAt;
+      const result = truncateToolResult(raw);
+      const truncated = result.length < raw.length;
+
+      // Record execution context
+      _toolExecLog.push({ seq, name: tc.function.name, id: tc.id, args, startedAt, durationMs, truncated });
+      if (_toolExecLog.length > MAX_TOOL_EXEC_LOG) _toolExecLog.splice(0, _toolExecLog.length - MAX_TOOL_EXEC_LOG);
+
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
@@ -600,7 +692,9 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       if (content) {
         let result: string;
         if (needsFull) {
-          result = JSON.stringify({ path, content, size: content.length, mode: "full" });
+          const truncated = content.length > MAX_TOOL_RESULT_BYTES;
+          const body = truncated ? content.substring(0, MAX_TOOL_RESULT_BYTES) : content;
+          result = JSON.stringify({ path, content: body, size: content.length, mode: "full", truncated });
         } else {
           const excerpt = content.replace(/\n/g, " ").substring(0, 300).trim();
           result = JSON.stringify({ path, size: content.length, excerpt, mode: "compact" });
