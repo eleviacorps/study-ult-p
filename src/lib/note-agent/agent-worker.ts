@@ -554,28 +554,34 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     // Build retrieval query from structured state, not assistant prose
     await injectRagContext(messages, chapterPath, chapterName, currentTurn, allToolCalls);
 
-    // Payload budget check — reject oversized conversations before sending to LLM
+    // Payload budget check — compact conversation instead of truncating
     const payloadEstimate = JSON.stringify({ messages, tools }).length;
     if (payloadEstimate > 180_000) {
-      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 180KB budget, forcing window truncation`);
-      // Scan backward from the end to find a clean cutoff where tool ↔ tool_calls chains are intact.
+      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 180KB budget, compacting conversation`);
       const systemMsg = messages[0];
       const userMsg = messages[1];
-      const tail: Record<string, unknown>[] = [];
-      let pendingTools = 0;
-      for (let i = messages.length - 1; i >= 2; i--) { // always keep system + user
-        const m = messages[i];
-        tail.unshift(m);
-        if (m.role === "tool") {
-          pendingTools++;
-        } else if (m.role === "assistant" && m.tool_calls) {
-          const tc = (m.tool_calls as unknown[]).length;
-          pendingTools = Math.max(0, pendingTools - tc);
-        }
-        if (pendingTools === 0 && tail.length >= 4) break;
+      // Build a structured state summary that replaces verbose tool chains
+      const allFiles: string[] = [];
+      for (const [p] of workspace.entries()) {
+        if (p.startsWith(chapterPath) && p.endsWith(".md")) allFiles.push(p);
       }
+      allFiles.sort();
+      const notes = allFiles.filter((f) => f.includes("/notes/"));
+      const questions = allFiles.filter((f) => f.includes("/questions/"));
+      const flashcards = allFiles.filter((f) => f.includes("/flashcards/"));
+      const quizzes = allFiles.filter((f) => f.includes("/quizzes/"));
+      const revision = allFiles.filter((f) => f.includes("/revision/"));
+      const lastActions = allToolCalls.slice(-5).map((tc) => `${tc.name}(${Object.keys(tc.args).join(",")})`).join("; ");
+      const stateSummary = {
+        role: "user" as const,
+        content: `[STATE SUMMARY — turn ${currentTurn}]
+Files written: ${allFiles.length} total (${notes.length} notes, ${questions.length} questions, ${flashcards.length} flashcards, ${quizzes.length} quizzes, ${revision.length} revision)
+Last actions: ${lastActions || "none"}
+Continue with the next task. Check workspace for current files.${notes.length < 11 ? " Topics still need detailed notes." : ""}${questions.length < 100 ? " Questions file remains to be written." : ""}${flashcards.length < 100 ? " Flashcards file remains to be written." : ""}${quizzes.length < 100 ? " Quizzes file remains to be written." : ""}`,
+      };
       messages.length = 0;
-      messages.push(systemMsg, userMsg, ...tail);
+      messages.push(systemMsg, userMsg, stateSummary);
+      console.log(`[Agent] Compacted to ${Math.round(JSON.stringify({ messages, tools }).length / 1024)}KB`);
     }
 
     try {
