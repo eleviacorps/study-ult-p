@@ -298,7 +298,12 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
   switch (name) {
     case "write_file": {
       const path = args.path as string;
-      const content = args.content as string;
+      const content = args.content as string | undefined;
+      // Reject placeholder strings that would corrupt workspace content
+      if (content && content.startsWith("[FILE STORED —")) {
+        return JSON.stringify({ error: "Cannot write placeholder as content", path });
+      }
+      if (!content) return JSON.stringify({ error: "Missing content", path });
       workspace.set(path, content);
       _readCache.delete(path); // invalidate cached read
       const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
@@ -325,6 +330,12 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       if (cached !== undefined && !needsFull) return cached;
 
       let content = workspace.get(path);
+
+      // Ignore placeholder strings that leaked into workspace from compacted tool call args
+      if (content && content.startsWith("[FILE STORED —")) {
+        content = undefined;
+      }
+
       if (!content) {
         // Fallback: try RAG (files indexed but not in current workspace)
         try {
