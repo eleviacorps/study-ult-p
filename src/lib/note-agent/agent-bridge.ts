@@ -1,18 +1,18 @@
 import type { AgentConfig, ToolDef, AgentStep } from "@/lib/llm-agent";
-import type { AgentPhase, AgentUIState, WorkerOutMessage } from "./agent-types";
+import type { AgentPhase, AgentUIState } from "./agent-types";
 import { saveToDB, loadFromDB, deleteFromDB } from "./agent-db";
+import { runAgentEngine, type AgentEngineCallbacks } from "./agent-engine";
 
 const DB_KEY = "note-agent-session";
 
 type StateSubscriber = (state: AgentUIState) => void;
 
-// Module-level singletons — survive component remounts
-let sharedWorker: SharedWorker | null = null;
-let workerPort: MessagePort | null = null;
-let workerReady = false;
+// Module-level singletons
 let subscribers = new Set<StateSubscriber>();
 let currentState: AgentUIState = createInitialState();
 let lastSave = 0;
+let abortFlag = false;
+let enginePromise: Promise<void> | null = null;
 
 function createInitialState(): AgentUIState {
   return {
@@ -39,7 +39,7 @@ function notify() {
 
 function persistState(force = false) {
   const now = Date.now();
-  if (!force && now - lastSave < 2000) return; // throttle to 2s
+  if (!force && now - lastSave < 2000) return;
   lastSave = now;
   saveToDB(DB_KEY, currentState).catch(() => {});
 }
@@ -61,94 +61,10 @@ function mergeSteps(existing: AgentStep[], incoming: AgentStep[], incomingTurn: 
   return Array.from(map.values()).sort((a, b) => a.turn - b.turn);
 }
 
-function handleWorkerMessage(e: MessageEvent<WorkerOutMessage>) {
-  const msg = e.data;
-  switch (msg.type) {
-    case "progress": {
-      const allSteps = mergeSteps(currentState.steps, msg.steps, msg.turn);
-      currentState = {
-        ...currentState,
-        phase: "running",
-        turn: msg.turn,
-        steps: allSteps,
-        toolCalls: deriveToolCalls(allSteps),
-        messages: msg.messages,
-        updatedAt: Date.now(),
-      };
-      notify();
-      persistState();
-      break;
-    }
-    case "done": {
-      const allSteps = mergeSteps(currentState.steps, msg.steps, msg.turn);
-      const files = msg.workspace.map(([path, content]) => ({ path, content }));
-      currentState = {
-        ...currentState,
-        phase: "done",
-        turn: msg.turn,
-        steps: allSteps,
-        toolCalls: deriveToolCalls(allSteps),
-        files,
-        messages: msg.messages,
-        updatedAt: Date.now(),
-      };
-      notify();
-      persistState(true); // force save — final state must persist
-      break;
-    }
-    case "error": {
-      currentState = {
-        ...currentState,
-        phase: "error",
-        error: msg.error,
-        updatedAt: Date.now(),
-      };
-      notify();
-      break;
-    }
-  }
-}
-
-function ensureWorker(): MessagePort {
-  if (!sharedWorker && !workerPort) {
-    const url = new URL("./agent-worker.ts", import.meta.url);
-    // SharedWorker survives page navigations but is NOT supported in Android WebView.
-    // DedicatedWorker (Worker) works everywhere but dies on navigation/background.
-    // Try SharedWorker first, fall back to DedicatedWorker.
-    try {
-      sharedWorker = new SharedWorker(url);
-      workerPort = sharedWorker.port;
-    } catch {
-      // SharedWorker not available (Android WebView, older browsers)
-      const dedicated = new Worker(url);
-      // Wrap the DedicatedWorker's onmessage into a port-like interface
-      workerPort = {
-        postMessage: (msg: unknown) => dedicated.postMessage(msg),
-        start: () => { /* DedicatedWorker starts immediately */ },
-        onmessage: null as unknown as ((ev: MessageEvent) => void),
-      } as unknown as MessagePort;
-      dedicated.onmessage = (e: MessageEvent) => {
-        if (workerPort?.onmessage) workerPort.onmessage(e);
-      };
-    }
-    if (workerPort) {
-      workerPort.onmessage = handleWorkerMessage;
-      workerPort.start();
-      workerReady = true;
-    }
-  } else if (workerPort) {
-    // Re-attach handler in case the component re-mounted
-    workerPort.onmessage = handleWorkerMessage;
-  }
-  return workerPort!;
-}
-
 export function subscribe(cb: StateSubscriber): () => void {
   subscribers.add(cb);
   cb(currentState);
-  return () => {
-    subscribers.delete(cb);
-  };
+  return () => { subscribers.delete(cb); };
 }
 
 export function getState(): AgentUIState {
@@ -156,10 +72,10 @@ export function getState(): AgentUIState {
 }
 
 export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path: string; content: string }[], chapterName: string, chapterPath: string, initialMessages: Record<string, unknown>[], examVars?: Record<string, string>) {
-  const p = ensureWorker();
+  // Don't start if already running
+  if (enginePromise) return;
 
-  // Make sure it's connected (re-attach handler if worker was recreated)
-  p.onmessage = handleWorkerMessage;
+  abortFlag = false;
 
   currentState = createInitialState();
   currentState = {
@@ -174,28 +90,75 @@ export function start(config: AgentConfig, tools: ToolDef[], vaultNotes: { path:
   notify();
   saveToDB(DB_KEY, currentState).catch(() => {});
 
-  p.postMessage({
-    type: "start",
+  const callbacks: AgentEngineCallbacks = {
+    onProgress: (state) => {
+      const allSteps = mergeSteps(currentState.steps, state.steps, state.turn);
+      currentState = {
+        ...currentState,
+        phase: "running",
+        turn: state.turn,
+        steps: allSteps,
+        toolCalls: deriveToolCalls(allSteps),
+        messages: state.messages,
+        updatedAt: Date.now(),
+      };
+      notify();
+      persistState();
+    },
+    onDone: (state) => {
+      const allSteps = mergeSteps(currentState.steps, state.steps, state.turn);
+      const files = state.workspace.map(([path, content]) => ({ path, content }));
+      currentState = {
+        ...currentState,
+        phase: "done",
+        turn: state.turn,
+        steps: allSteps,
+        toolCalls: deriveToolCalls(allSteps),
+        files,
+        messages: state.messages,
+        updatedAt: Date.now(),
+      };
+      notify();
+      persistState(true);
+      enginePromise = null;
+    },
+    onError: (error) => {
+      currentState = {
+        ...currentState,
+        phase: "error",
+        error,
+        updatedAt: Date.now(),
+      };
+      notify();
+      enginePromise = null;
+    },
+    isAborted: () => abortFlag,
+  };
+
+  enginePromise = runAgentEngine({
     config,
+    messages: initialMessages,
     tools,
     vaultNotes,
     chapterName,
     chapterPath,
-    messages: initialMessages,
-    examVars: examVars || {},
+    callbacks,
+  }).catch((err) => {
+    if (err.message !== "Aborted") {
+      currentState = { ...currentState, phase: "error", error: err.message, updatedAt: Date.now() };
+      notify();
+    }
+    enginePromise = null;
   });
 }
 
 export function abort() {
-  if (workerPort) {
-    workerPort.postMessage({ type: "abort" });
-  }
+  abortFlag = true;
 }
 
 export function discard() {
-  // SharedWorker can't be terminated from a single page — just clean state
-  sharedWorker = null;
-  workerPort = null;
+  abort();
+  enginePromise = null;
   currentState = createInitialState();
   deleteFromDB(DB_KEY).catch(() => {});
   notify();
