@@ -11,4 +11,7 @@ export {
   getRAGStats,
   getIndexTelemetry,
   resetIndexTelemetry,
+  embedSection,
+  getPendingEmbedSummary,
+  resetPendingEmbeds,
 } from "./rag-store";

@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { queueDocument, processDocumentQueue, searchDocuments, getDocument, pendingIndexCount, getIndexTelemetry, resetIndexTelemetry } from "./rag-store";
+import { queueDocument, processDocumentQueue, searchDocuments, getDocument, pendingIndexCount, getIndexTelemetry, resetIndexTelemetry, embedSection, getPendingEmbedSummary, resetPendingEmbeds } from "./rag-store";
 
 interface ToolDef {
   type: "function";
@@ -118,6 +118,7 @@ function normalizePath(p: string): string {
 // ── Indexing queue processing ──
 
 let lastIndexProcessTurn = -1;
+let _lastWrittenSection: string | null = null; // for section transition auto-detect
 
 async function processIndexBatch(): Promise<void> {
   const result = await processDocumentQueue();
@@ -137,7 +138,7 @@ async function seedVectorStore(vaultNotes: { path: string; content: string }[], 
     // or "Electrostatics/notes/x.md"
     if (normPath.split("/").includes(normChapterPath)) {
       const type = n.path.includes("/questions/") ? "questions" : n.path.includes("/notes/") ? "notes" : "other";
-      queueDocument(n.path, n.content, chapterPath, type);
+      queueDocument(n.path, n.content, chapterPath, type, undefined, true);
       queuedCount++;
     }
   }
@@ -295,8 +296,17 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       workspace.set(path, content);
       _readCache.delete(path); // invalidate cached read
       const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
-      // Queue for batch indexing — does NOT block the agent
-      queueDocument(path, content, ragChapterPath, type);
+      const section = path.includes("/notes/") ? "notes" : path.includes("/questions/") ? "questions" : path.includes("/revision/") ? "revision" : "other";
+      // Queue for batch indexing — store-only, no embed
+      queueDocument(path, content, ragChapterPath, type, section, false);
+
+      // Section transition auto-detect: embed previous section on checkpoint
+      if (_lastWrittenSection && _lastWrittenSection !== section) {
+        embedSection(_lastWrittenSection).then((res) => {
+          console.log(`[Agent] section transition "${_lastWrittenSection}" → "${section}": embedded ${res.embedded}/${res.embedded + res.skipped} chunks`);
+        }).catch((e) => console.error(`[Agent] embedSection("${_lastWrittenSection}") failed:`, e));
+      }
+      _lastWrittenSection = section;
       return JSON.stringify({ success: true, path, bytes: content.length });
     }
 
@@ -488,6 +498,8 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   _lastToolName = "";
   _lastToolArgsJsonHash = "";
   _readCache.clear();
+  resetPendingEmbeds();
+  _lastWrittenSection = null;
 
   const MAX_TURNS = 150;
   const messages = structuredClone(initialMessages);
@@ -514,6 +526,10 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     if (abortFlag) {
       // Flush any pending index writes before finishing
       await processIndexBatch();
+      // Embed pending section chunks on abort
+      if (_lastWrittenSection) {
+        await embedSection(_lastWrittenSection);
+      }
       self.postMessage({ type: "done", messages, steps: [], turn: currentTurn, workspace: getChapterFiles() } );
       return;
     }
@@ -565,6 +581,10 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       if (result.finished) {
         // Flush pending index writes before finishing
         await processIndexBatch();
+        // Embed pending section chunks on completion
+        if (_lastWrittenSection) {
+          await embedSection(_lastWrittenSection);
+        }
         const tel = getIndexTelemetry();
         console.log(`[Agent] done — ${tel.docsIndexed} docs, ${tel.chunksIndexed} chunks, ${tel.embeddingCalls} embed calls, ${tel.searchCalls} searches (${tel.cacheHits} cache hits, ${tel.cacheMisses} misses)`);
         self.postMessage({ type: "done", messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() } );
@@ -613,6 +633,10 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     } catch (err: any) {
       // Attempt to flush index queue even on error
       await processIndexBatch();
+      // Attempt to embed pending section chunks on error
+      if (_lastWrittenSection) {
+        embedSection(_lastWrittenSection).catch(() => {});
+      }
       self.postMessage({ type: "error", error: err.message } satisfies WorkerErrorUpdate);
       return;
     }
@@ -620,6 +644,10 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
   // Flush remaining index writes
   await processIndexBatch();
+  // Embed pending section chunks before reporting done
+  if (_lastWrittenSection) {
+    await embedSection(_lastWrittenSection);
+  }
 
   // Max turns reached
   const fileList: [string, string][] = [];

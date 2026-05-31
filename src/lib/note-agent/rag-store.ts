@@ -14,6 +14,7 @@ interface ChunkEntry {
   path: string;
   chapter: string;
   type: string;
+  section: string;
   chunkIndex: number;
   chunkTotal: number;
   content: string;
@@ -27,6 +28,7 @@ interface DocRecord {
   path: string;
   chapter: string;
   type: string;
+  section?: string;
   content: string;
   contentHash: string;
   chunkIds: string[];
@@ -49,10 +51,15 @@ interface QueuedDoc {
   content: string;
   chapter: string;
   type: string;
+  section: string;
+  embedImmediately: boolean;
 }
 
 let _indexQueue: QueuedDoc[] = [];
 let _processingQueue = false;
+
+// ── Pending section embeds (in-memory, tracked per agent run) ──
+let _pendingPathsBySection = new Map<string, Set<string>>(); // section → Set<path>
 
 // ── Retrieval cache ──
 
@@ -69,11 +76,16 @@ let _writeVersion = 0; // incremented on each document write, busts cache
 
 let _docsIndexed = 0;
 let _chunksIndexed = 0;
+let _chunksStoredNoEmbed = 0;
 let _embeddingCalls = 0;
+let _sectionEmbedCalls = 0;
+let _sectionEmbeddedChunks = 0;
+let _sectionEmbedSkipped = 0;
 let _searchCalls = 0;
 let _cacheHits = 0;
 let _cacheMisses = 0;
 let _indexTimeMs = 0;
+let _embedTimeMs = 0;
 let _searchTimeMs = 0;
 let _skippedSameHash = 0;
 
@@ -81,11 +93,16 @@ export function getIndexTelemetry() {
   const out = {
     docsIndexed: _docsIndexed,
     chunksIndexed: _chunksIndexed,
+    chunksStoredNoEmbed: _chunksStoredNoEmbed,
     embeddingCalls: _embeddingCalls,
+    sectionEmbedCalls: _sectionEmbedCalls,
+    sectionEmbeddedChunks: _sectionEmbeddedChunks,
+    sectionEmbedSkipped: _sectionEmbedSkipped,
     searchCalls: _searchCalls,
     cacheHits: _cacheHits,
     cacheMisses: _cacheMisses,
     indexTimeMs: _indexTimeMs,
+    embedTimeMs: _embedTimeMs,
     searchTimeMs: _searchTimeMs,
     skippedSameHash: _skippedSameHash,
     pendingQueue: _indexQueue.length,
@@ -96,11 +113,16 @@ export function getIndexTelemetry() {
 export function resetIndexTelemetry() {
   _docsIndexed = 0;
   _chunksIndexed = 0;
+  _chunksStoredNoEmbed = 0;
   _embeddingCalls = 0;
+  _sectionEmbedCalls = 0;
+  _sectionEmbeddedChunks = 0;
+  _sectionEmbedSkipped = 0;
   _searchCalls = 0;
   _cacheHits = 0;
   _cacheMisses = 0;
   _indexTimeMs = 0;
+  _embedTimeMs = 0;
   _searchTimeMs = 0;
   _skippedSameHash = 0;
 }
@@ -108,7 +130,7 @@ export function resetIndexTelemetry() {
 // ── Constants ──
 
 const DB_NAME = "studyult-rag";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_CHUNKS = "chunks";
 const STORE_DOCS = "docs";
 const STORE_INDEX = "index";
@@ -127,7 +149,15 @@ function openDB(): Promise<IDBDatabase> {
         const s = db.createObjectStore(STORE_CHUNKS, { keyPath: "chunkId" });
         s.createIndex("chapter", "chapter", { unique: false });
         s.createIndex("type", "type", { unique: false });
+        s.createIndex("section", "section", { unique: false });
         s.createIndex("contentHash", "contentHash", { unique: false });
+      }
+      // Add section index on upgrade for existing stores (v2→v3 migration)
+      if (db.objectStoreNames.contains(STORE_CHUNKS)) {
+        const s = req.transaction!.objectStore(STORE_CHUNKS);
+        if (!s.indexNames.contains("section")) {
+          s.createIndex("section", "section", { unique: false });
+        }
       }
       if (!db.objectStoreNames.contains(STORE_DOCS)) {
         const s = db.createObjectStore(STORE_DOCS, { keyPath: "path" });
@@ -226,9 +256,20 @@ async function saveIndexRecord(rec: IndexRecord): Promise<void> {
 
 // ── Background queue: queueDocument + processDocumentQueue ──
 
-export function queueDocument(path: string, content: string, chapter: string, type: string): void {
+export function queueDocument(path: string, content: string, chapter: string, type: string, section?: string, embedImmediately = false): void {
   if (!content.trim()) return;
-  _indexQueue.push({ path, content, chapter, type });
+  const sec = section || inferSectionFromPath(path, type);
+  _indexQueue.push({ path, content, chapter, type, section: sec, embedImmediately });
+}
+
+function inferSectionFromPath(path: string, type: string): string {
+  if (path.includes("/notes/")) return "notes";
+  if (path.includes("/questions/")) return "questions";
+  if (path.includes("/revision/")) return "revision";
+  if (path.includes("/flashcards/")) return "other";
+  if (path.includes("/quizzes/")) return "other";
+  if (type === "notes" || type === "questions") return type;
+  return "other";
 }
 
 export function pendingIndexCount(): number {
@@ -251,9 +292,9 @@ export async function processDocumentQueue(): Promise<{
   const batch = _indexQueue.splice(0, Math.min(_indexQueue.length, 20));
 
   for (const doc of batch) {
-    const ok = await addDocument(doc.path, doc.content, doc.chapter, doc.type);
+    const ok = await addDocument(doc.path, doc.content, doc.chapter, doc.type, doc.section, doc.embedImmediately);
     if (ok === "skipped") skipped++;
-    else if (ok === "indexed") indexed++;
+    else if (ok === "indexed" || ok === "stored") indexed++;
   }
 
   const timeMs = Math.round(performance.now() - start);
@@ -265,18 +306,22 @@ export async function processDocumentQueue(): Promise<{
 
 // ── CRUD ──
 
-/** Returns "indexed", "skipped" (same hash), or "failed" */
+/** Returns "indexed", "stored" (no embed), "skipped" (same hash), or "failed" */
 async function addDocument(
   path: string,
   content: string,
   chapter: string,
-  type: string
-): Promise<"indexed" | "skipped" | "failed"> {
+  type: string,
+  section?: string,
+  embedImmediately = true
+): Promise<"indexed" | "stored" | "skipped" | "failed"> {
   if (!content.trim()) return "failed";
 
-  const mode = getEmbeddingMode();
-  if (mode === "probing") await waitForMode();
-  const resolvedMode = getEmbeddingMode() as EmbeddingMode;
+  const resolvedMode = (() => {
+    const m = getEmbeddingMode();
+    if (m === "probing") { /* already awaited by caller */ }
+    return m as EmbeddingMode;
+  })();
 
   const db = await openDB();
   try {
@@ -306,18 +351,17 @@ async function addDocument(
     const chunks = chunkDocument(content, MAX_CHUNK_TOKENS, OVERLAP_TOKENS);
     if (chunks.length === 0) { db.close(); return "failed"; }
 
-    // ── Embed (no DB work here — safe) ──
+    // ── Compute TF vectors locally; embed only if embedImmediately ──
     const chunkTexts = chunks.map((c) => c.content);
+    const tfVectors = chunkTexts.map((t) => computeTF(t));
     let embeddings: Float32Array[] | null = null;
-    let tfVectors: SparseVector[] | null = null;
 
-    if (resolvedMode === "provider") {
+    if (embedImmediately && resolvedMode === "provider") {
       _embeddingCalls++;
       embeddings = await embedTexts(chunkTexts, "passage");
-      if (!embeddings) tfVectors = chunkTexts.map((t) => computeTF(t));
-    } else {
-      tfVectors = chunkTexts.map((t) => computeTF(t));
     }
+
+    const sec = section || inferSectionFromPath(path, type);
 
     // ── Build chunk entries ──
     const chunkEntries: ChunkEntry[] = [];
@@ -328,12 +372,13 @@ async function addDocument(
         path,
         chapter,
         type,
+        section: sec,
         chunkIndex: chunk.index,
         chunkTotal: chunk.total,
         content: chunk.content,
         contentHash: await computeContentHash(chunk.content),
         embedding: embeddings?.[i] || null,
-        vector: tfVectors ? Array.from(tfVectors[i].entries()) : null,
+        vector: Array.from(tfVectors[i].entries()),
         tokens: extractTokens(chunk.content),
       });
     }
@@ -344,7 +389,7 @@ async function addDocument(
     const tx = db.transaction([STORE_CHUNKS, STORE_DOCS, STORE_INDEX], "readwrite");
     putAll(tx.objectStore(STORE_CHUNKS), chunkEntries);
     tx.objectStore(STORE_DOCS).put({
-      path, chapter, type, content, contentHash,
+      path, chapter, type, section: sec, content, contentHash,
       chunkIds: chunkEntries.map((c) => c.chunkId),
       createdAt: existing?.createdAt || now,
       updatedAt: now,
@@ -359,17 +404,24 @@ async function addDocument(
     await txComplete(tx);
     db.close();
 
-    _docsIndexed++;
-    _chunksIndexed += chunks.length;
     _writeVersion++; // bust retrieval cache
-    console.log(`[RAG] indexed ${path} → ${chunks.length} chunks (${resolvedMode})`);
 
-    // ── Async IDF rebuild (fire-and-forget, only in TF-IDF mode) ──
-    if (resolvedMode === "tfidf" || !embeddings) {
-      rebuildIDF().catch(() => {});
+    if (embedImmediately) {
+      _docsIndexed++;
+      _chunksIndexed += chunks.length;
+      console.log(`[RAG] indexed ${path} → ${chunks.length} chunks (${resolvedMode})`);
+      if (resolvedMode === "tfidf" || !embeddings) {
+        rebuildIDF().catch(() => {});
+      }
+      return "indexed";
     }
 
-    return "indexed";
+    // Not embedding now — track for later batch embedding
+    _chunksStoredNoEmbed += chunks.length;
+    if (!_pendingPathsBySection.has(sec)) _pendingPathsBySection.set(sec, new Set());
+    _pendingPathsBySection.get(sec)!.add(path);
+    console.log(`[RAG] stored ${path} → ${chunks.length} chunks (no embed yet, section: ${sec})`);
+    return "stored";
   } catch (err) {
     db.close();
     console.error("[RAG] addDocument error:", err);
@@ -653,4 +705,101 @@ export async function getRAGStats(): Promise<{
   } catch {
     return { mode: "tfidf", totalChunks: 0, totalDocs: 0 };
   }
+}
+
+// ── Checkpoint-based embedding ──
+
+/**
+ * Batch-embed all chunks in the given section that have null embedding.
+ * Idempotent: previously embedded chunks are skipped.
+ */
+export async function embedSection(section: string): Promise<{ embedded: number; skipped: number }> {
+  const mode = getEmbeddingMode();
+  if (mode !== "provider") {
+    console.log(`[RAG] embedSection: mode is ${mode}, nothing to do`);
+    return { embedded: 0, skipped: 0 };
+  }
+
+  const db = await openDB();
+  let pending: ChunkEntry[];
+  try {
+    const tx = db.transaction(STORE_CHUNKS, "readonly");
+    const sectionIndex = tx.objectStore(STORE_CHUNKS).index("section");
+    const all = await indexGetAll<ChunkEntry>(sectionIndex, section);
+    pending = all.filter((c) => !c.embedding);
+  } finally {
+    db.close();
+  }
+
+  if (pending.length === 0) return { embedded: 0, skipped: 0 };
+
+  _sectionEmbedCalls++;
+
+  // Batch up to 10 at a time (embedTexts handles the API batch)
+  let embedded = 0;
+  for (let i = 0; i < pending.length; i += 10) {
+    const batch = pending.slice(i, i + 10);
+    const texts = batch.map((c) => c.content);
+    _embeddingCalls++;
+    const embeddings = await embedTexts(texts, "passage");
+    if (!embeddings || embeddings.length === 0) {
+      console.warn(`[RAG] embedSection: embedTexts returned null, skipped batch`);
+      continue;
+    }
+
+    const db2 = await openDB();
+    try {
+      const tx2 = db2.transaction(STORE_CHUNKS, "readwrite");
+      for (let j = 0; j < batch.length; j++) {
+        const chunk = batch[j];
+        const emb = embeddings[j];
+        if (!emb) continue;
+        tx2.objectStore(STORE_CHUNKS).put({ ...chunk, embedding: emb });
+        embedded++;
+      }
+      await txComplete(tx2);
+    } finally {
+      db2.close();
+    }
+  }
+
+  // Clear tracking for this section
+  _pendingPathsBySection.delete(section);
+
+  _sectionEmbeddedChunks += embedded;
+  console.log(`[RAG] embedSection("${section}"): ${embedded} embedded, ${pending.length - embedded} skipped/failed`);
+  return { embedded, skipped: pending.length - embedded };
+}
+
+/**
+ * Returns the count of unembedded chunks grouped by section.
+ */
+export async function getPendingEmbedSummary(): Promise<Record<string, number>> {
+  const mode = getEmbeddingMode();
+  if (mode !== "provider") return {};
+
+  const db = await openDB();
+  try {
+    const tx = db.transaction(STORE_CHUNKS, "readonly");
+    const all = await storeGetAll<ChunkEntry>(tx.objectStore(STORE_CHUNKS));
+    db.close();
+
+    const summary: Record<string, number> = {};
+    for (const c of all) {
+      if (!c.embedding) {
+        summary[c.section] = (summary[c.section] || 0) + 1;
+      }
+    }
+    return summary;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Reset pending embed tracking (e.g., on agent start).
+ */
+export function resetPendingEmbeds(): void {
+  _pendingPathsBySection.clear();
+  _chunksStoredNoEmbed = 0;
 }
