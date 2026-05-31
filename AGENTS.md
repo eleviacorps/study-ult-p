@@ -37,7 +37,7 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 17. **write_file auto-fill** — `autoFillWriteFileArgs()` extracts markdown from assistant's reasoning text when DeepSeek drops `content` from tool call args.
 18. **write_file cross-turn failure tracker** — `_writeFailCount` persists across turns. After 2 consecutive failures, injects `[REMINDER: ...]` with tool response + user message. All run counters reset at start.
 19. **search_web tool** — added to `NOTE_AGENT_TOOLS`. Proxies through `/api/web-search` server route to avoid CORS. Empty-result guard: after 3 consecutive empty results, returns stop signal.
-20. **Web search proxy** — `src/app/api/web-search/route.ts` fetches DuckDuckGo server-side. Parser rewritten with 4 fallback strategies: `result__a/snippet` pairs → `class="result"` divs → `h2.result__title` links → raw snippet extraction.
+20. **Web search proxy** — `src/app/api/web-search/route.ts` rewritten with 4-backend chain: DDG lite → DDG html → Wikipedia OpenSearch API (free, no key) → raw text extraction. Wikipedia fallback covers all academic NEET/JEE/Biology topics with zero API cost.
 21. **Exam difficulty guidelines** — skill.md updated with NEET UG, JEE Main, CUET, CBSE/Boards, SAT, AP, IB, GCSE, A-Level difficulty profiles.
 22. **Shared Worker persistence** — converted from `Worker` to `SharedWorker` + fallback to DedicatedWorker. On page reconnection, worker sends latest state.
 23. **Token-based compaction at 1M** — removed byte-based 220KB and token-based 265K. Compaction fires when `lastPromptTokens > 1_000_000` (for 1M context model).
@@ -53,7 +53,6 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 - **Opencode-style tool calling** — schema validation, output truncation, execution context all implemented. Permission gating and task tool pending.
 
 ### Blocked
-- **Web search unreliable** — DuckDuckGo sometimes returns empty results even with the fix. LLM falls back to its own knowledge.
 - **write_file content issue** — DeepSeek sometimes generates completely empty tool calls (`Write {}`) with no content in reasoning text either. Auto-fill + reminder + cross-turn detection are mitigations.
 
 ## Key Decisions
@@ -62,7 +61,7 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 - **MCQ regex fix as read-loop root cause** — The assess_quality function counted MCQs with `/### Q/` but the template produces `## Q`. Zero count caused the LLM to re-read the file every turn, creating an infinite read loop. Fixing the regex breaks the loop.
 - **No subject core.md** — Prevents the LLM from writing Biology/core.md during Biology chapter generation. Only the chapter core.md is needed for single-chapter work.
 - **Write-then-assess pipeline** — Prevents interleaved write/read/assess/fix cycles. All files are generated first, then assessed once. Assessment identifies all issues, then fixes are applied.
-- **4-strategy DuckDuckGo parser** — DDG changes HTML structure frequently. Multiple extraction strategies increase resilience. If all fail, the empty-result guard stops retrying after 3 attempts.
+- **4-backend search proxy** — Chains DDG lite → DDG html → Wikipedia OpenSearch API → raw text extraction. Wikipedia is the key fallback: it has zero API cost, works from any server, and covers all NEET/JEE/Biology topics. The 3-consecutive-empty guard still stops runaway retries.
 - **All run counters reset** — Prevents state leakage between consecutive agent runs. Particularly important for write_file failure tracker and search_web empty counter.
 
 ## Critical Context
@@ -83,6 +82,6 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 - `src/lib/note-agent/agent-bridge.ts` — creates SharedWorker (fallback to Worker), port-based messaging, handles reconnection, persists state to IndexedDB.
 - `src/lib/llm-agent.ts` — `NOTE_AGENT_TOOLS` defines all 7 tools. `getAgentSystemPrompt()` generates system message.
 - `public/skills/study-ult/skill.md` — 43KB skill file. Write-once + No-Planning + No Subject Core.md rules. Write-then-assess flow. Search_web limiter. Exam difficulty guidelines.
-- `src/app/api/web-search/route.ts` — DuckDuckGo HTML search proxy with 4-strategy parser. Returns title/link/snippet.
+- `src/app/api/web-search/route.ts` — Multi-backend search proxy: DDG lite → DDG html → Wikipedia OpenSearch API → raw text extraction. Returns title/link/snippet with `backend` field identifying the source.
 - `src/app/api/llm/route.ts` — Edge Runtime, auth check, 500KB payload cap, 32768 max_tokens cap, streaming passthrough.
 - `AGENTS.md` — this file full progress log, key decisions, critical context.

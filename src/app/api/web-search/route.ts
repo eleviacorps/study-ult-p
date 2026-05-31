@@ -8,99 +8,81 @@ interface SearchResult {
   snippet: string;
 }
 
-async function fetchDdgLite(query: string): Promise<SearchResult[]> {
-  const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
-    headers: { "User-Agent": USER_AGENT },
-  });
-  const html = await res.text();
-
+// ─── DuckDuckGo lite (table-based) ────────────────────────────────────
+function parseLiteTable(html: string): SearchResult[] {
   const results: SearchResult[] = [];
-
-  // lite.duckduckgo.com returns <table class="result"> with:
-  //   <tr class="result_header">  <td><a href="...">Title</a></td>  </tr>
-  //   <tr class="result_snippet"><td>Snippet...</td></tr>
-  //   <tr class="result_url">    <td>URL</td>                        </tr>
-  const tables = html.match(/<table[^>]*class="result"[^>]*>[\s\S]*?<\/table>/gi) || [];
-
-  for (const table of tables.slice(0, 10)) {
-    const headerRow = table.match(/<tr[^>]*class="result_header"[^>]*>[\s\S]*?<\/tr>/i);
-    const snippetRow = table.match(/<tr[^>]*class="result_snippet"[^>]*>[\s\S]*?<\/tr>/i);
-    if (!headerRow) continue;
-
-    const linkMatch = headerRow[0].match(/<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-    const title = linkMatch ? linkMatch[2].replace(/<[^>]+>/g, "").trim() : "";
-    const link = linkMatch ? linkMatch[1] : "";
-    const snippet = snippetRow ? snippetRow[0].replace(/<[^>]+>/g, "").trim() : "";
-
-    if (title) {
-      results.push({ title, link, snippet });
+  const tables = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
+  for (const table of tables) {
+    const rows = [...table.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/gi)];
+    let title = "", link = "", snippet = "";
+    for (const row of rows) {
+      const text = row[0].replace(/<[^>]+>/g, "").trim();
+      const href = row[0].match(/href="(https?:\/\/[^"]+)"/i);
+      if (href && text.length > 10 && !text.includes("Previous")) {
+        if (href[1].includes("duckduckgo.com")) continue;
+        title = text;
+        link = href[1];
+      } else if (text.length > 30 && title && !snippet) {
+        snippet = text;
+      }
     }
+    if (title && link) results.push({ title, link, snippet: snippet.slice(0, 400) });
   }
-
   return results;
 }
 
-async function fetchDdgHtml(query: string): Promise<SearchResult[]> {
-  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
-    headers: { "User-Agent": USER_AGENT },
-  });
-  const html = await res.text();
+// ─── DuckDuckGo html (link-based) ─────────────────────────────────────
+function parseDdgHtml(html: string): SearchResult[] {
+  const anchors = [...html.matchAll(/<a[^>]*href="(https?:\/\/[^"]+)"[^>]*rel="nofollow"[^>]*>([\s\S]*?)<\/a>/gi)];
+  const results: SearchResult[] = [];
 
-  // Try 4 extraction strategies on html.duckduckgo.com
-  const extractors: ((h: string) => SearchResult[])[] = [
-    // Strategy 1: result__a + result__snippet pairs
-    (h) => {
-      const titles = [...h.matchAll(/<a[^>]*class="result__a"[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
-      const snippets = [...h.matchAll(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)];
-      return titles.slice(0, 8).map((m, i) => ({
-        title: m[2].replace(/<[^>]+>/g, "").trim(),
-        link: m[1],
-        snippet: snippets[i] ? snippets[i][1].replace(/<[^>]+>/g, "").trim() : "",
-      }));
-    },
-    // Strategy 2: <div class="result"> blocks
-    (h) => {
-      const divs = [...h.matchAll(/<div[^>]*class="[^"]*\bresult\b[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi)];
-      return divs.slice(0, 8).map((block) => {
-        const a = block[1].match(/<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-        const s = block[1].match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
-        return {
-          title: a ? a[2].replace(/<[^>]+>/g, "").trim() : "",
-          link: a ? a[1] : "",
-          snippet: s ? s[1].replace(/<[^>]+>/g, "").trim() : "",
-        };
-      }).filter((r) => r.title);
-    },
-    // Strategy 3: <h2 class="result__title"> links
-    (h) => {
-      const h2s = [...h.matchAll(/<h2[^>]*class="result__title"[^>]*>[\s\S]*?<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/gi)];
-      const snippets = [...h.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi)];
-      return h2s.slice(0, 8).map((m, i) => ({
-        title: m[2].replace(/<[^>]+>/g, "").trim(),
-        link: m[1],
-        snippet: snippets[i] ? snippets[i][1].replace(/<[^>]+>/g, "").trim() : "",
-      }));
-    },
-    // Strategy 4: raw snippet extraction as last resort
-    (h) => {
-      const rawSnippets = [...h.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
-        .slice(0, 5)
-        .map((s) => s[1].replace(/<[^>]+>/g, "").trim())
-        .filter(Boolean);
-      return rawSnippets.map((snippet) => ({ title: "", link: "", snippet }));
-    },
-  ];
+  for (const a of anchors) {
+    const href = a[1];
+    const rawTitle = a[2].replace(/<[^>]+>/g, "").trim();
+    if (!rawTitle || rawTitle.length < 10) continue;
+    if (/duckduckgo\.com/.test(href)) continue;
 
-  for (const extract of extractors) {
-    const extracted = extract(html);
-    if (extracted.length > 0) return extracted;
+    const after = html.slice((a.index || 0) + a[0].length, (a.index || 0) + a[0].length + 2000);
+    const snippetMatch = after.match(/class="result__snippet"[^>]*>([\s\S]*?)<\/a/i);
+    const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]+>/g, "").trim() : "";
+    results.push({ title: rawTitle, link: href, snippet });
   }
 
-  return [];
+  const seen = new Set<string>();
+  return results.filter((r) => {
+    const key = r.title.toLowerCase().slice(0, 40);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8);
+}
+
+// ─── Wikipedia OpenSearch API (free, no key needed) ───────────────────
+async function searchWikipedia(query: string): Promise<SearchResult[]> {
+  const url = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=8&namespace=0&format=json`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  // data[0] = query, data[1] = titles[], data[2] = snippets[], data[3] = links[]
+  if (!Array.isArray(data) || data.length < 4) return [];
+  const results: SearchResult[] = [];
+  for (let i = 0; i < data[1].length; i++) {
+    results.push({
+      title: data[1][i],
+      link: data[3][i] || "",
+      snippet: data[2][i] || "",
+    });
+  }
+  return results;
+}
+
+// ─── DuckDuckGo fetch ──────────────────────────────────────────────────
+async function fetchDdg(url: string): Promise<{ html: string; status: number }> {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10_000),
+    headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
+  });
+  return { html: await res.text(), status: res.status };
 }
 
 export async function POST(request: Request) {
@@ -111,13 +93,62 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing query" }, { status: 400 });
     }
 
-    // Try lite endpoint first (stable HTML), fall back to html endpoint
-    let results = await fetchDdgLite(query);
+    const encoded = encodeURIComponent(query);
+    let results: SearchResult[] = [];
+    let backend = "";
+
+    // Backend 1: DuckDuckGo lite
     if (results.length === 0) {
-      results = await fetchDdgHtml(query);
+      try {
+        const { html } = await fetchDdg(`https://lite.duckduckgo.com/lite/?q=${encoded}`);
+        results = parseLiteTable(html);
+        if (results.length > 0) backend = "ddg-lite";
+      } catch {}
     }
 
-    return NextResponse.json({ query, results, source: results.length > 0 ? "duckduckgo" : "empty" });
+    // Backend 2: DuckDuckGo html
+    if (results.length === 0) {
+      try {
+        const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`);
+        results = parseDdgHtml(html);
+        if (results.length > 0) backend = "ddg-html";
+      } catch {}
+    }
+
+    // Backend 3: Wikipedia
+    if (results.length === 0) {
+      try {
+        results = await searchWikipedia(query);
+        if (results.length > 0) backend = "wikipedia";
+      } catch {}
+    }
+
+    // Backend 4: Raw text extraction (last resort)
+    if (results.length === 0) {
+      try {
+        const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`);
+        const text = html
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, "\n")
+          .split(/\n{3,}/)
+          .map((b) => b.replace(/\s+/g, " ").trim())
+          .filter((b) => b.length > 60 && b.length < 600 && /[A-Z]/.test(b) && /[a-z]/.test(b) && !/^\s*[{<]/.test(b) && !b.includes("duckduckgo.com"));
+        for (const block of text.slice(0, 5)) {
+          const title = block.slice(0, 80);
+          results.push({ title, link: "", snippet: block });
+        }
+        if (results.length > 0) backend = "raw";
+      } catch {}
+    }
+
+    return NextResponse.json({
+      query,
+      results,
+      backend,
+      source: backend,
+      count: results.length,
+    });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err), query: "", results: [] }, { status: 500 });
   }
