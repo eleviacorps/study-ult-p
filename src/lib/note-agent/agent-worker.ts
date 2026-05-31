@@ -545,11 +545,26 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
     // Payload budget check — reject oversized conversations before sending to LLM
     const payloadEstimate = JSON.stringify({ messages, tools }).length;
-    if (payloadEstimate > 150_000) {
-      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 150KB budget, forcing window truncation`);
-      const truncated = [messages[0], messages[1], ...messages.slice(-4)];
+    if (payloadEstimate > 180_000) {
+      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 180KB budget, forcing window truncation`);
+      // Scan backward from the end to find a clean cutoff where tool ↔ tool_calls chains are intact.
+      const systemMsg = messages[0];
+      const userMsg = messages[1];
+      const tail: Record<string, unknown>[] = [];
+      let pendingTools = 0;
+      for (let i = messages.length - 1; i >= 2; i--) { // always keep system + user
+        const m = messages[i];
+        tail.unshift(m);
+        if (m.role === "tool") {
+          pendingTools++;
+        } else if (m.role === "assistant" && m.tool_calls) {
+          const tc = (m.tool_calls as unknown[]).length;
+          pendingTools = Math.max(0, pendingTools - tc);
+        }
+        if (pendingTools === 0 && tail.length >= 4) break;
+      }
       messages.length = 0;
-      messages.push(...truncated);
+      messages.push(systemMsg, userMsg, ...tail);
     }
 
     try {
