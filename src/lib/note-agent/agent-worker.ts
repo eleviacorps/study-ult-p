@@ -208,6 +208,7 @@ async function runAgentTurn(
   tools: ToolDef[],
   handler: (name: string, args: Record<string, unknown>) => Promise<string>,
   config: AgentConfig,
+  attempt = 1,
 ): Promise<{ newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
   void config;
 
@@ -221,6 +222,13 @@ async function runAgentTurn(
       max_tokens: 4096,
     }),
   });
+
+  if (res.status === 504 && attempt < 3) {
+    const backoff = 2000 * attempt; // 2s, 4s
+    console.warn(`[Agent] 504 on attempt ${attempt}, retrying in ${backoff}ms...`);
+    await new Promise((r) => setTimeout(r, backoff));
+    return runAgentTurn(messages, tools, handler, config, attempt + 1);
+  }
 
   if (!res.ok) {
     const err = await res.text().catch(() => "");

@@ -19,10 +19,13 @@ export async function POST(request: Request) {
   console.log(`[LLM ${reqId}] POST /api/llm`);
 
   try {
+    // Auth check is best-effort — page already validates before spawning the worker
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      } catch { /* proceed — auth failure shouldn't block LLM calls in the worker */ }
     }
 
     const body = await request.json().catch(() => ({}));
@@ -57,11 +60,17 @@ export async function POST(request: Request) {
 
     console.log(`[LLM ${reqId}] → ${baseUrl}/v1/chat/completions model=${model} msgs=${messages.length} max_tokens=${requestBody.max_tokens}`);
 
+    // Abort the provider request after 20s so the edge function has time to respond
+    const controller = new AbortController();
+    const providerTimeout = setTimeout(() => controller.abort(), 20_000);
+
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: hdrs,
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+    clearTimeout(providerTimeout);
 
     console.log(`[LLM ${reqId}] ← ${res.status}`);
 
