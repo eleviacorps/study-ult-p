@@ -76,7 +76,17 @@ async function searchWikipedia(query: string): Promise<SearchResult[]> {
   return results;
 }
 
-// ─── DuckDuckGo fetch ──────────────────────────────────────────────────
+// ─── Garbage detection ─────────────────────────────────────────────────
+const GARBAGE_PATTERNS = [
+  /please\s+email\s+us/i, /blocked/i, /captcha/i, /rate.limit/i,
+  /too\s+many\s+requests/i, /access\s+denied/i, /sorry/i,
+  /this\s+page\s+is\s+not\s+available/i, /something\s+went\s+wrong/i,
+  /if\s+this\s+persists/i,
+];
+
+function isGarbage(s: string): boolean {
+  return GARBAGE_PATTERNS.some((p) => p.test(s));
+}
 async function fetchDdg(url: string): Promise<{ html: string; status: number }> {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(10_000),
@@ -97,7 +107,7 @@ export async function POST(request: Request) {
     let results: SearchResult[] = [];
     let backend = "";
 
-    // Backend 1: DuckDuckGo lite
+    // Backend 1: DuckDuckGo lite (simplest HTML)
     if (results.length === 0) {
       try {
         const { html } = await fetchDdg(`https://lite.duckduckgo.com/lite/?q=${encoded}`);
@@ -106,7 +116,7 @@ export async function POST(request: Request) {
       } catch {}
     }
 
-    // Backend 2: DuckDuckGo html
+    // Backend 2: DuckDuckGo html (richer results)
     if (results.length === 0) {
       try {
         const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`);
@@ -115,7 +125,7 @@ export async function POST(request: Request) {
       } catch {}
     }
 
-    // Backend 3: Wikipedia
+    // Backend 3: Wikipedia (free API, covers all academic topics)
     if (results.length === 0) {
       try {
         results = await searchWikipedia(query);
@@ -123,7 +133,7 @@ export async function POST(request: Request) {
       } catch {}
     }
 
-    // Backend 4: Raw text extraction (last resort)
+    // Backend 4: Raw text extraction (last resort — skip if garbage)
     if (results.length === 0) {
       try {
         const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`);
@@ -133,7 +143,7 @@ export async function POST(request: Request) {
           .replace(/<[^>]+>/g, "\n")
           .split(/\n{3,}/)
           .map((b) => b.replace(/\s+/g, " ").trim())
-          .filter((b) => b.length > 60 && b.length < 600 && /[A-Z]/.test(b) && /[a-z]/.test(b) && !/^\s*[{<]/.test(b) && !b.includes("duckduckgo.com"));
+          .filter((b) => b.length > 60 && b.length < 600 && /[A-Z]/.test(b) && /[a-z]/.test(b) && !/^\s*[{<]/.test(b) && !b.includes("duckduckgo.com") && !isGarbage(b));
         for (const block of text.slice(0, 5)) {
           const title = block.slice(0, 80);
           results.push({ title, link: "", snippet: block });
@@ -141,6 +151,9 @@ export async function POST(request: Request) {
         if (results.length > 0) backend = "raw";
       } catch {}
     }
+
+    // Filter any garbage that snuck through
+    results = results.filter((r) => !isGarbage(r.title) && !isGarbage(r.snippet));
 
     return NextResponse.json({
       query,

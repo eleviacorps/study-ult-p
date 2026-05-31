@@ -23,7 +23,7 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 3. **Tail preservation** — `COMPACTION_TAIL_TURNS = 1`. Preserves last 1 assistant+tool pair during compaction.
 4. **Tool output pruning** — replaces tool result content >500 chars with `"[Old tool result content cleared]"` on non-tail messages. Protected tools (skill) never pruned.
 5. **Core.md rewrite guard** — write_file handler returns error if path ends with `core.md` and already exists in workspace.
-6. **write_file content compaction** — uses `delete a.content` instead of `[FILE STORED — ...]` placeholder. Stops LLM copying placeholder into new write calls.
+6. **write_file content compaction** — uses truncation (200 chars) instead of `delete a.content`. Keeps content in tool call history so DeepSeek learns the correct pattern (path + content). Prevents copy-chain of huge blobs while preserving the learning signal.
 7. **Placeholder guard** — read_file falls back to RAG on `[FILE STORED —` content. write_file rejects placeholder content. Startup cleans corrupted entries.
 8. **Finish-reason detection** — `parseStreamingResponse()` tracks `choice.finish_reason`. On `"length"`, drops truncated tool calls with invalid JSON args.
 9. **Continuation prompt on truncation** — when all tool calls dropped by `finish_reason: "length"`, injects continuation prompt as user message.
@@ -63,6 +63,10 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 - **Write-then-assess pipeline** — Prevents interleaved write/read/assess/fix cycles. All files are generated first, then assessed once. Assessment identifies all issues, then fixes are applied.
 - **4-backend search proxy** — Chains DDG lite → DDG html → Wikipedia OpenSearch API → raw text extraction. Wikipedia is the key fallback: it has zero API cost, works from any server, and covers all NEET/JEE/Biology topics. The 3-consecutive-empty guard still stops runaway retries.
 - **All run counters reset** — Prevents state leakage between consecutive agent runs. Particularly important for write_file failure tracker and search_web empty counter.
+- **write_file content stays in history (truncated)** — `delete a.content` taught DeepSeek to emit `Write {}` by making it think content is optional. Now content is kept but truncated to 200 chars in the tool call history, preserving the learning signal (path + content required) while avoiding copy-chain of huge blobs.
+- **extractMarkdown catches all markdown** — Expanded from just `#/##/###` to also match callouts (`[!...]`), tables, lists, horizontal rules, code fences, and wikilinks. Falls back to returning the full reasoning text if no markdown structure found but text is substantial (>100 chars).
+- **autoFillWriteFileArgs handles `Write {}`** — When both path and content are missing from args, tries to extract both from reasoning text (path from first file path mention, content from rest).
+- **Wikipedia before raw text fallback** — Reordered backends so Wikipedia API (reliable for academic topics) runs before the fragile raw HTML text extraction. Added garbage pattern filter (`isGarbage`) to reject error/CAPTCHA pages before they reach the agent.
 
 ## Critical Context
 - **Compaction mechanics** (`agent-worker.ts:1100-1161`): when `lastPromptTokens > 1_000_000`, calls the LLM with a structured compaction prompt (7 sections). Falls back to file-count summary. Preserves last 1 turn as tail. Prunes tool outputs >500 chars. Rebuilds messages as: system + original user + summary + tail.

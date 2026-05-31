@@ -110,11 +110,17 @@ function autoFillWriteFileArgs(args: Record<string, unknown>, msgContent: string
   const text = reasoningContent || msgContent || "";
   if (!text) return false;
   let filled = false;
-  if (args.path && !args.content) {
+  if (!args.path && !args.content) {
+    // Both missing: extract path from first file path mention, content from rest
+    const extMd = extractMarkdown(text);
+    const extPath = extractFilePath(text);
+    if (extPath && extMd) { args.path = extPath; args.content = extMd; filled = true; }
+    else if (extMd) { args.content = extMd; filled = true; }
+    else if (extPath) { args.path = extPath; filled = true; }
+  } else if (args.path && !args.content) {
     const md = extractMarkdown(text);
     if (md) { args.content = md; filled = true; }
-  }
-  if (args.content && !args.path) {
+  } else if (args.content && !args.path) {
     const p = extractFilePath(text);
     if (p) { args.path = p; filled = true; }
   }
@@ -126,12 +132,22 @@ function extractMarkdown(text: string): string | null {
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || trimmed.startsWith("### ")) {
+    // Match any markdown structure: headings, thematic breaks, blockquotes, callouts, tables, lists
+    if (/^(#{1,6}\s|>|\[!|[\-\*]\s|\d+\.\s|\|\s*[-:]+)|^-{3,}$|^```/.test(trimmed)) {
+      start = i;
+      break;
+    }
+    // Also markdown wikilinks
+    if (/\[\[[^\]]+\]\]/.test(trimmed) && trimmed.length > 20) {
       start = i;
       break;
     }
   }
-  if (start === -1) return null;
+  if (start === -1) {
+    // No markdown found — return the whole text if it's substantial
+    if (text.length > 100) return text.trim();
+    return null;
+  }
   return lines.slice(start).join("\n").trim();
 }
 
@@ -375,11 +391,17 @@ async function runAgentTurn(messages: Record<string, unknown>[], tools: ToolDef[
     }
     for (const tc2 of toolCalls) {
       if (tc2.function.name !== "write_file") continue;
-      try { const a = JSON.parse(tc2.function.arguments); delete a.content; tc2.function.arguments = JSON.stringify(a); } catch {}
+      try { const a = JSON.parse(tc2.function.arguments); if (typeof a.content === "string" && a.content.length > 200) { a.content = a.content.substring(0, 200) + "\n... [content truncated in history, but full content was written successfully]"; tc2.function.arguments = JSON.stringify(a); } } catch {}
     }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response, usage };
   }
   return { newMessages: [...messages, assistantMsg], steps: [step], finished: true, content: step.response, usage };
+}
+
+const GARBAGE_RESULTS = [/please\s+email\s+us/i, /blocked/i, /captcha/i, /rate.limit/i, /too\s+many\s+requests/i, /access\s+denied/i, /if\s+this\s+persists/i];
+
+function isResultGarbage(text: string): boolean {
+  return GARBAGE_RESULTS.some((p) => p.test(text));
 }
 
 // ── Tool handler ──
@@ -558,8 +580,17 @@ function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string)
               }
               return JSON.stringify({ query, results: [], warning: "No results found. Try a more specific query or proceed using your knowledge." });
             }
+            // Filter out garbage results
+            const cleanResults = results.filter((r) => {
+              const text = `${r.title || ""} ${r.snippet || ""}`;
+              return !isResultGarbage(text);
+            });
+            if (cleanResults.length === 0) {
+              _emptySearchCount++;
+              return JSON.stringify({ query, results: [], warning: "Search returned only error pages. Proceed using your knowledge." });
+            }
             _emptySearchCount = 0;
-            return JSON.stringify({ query, results: results.map((r: { title?: string; snippet?: string }) => `${r.title || ""}${r.title ? ": " : ""}${r.snippet || ""}`.trim()).filter(Boolean), count: results.length });
+            return JSON.stringify({ query, results: cleanResults.map((r: { title?: string; snippet?: string }) => `${r.title || ""}${r.title ? ": " : ""}${r.snippet || ""}`.trim()).filter(Boolean), count: cleanResults.length });
           } catch (err) {
             return JSON.stringify({ error: `Web search failed: ${err instanceof Error ? err.message : String(err)}`, query });
           }
