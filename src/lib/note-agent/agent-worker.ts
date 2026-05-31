@@ -208,7 +208,7 @@ async function runAgentTurn(
   tools: ToolDef[],
   handler: (name: string, args: Record<string, unknown>) => Promise<string>,
   config: AgentConfig,
-): Promise<{ newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string }> {
+): Promise<{ newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number } }> {
   void config;
 
   const res = await fetch("/api/llm", {
@@ -228,6 +228,8 @@ async function runAgentTurn(
   }
 
   const data = await res.json();
+  const usage = data.usage ? { prompt_tokens: data.usage.prompt_tokens ?? 0, completion_tokens: data.usage.completion_tokens ?? 0, total_tokens: data.usage.total_tokens ?? 0 } : undefined;
+  console.log(`[Tokens] prompt=${usage?.prompt_tokens ?? "?"} completion=${usage?.completion_tokens ?? "?"} total=${usage?.total_tokens ?? "?"}`);
   const choice = data.choices?.[0];
   if (!choice) throw new Error("No response from API");
 
@@ -281,7 +283,7 @@ async function runAgentTurn(
         tc2.function.arguments = JSON.stringify(a);
       } catch { /* leave as-is if compact fails */ }
     }
-    return { newMessages: newMsgs, steps: [step], finished: false, content: step.response };
+    return { newMessages: newMsgs, steps: [step], finished: false, content: step.response, usage };
   }
 
   return {
@@ -289,6 +291,7 @@ async function runAgentTurn(
     steps: [step],
     finished: true,
     content: step.response,
+    usage,
   };
 }
 
@@ -612,9 +615,10 @@ Continue with the next task. Check workspace for current files.${notes.length < 
         }
       }
 
-      // Telemetry: log turn info with payload size
+      // Telemetry: log turn info with payload and token usage
       const turnPayloadKB = Math.round(JSON.stringify({ messages }).length / 1024);
-      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs (~${turnPayloadKB}KB), ${pendingIndexCount()} pending queue`);
+      const tokens = result.usage ? ` tokens=${result.usage.total_tokens}(${result.usage.prompt_tokens}+${result.usage.completion_tokens})` : "";
+      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs (~${turnPayloadKB}KB), ${pendingIndexCount()} pending queue${tokens}`);
 
       if (result.finished) {
         // Flush pending index writes before finishing
