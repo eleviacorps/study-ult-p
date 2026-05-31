@@ -99,7 +99,7 @@ function isValidMessage(message: unknown): message is ChatMessage {
       candidate.role === "user" ||
       candidate.role === "assistant" ||
       candidate.role === "tool") &&
-    (typeof candidate.content === "string" || Array.isArray(candidate.tool_calls))
+    (typeof candidate.content === "string" || candidate.content === null || Array.isArray(candidate.tool_calls))
   );
 }
 

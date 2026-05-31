@@ -1,0 +1,712 @@
+{
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\install.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "e2e8e5e92fdc8f63d2553a9be7375618",
+    "semantic_hash": "e2e8e5e92fdc8f63d2553a9be7375618"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\render.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "e68eef5a4a16e316f076720cbf9caa83",
+    "semantic_hash": "e68eef5a4a16e316f076720cbf9caa83"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\render_all.ps1": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "d509d07a0c68fc0e8f24669ea32782e1",
+    "semantic_hash": "d509d07a0c68fc0e8f24669ea32782e1"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\calculus.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "639afa66313195399eae18ff16d8957e",
+    "semantic_hash": "639afa66313195399eae18ff16d8957e"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\chemistry.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "d568ca9a18fc072e14738d8ada699d4c",
+    "semantic_hash": "d568ca9a18fc072e14738d8ada699d4c"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\coulombs_law.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "262eca025898b9040143bf1f75c9c14f",
+    "semantic_hash": "262eca025898b9040143bf1f75c9c14f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\derivative_scene.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "19d6b995ee9c820b7ff44db2e93c679b",
+    "semantic_hash": "19d6b995ee9c820b7ff44db2e93c679b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\doppler.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "324b77a1d9b7544ff7e0e7633a44305c",
+    "semantic_hash": "324b77a1d9b7544ff7e0e7633a44305c"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\electric_dipole.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "2c1a52a060729fa60e163999dab84e9d",
+    "semantic_hash": "2c1a52a060729fa60e163999dab84e9d"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\electric_field.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "bf9dcbbae37dba7dc190004044ed4e44",
+    "semantic_hash": "bf9dcbbae37dba7dc190004044ed4e44"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\gauss_law.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "420f48e0bff119a403637ab0f3f87e15",
+    "semantic_hash": "420f48e0bff119a403637ab0f3f87e15"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\graph.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "5ac63dcb134b5ee18dfbe7a4dcf9cc8e",
+    "semantic_hash": "5ac63dcb134b5ee18dfbe7a4dcf9cc8e"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\integration_scene.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "71868be1d8438218c3689ca6214020be",
+    "semantic_hash": "71868be1d8438218c3689ca6214020be"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\kinematics.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "5bcf135be6264f1df7b78e60be3f3c80",
+    "semantic_hash": "5bcf135be6264f1df7b78e60be3f3c80"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\kinetics.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "a889669692f3ca8c191da638499a7d1b",
+    "semantic_hash": "a889669692f3ca8c191da638499a7d1b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\limits_scene.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "6a7f96edbb415875cd408d382802337b",
+    "semantic_hash": "6a7f96edbb415875cd408d382802337b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\math.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "e16f845b36bec951018de750e87425a0",
+    "semantic_hash": "e16f845b36bec951018de750e87425a0"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\optics.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "b4c9cd4cec2ebafec86099879de141e9",
+    "semantic_hash": "b4c9cd4cec2ebafec86099879de141e9"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\pendulum.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "9cb284c5b62d3521493bf708200b4df4",
+    "semantic_hash": "9cb284c5b62d3521493bf708200b4df4"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\projectile.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "1f5493f2debe7876a8fd6788d2d9dd50",
+    "semantic_hash": "1f5493f2debe7876a8fd6788d2d9dd50"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\pythagorean.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "95c34fad82e02fdaac614fde8a792e2f",
+    "semantic_hash": "95c34fad82e02fdaac614fde8a792e2f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\shm.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "9430a5b0e2303d31425b262ea88d975b",
+    "semantic_hash": "9430a5b0e2303d31425b262ea88d975b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\trigonometry.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "b13b3affcd4eaff8c3f74ea322ff6193",
+    "semantic_hash": "b13b3affcd4eaff8c3f74ea322ff6193"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\vectors3d.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "c2605345d6df77c2484699869a6e3375",
+    "semantic_hash": "c2605345d6df77c2484699869a6e3375"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\manim-scenes\\scenes\\wave.py": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "e55b3a26d1349683c1701573df64600e",
+    "semantic_hash": "e55b3a26d1349683c1701573df64600e"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\chapter-params.json": {
+    "mtime": 1780226972.5387628,
+    "ast_hash": "720a0426720981df0ffac023affb756f",
+    "semantic_hash": "720a0426720981df0ffac023affb756f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\reader-params.json": {
+    "mtime": 1780226972.5387628,
+    "ast_hash": "c202cdf60c7f82e4b0824dfdbc2f63af",
+    "semantic_hash": "c202cdf60c7f82e4b0824dfdbc2f63af"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\sw.js": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "23dcf983ebd97a9a59608ccc3e6da64b",
+    "semantic_hash": "23dcf983ebd97a9a59608ccc3e6da64b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\vault-data.json": {
+    "mtime": 1780226972.5377584,
+    "ast_hash": "12e0633478934682b92a295999886983",
+    "semantic_hash": "12e0633478934682b92a295999886983"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\proxy.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "b1890da184641df6980231a1cd53ca51",
+    "semantic_hash": "b1890da184641df6980231a1cd53ca51"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\layout.tsx": {
+    "mtime": 1780135823.004232,
+    "ast_hash": "8c052978796c905ec0384d33b8f28577",
+    "semantic_hash": "8c052978796c905ec0384d33b8f28577"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "cfd4842cc6996290e7d8ef4b709fcecd",
+    "semantic_hash": "cfd4842cc6996290e7d8ef4b709fcecd"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\analytics\\page.tsx": {
+    "mtime": 1780231511.874083,
+    "ast_hash": "2daf24a62bfa48b5348366a0b48b6fb0",
+    "semantic_hash": "2daf24a62bfa48b5348366a0b48b6fb0"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\chat\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "4e9f0656ea025fc4ce46df711f250866",
+    "semantic_hash": "4e9f0656ea025fc4ce46df711f250866"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\chat\\summary\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "05a277ba53110c6c9e88566118a9fe77",
+    "semantic_hash": "05a277ba53110c6c9e88566118a9fe77"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\diagram\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "d5bd20681a4e1cd282d024bedd5ce16f",
+    "semantic_hash": "d5bd20681a4e1cd282d024bedd5ce16f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\embeddings\\route.ts": {
+    "mtime": 1780195990.8136196,
+    "ast_hash": "bd7a3230c0c9695866a88125c4bb4f6c",
+    "semantic_hash": "bd7a3230c0c9695866a88125c4bb4f6c"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\evaluation\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "4000899969ff6f75f5854ffba7ff7f27",
+    "semantic_hash": "4000899969ff6f75f5854ffba7ff7f27"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\kroki\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "c3db13aa8c05c0a1456827cebc23724b",
+    "semantic_hash": "c3db13aa8c05c0a1456827cebc23724b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\llm\\route.ts": {
+    "mtime": 1780206868.5621438,
+    "ast_hash": "c886b29a757ccd86dc91b2bfe28c4bb4",
+    "semantic_hash": "c886b29a757ccd86dc91b2bfe28c4bb4"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\llm\\config\\route.ts": {
+    "mtime": 1780156270.8842678,
+    "ast_hash": "efdb395ac34703aa4b66da0e655e8122",
+    "semantic_hash": "efdb395ac34703aa4b66da0e655e8122"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\llm\\models\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "576fd74265c8945a454d512de4d8213d",
+    "semantic_hash": "576fd74265c8945a454d512de4d8213d"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\md-bank\\route.ts": {
+    "mtime": 1780135823.003232,
+    "ast_hash": "7eeda94d772ed872db59fc9636907733",
+    "semantic_hash": "7eeda94d772ed872db59fc9636907733"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\notes\\route.ts": {
+    "mtime": 1780135823.003232,
+    "ast_hash": "4df971bbe53e9f1f77d91675144a88c6",
+    "semantic_hash": "4df971bbe53e9f1f77d91675144a88c6"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\onboarding\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "c1eb2cef74235d9290980c8b4275d0cb",
+    "semantic_hash": "c1eb2cef74235d9290980c8b4275d0cb"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\onboarding\\check-username\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "7b9240dd59338d54f33bb9fd5b772dfa",
+    "semantic_hash": "7b9240dd59338d54f33bb9fd5b772dfa"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\profile\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "ccdbacab41f6a27bf1fbbae1bebe4766",
+    "semantic_hash": "ccdbacab41f6a27bf1fbbae1bebe4766"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\retrieval\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "b161f457baf028746f4779839672615c",
+    "semantic_hash": "b161f457baf028746f4779839672615c"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\sync\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "bc68f68b838f1d964338e98b7ae7a1d8",
+    "semantic_hash": "bc68f68b838f1d964338e98b7ae7a1d8"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\api\\web-search\\route.ts": {
+    "mtime": 1780233565.0135467,
+    "ast_hash": "923b1fa530db452582df05c157853230",
+    "semantic_hash": "923b1fa530db452582df05c157853230"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\auth\\callback\\route.ts": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "942f4f8a48a0502571f37e934fc918a8",
+    "semantic_hash": "942f4f8a48a0502571f37e934fc918a8"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\dashboard\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "3457d437fc7fcccf7f6d28cace930968",
+    "semantic_hash": "3457d437fc7fcccf7f6d28cace930968"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\flashcards\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "19ee3ed2319b5826846625f936da0850",
+    "semantic_hash": "19ee3ed2319b5826846625f936da0850"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\flashcards\\[chapter]\\flashcards-client.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "ec8393363c0894bc56cc4a2d67f4fb81",
+    "semantic_hash": "ec8393363c0894bc56cc4a2d67f4fb81"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\flashcards\\[chapter]\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "45ecd91903be937632ffbf4d0ee1aba0",
+    "semantic_hash": "45ecd91903be937632ffbf4d0ee1aba0"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\graph\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "6ffe6646ace76f188833096db9595ee1",
+    "semantic_hash": "6ffe6646ace76f188833096db9595ee1"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\login\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "4e3a0acc76971ba5ea5eca6b9f595b33",
+    "semantic_hash": "4e3a0acc76971ba5ea5eca6b9f595b33"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\note-agent\\page.tsx": {
+    "mtime": 1780228865.7397816,
+    "ast_hash": "7b519bc2df68a87f1b7b33607e9ce761",
+    "semantic_hash": "7b519bc2df68a87f1b7b33607e9ce761"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\onboarding\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "f990eb84de62d3d3b61b881d279fe20f",
+    "semantic_hash": "f990eb84de62d3d3b61b881d279fe20f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\questions\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "6bf03aeea6d8f1a370797b428fa1e657",
+    "semantic_hash": "6bf03aeea6d8f1a370797b428fa1e657"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\questions\\[chapter]\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "2132b45f853f6d4221f27e0385a69a5f",
+    "semantic_hash": "2132b45f853f6d4221f27e0385a69a5f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\questions\\[chapter]\\questions-client.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "12ca754d2d15a89fb871ce481dea2060",
+    "semantic_hash": "12ca754d2d15a89fb871ce481dea2060"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\quizzes\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "08b385cce9089ded5065b50553373ba5",
+    "semantic_hash": "08b385cce9089ded5065b50553373ba5"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\reader\\page.tsx": {
+    "mtime": 1780135823.0052319,
+    "ast_hash": "1a4ad99adf9238329dc1c2c91d166929",
+    "semantic_hash": "1a4ad99adf9238329dc1c2c91d166929"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\reader\\[chapter]\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "aed7f296ce14689f5c4e1e34f3520e58",
+    "semantic_hash": "aed7f296ce14689f5c4e1e34f3520e58"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\reader\\[chapter]\\reader-chapter-client.tsx": {
+    "mtime": 1780135823.0052319,
+    "ast_hash": "93689981a3dfddb4722cf642bbd520c2",
+    "semantic_hash": "93689981a3dfddb4722cf642bbd520c2"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\reader\\[chapter]\\reader-note-client.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "61c42400f7c37eb9bdcf4bc8d0a72e6d",
+    "semantic_hash": "61c42400f7c37eb9bdcf4bc8d0a72e6d"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\reader\\[chapter]\\[note]\\page.tsx": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "ea29e89c5d78fad83d43b7560b33bbf2",
+    "semantic_hash": "ea29e89c5d78fad83d43b7560b33bbf2"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\settings\\page.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "ba88827a0b6b8925512439f95f802f3f",
+    "semantic_hash": "ba88827a0b6b8925512439f95f802f3f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\settings\\profile\\page.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "a25d393751352ad2f720df8c093a1c8f",
+    "semantic_hash": "a25d393751352ad2f720df8c093a1c8f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\tests\\page.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "9f625bf6a38a5041c4a33ab383001626",
+    "semantic_hash": "9f625bf6a38a5041c4a33ab383001626"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\tests\\[chapter]\\page.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "d741421a50345d74255973cb751250d4",
+    "semantic_hash": "d741421a50345d74255973cb751250d4"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\tests\\[chapter]\\tests-client.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "25cff376c12612846ad6e665799d3c1f",
+    "semantic_hash": "25cff376c12612846ad6e665799d3c1f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\app\\tutor\\page.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "ff066974372a20c57cdc176f39855b36",
+    "semantic_hash": "ff066974372a20c57cdc176f39855b36"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\ai-tutor-sidebar.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "e994c51a12c83d30aed9f65896c222ba",
+    "semantic_hash": "e994c51a12c83d30aed9f65896c222ba"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\auth-gate.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "93825e5bf2a5214497a778c776a37aa7",
+    "semantic_hash": "93825e5bf2a5214497a778c776a37aa7"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\custom-simulation.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "54e3fc020e4448557efbe370655f28fb",
+    "semantic_hash": "54e3fc020e4448557efbe370655f28fb"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\error-boundary.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "cf32f5692670f523da5873bf58117629",
+    "semantic_hash": "cf32f5692670f523da5873bf58117629"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\galaxy-background.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "7a2353c47f774ae883c43098d297293f",
+    "semantic_hash": "7a2353c47f774ae883c43098d297293f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\global-search.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "527eb5a91884dfdb36e907133bff2091",
+    "semantic_hash": "527eb5a91884dfdb36e907133bff2091"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\mermaid-diagram.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "66c3728c8ce740d0d1ab29250d839de5",
+    "semantic_hash": "66c3728c8ce740d0d1ab29250d839de5"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\selection-toolbar.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "f92449d82ec3172eaa8ede3afa524eca",
+    "semantic_hash": "f92449d82ec3172eaa8ede3afa524eca"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\service-worker-register.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "9bb4998044ef793c0a488d69a5b57a41",
+    "semantic_hash": "9bb4998044ef793c0a488d69a5b57a41"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\simulation.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "cd4426be29ded822bbe45b8f164a1fae",
+    "semantic_hash": "cd4426be29ded822bbe45b8f164a1fae"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\splash-screen.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "6d029b8d1faceb0fb67b6655668c9d92",
+    "semantic_hash": "6d029b8d1faceb0fb67b6655668c9d92"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\theme-provider.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "31ee4adc327a40467c8c5c42fa01edf3",
+    "semantic_hash": "31ee4adc327a40467c8c5c42fa01edf3"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\dashboard\\dashboard-widgets.tsx": {
+    "mtime": 1780231494.0504513,
+    "ast_hash": "a26bc8aef2d581d9ad88dd36f6d2db25",
+    "semantic_hash": "a26bc8aef2d581d9ad88dd36f6d2db25"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\layout\\header.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "eec6638edb7a2dd3ba11682036909572",
+    "semantic_hash": "eec6638edb7a2dd3ba11682036909572"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\layout\\sidebar.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "b589879d35ad98fa7bd195428a01e6d6",
+    "semantic_hash": "b589879d35ad98fa7bd195428a01e6d6"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\layout\\vault-loader.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "fddba0b526b173517b344de4e616efd0",
+    "semantic_hash": "fddba0b526b173517b344de4e616efd0"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\components\\reader\\markdown-renderer.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "f4eb16348ccf4558129c537bbe80c472",
+    "semantic_hash": "f4eb16348ccf4558129c537bbe80c472"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\hooks\\use-theme-colors.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "f338e2d37487dcf5935d848f62873d9d",
+    "semantic_hash": "f338e2d37487dcf5935d848f62873d9d"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\ai-cache.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "c2ab70a94cae39f18cb5ffb26cec2f58",
+    "semantic_hash": "c2ab70a94cae39f18cb5ffb26cec2f58"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\ai-config.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "28f7d48a0dd8f33afc451813ed0ad3eb",
+    "semantic_hash": "28f7d48a0dd8f33afc451813ed0ad3eb"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\ai-retrieval.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "572f048fef99d6fdec731824fd25a82f",
+    "semantic_hash": "572f048fef99d6fdec731824fd25a82f"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\chat-store.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "8b8acd2eebead6b06a3971e9de8406a6",
+    "semantic_hash": "8b8acd2eebead6b06a3971e9de8406a6"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\cn.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "d9837f38cc05303254571985e3164050",
+    "semantic_hash": "d9837f38cc05303254571985e3164050"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\content-db.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "f91712c96ce732ecd3ce1f7bb90f13d3",
+    "semantic_hash": "f91712c96ce732ecd3ce1f7bb90f13d3"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\content-identity.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "de02b2f7db4bfe804a276358427df93c",
+    "semantic_hash": "de02b2f7db4bfe804a276358427df93c"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\design-system.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "f4e233cb7da1372a7f93b034ca916ad9",
+    "semantic_hash": "f4e233cb7da1372a7f93b034ca916ad9"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\evaluation-sync.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "7fb8b478775c8a3b6fc789f639b85256",
+    "semantic_hash": "7fb8b478775c8a3b6fc789f639b85256"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\exam-presets.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "bf8ddca77d80d6c8e9829cce7878a13d",
+    "semantic_hash": "bf8ddca77d80d6c8e9829cce7878a13d"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\idb-cache.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "e488e3d1ea5c0e9ce24c47a2175051d5",
+    "semantic_hash": "e488e3d1ea5c0e9ce24c47a2175051d5"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\llm-agent.ts": {
+    "mtime": 1780221884.8365066,
+    "ast_hash": "05570aa6d1c5456423f6e2fec31529a7",
+    "semantic_hash": "05570aa6d1c5456423f6e2fec31529a7"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\llm-context.tsx": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "f5e8868e305bf35548cb9cf248b96c63",
+    "semantic_hash": "f5e8868e305bf35548cb9cf248b96c63"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\load-skill.ts": {
+    "mtime": 1780197152.2554042,
+    "ast_hash": "3a11b9f348fc3103dffac8c65ab4ef63",
+    "semantic_hash": "3a11b9f348fc3103dffac8c65ab4ef63"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\mermaid-security.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "5e650d55f6170b04c91650108b1981bb",
+    "semantic_hash": "5e650d55f6170b04c91650108b1981bb"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\native-auth.ts": {
+    "mtime": 1780111221.4796822,
+    "ast_hash": "c5183d0ed7b84c7b5ddcfe749cf74a4d",
+    "semantic_hash": "c5183d0ed7b84c7b5ddcfe749cf74a4d"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\spaced-repetition.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "d8cd93649bfd11899f01b5fcec23f97e",
+    "semantic_hash": "d8cd93649bfd11899f01b5fcec23f97e"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\study-state.ts": {
+    "mtime": 1780231731.9915986,
+    "ast_hash": "c7625b667066dce501e6bd6834ec8d72",
+    "semantic_hash": "c7625b667066dce501e6bd6834ec8d72"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\sync.ts": {
+    "mtime": 1780230638.4991546,
+    "ast_hash": "728ec6a7971f1de813b59474fe8e5fe1",
+    "semantic_hash": "728ec6a7971f1de813b59474fe8e5fe1"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\vault-params.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "d7c99ff09065a9fe14849a3c18d6b845",
+    "semantic_hash": "d7c99ff09065a9fe14849a3c18d6b845"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\vault-parser.ts": {
+    "mtime": 1780135823.0062315,
+    "ast_hash": "7e94ec8252aa97bb4c2546aee574f0e6",
+    "semantic_hash": "7e94ec8252aa97bb4c2546aee574f0e6"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\agent-bridge.ts": {
+    "mtime": 1780226965.8647325,
+    "ast_hash": "eec841e64baa1d4b7883aefc6ae3d3c4",
+    "semantic_hash": "eec841e64baa1d4b7883aefc6ae3d3c4"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\agent-db.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "35d40a81843280bc7cdd4f95c8fec466",
+    "semantic_hash": "35d40a81843280bc7cdd4f95c8fec466"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\agent-engine.ts": {
+    "mtime": 1780233605.1953683,
+    "ast_hash": "569b4ebb661c2514fa087b26856872e7",
+    "semantic_hash": "569b4ebb661c2514fa087b26856872e7"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\agent-types.ts": {
+    "mtime": 1780157172.724463,
+    "ast_hash": "8e86db4c17d4635c6033b525f76cb102",
+    "semantic_hash": "8e86db4c17d4635c6033b525f76cb102"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\agent-worker.ts": {
+    "mtime": 1780226945.6310349,
+    "ast_hash": "94c7498f74a69addf3a4c69388f986f9",
+    "semantic_hash": "94c7498f74a69addf3a4c69388f986f9"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\chunker.ts": {
+    "mtime": 1780141999.569545,
+    "ast_hash": "f6e0c581ef2b7c7663471c51bb21c8d9",
+    "semantic_hash": "f6e0c581ef2b7c7663471c51bb21c8d9"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\embeddings.ts": {
+    "mtime": 1780142993.195449,
+    "ast_hash": "26c5283bf491bb0b4fa55ccf902f0518",
+    "semantic_hash": "26c5283bf491bb0b4fa55ccf902f0518"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\rag-store.ts": {
+    "mtime": 1780194813.6918664,
+    "ast_hash": "d6e218d86d6babf04368688248a57c46",
+    "semantic_hash": "d6e218d86d6babf04368688248a57c46"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\vector-store.ts": {
+    "mtime": 1780194820.3428104,
+    "ast_hash": "013bde9de861866c9d7c05b4849503bc",
+    "semantic_hash": "013bde9de861866c9d7c05b4849503bc"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\supabase\\client.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "5453d99289cf630306e5030428c0fc33",
+    "semantic_hash": "5453d99289cf630306e5030428c0fc33"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\supabase\\middleware.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "c36aacff9331d9ef40758239bfdc4775",
+    "semantic_hash": "c36aacff9331d9ef40758239bfdc4775"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\supabase\\server.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "3ff3045e8e2f63c293270e6d317c0a19",
+    "semantic_hash": "3ff3045e8e2f63c293270e6d317c0a19"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\stores\\theme-store.ts": {
+    "mtime": 1780111221.494965,
+    "ast_hash": "453300723d3557676915a7336a77534a",
+    "semantic_hash": "453300723d3557676915a7336a77534a"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\stores\\vault-store.ts": {
+    "mtime": 1780227640.859265,
+    "ast_hash": "0b2341e5627a752121814a5b6aa29f25",
+    "semantic_hash": "0b2341e5627a752121814a5b6aa29f25"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\types\\index.ts": {
+    "mtime": 1780135823.0062315,
+    "ast_hash": "a7dfeacb04d559dfa66886db976a955b",
+    "semantic_hash": "a7dfeacb04d559dfa66886db976a955b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\skills\\study-ult\\skill.md": {
+    "mtime": 1780229315.481084,
+    "ast_hash": "69cae737dff9722c82cc64202974a871",
+    "semantic_hash": "69cae737dff9722c82cc64202974a871"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\skills\\study-ult\\references\\flashcard-patterns.md": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "c95e475fbddac5501796b26c11c82609",
+    "semantic_hash": "c95e475fbddac5501796b26c11c82609"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\skills\\study-ult\\references\\note-formatting.md": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "8b83452f78aee3f72f45e67ff7d9705b",
+    "semantic_hash": "8b83452f78aee3f72f45e67ff7d9705b"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\skills\\study-ult\\references\\note-template-full.md": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "e3c053a21fdd4055d84c37d153f76879",
+    "semantic_hash": "e3c053a21fdd4055d84c37d153f76879"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\skills\\study-ult\\references\\question-patterns.md": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "560b402e1e4171a0a1c935cc32102189",
+    "semantic_hash": "560b402e1e4171a0a1c935cc32102189"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\skills\\study-ult\\references\\vault-structure.md": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "3864fc514fca4ccc9d67960556b05faa",
+    "semantic_hash": "3864fc514fca4ccc9d67960556b05faa"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\src\\lib\\note-agent\\RAG-ARCHITECTURE.md": {
+    "mtime": 1780141382.6632264,
+    "ast_hash": "1561793eeeb3c8ac8191d0a0d1f71b1a",
+    "semantic_hash": "1561793eeeb3c8ac8191d0a0d1f71b1a"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\app-logo.png": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "0c4dfcba239edc71655bbe7fc33aadc8",
+    "semantic_hash": "0c4dfcba239edc71655bbe7fc33aadc8"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\file.svg": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "d09f95206c3fa0bb9bd9fefabfd0ea71",
+    "semantic_hash": "d09f95206c3fa0bb9bd9fefabfd0ea71"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\globe.svg": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "2aaafa6a49b6563925fe440891e32717",
+    "semantic_hash": "2aaafa6a49b6563925fe440891e32717"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\next.svg": {
+    "mtime": 1780111221.4478345,
+    "ast_hash": "8e061864f388b47f33a1c3780831193e",
+    "semantic_hash": "8e061864f388b47f33a1c3780831193e"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\splash-screen-logo.png": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "86a345e24997646b79763a878cc368c0",
+    "semantic_hash": "86a345e24997646b79763a878cc368c0"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\vercel.svg": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "c0af2f507b369b085b35ef4bbe3bcf1e",
+    "semantic_hash": "c0af2f507b369b085b35ef4bbe3bcf1e"
+  },
+  "D:\\Programming\\Web\\StudyUlt2\\public\\window.svg": {
+    "mtime": 1780111221.4636915,
+    "ast_hash": "a2760511c65806022ad20adf74370ff3",
+    "semantic_hash": "a2760511c65806022ad20adf74370ff3"
+  }
+}

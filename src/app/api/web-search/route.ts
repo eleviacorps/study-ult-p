@@ -60,7 +60,7 @@ function parseDdgHtml(html: string): SearchResult[] {
 // ─── Wikipedia OpenSearch API (free, no key needed) ───────────────────
 async function searchWikipedia(query: string): Promise<SearchResult[]> {
   const url = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=8&namespace=0&format=json`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(8000) });
   if (!res.ok) return [];
   const data = await res.json();
   // data[0] = query, data[1] = titles[], data[2] = snippets[], data[3] = links[]

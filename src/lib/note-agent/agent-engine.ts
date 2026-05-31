@@ -152,7 +152,7 @@ function extractMarkdown(text: string): string | null {
 }
 
 function extractFilePath(text: string): string | null {
-  const m = text.match(/([A-Za-z_][\w/]+\.md)/);
+  const m = text.match(/([\w][\w/]*\.md)/);
   return m ? m[1] : null;
 }
 
@@ -299,7 +299,7 @@ async function parseStreamingResponse(res: Response): Promise<{
   if (reasoningParts.length > 0) message.reasoning_content = reasoningParts.join("");
   let truncatedToolCalls = false;
   if (Object.keys(toolCalls).length > 0) {
-    if (finishReason === "length") {
+    if (finishReason === "length" || !finishReason) {
       const validToolCalls: Record<number, typeof toolCalls[0]> = {};
       for (const [k, tc] of Object.entries(toolCalls)) {
         try { JSON.parse(tc.function.arguments); validToolCalls[Number(k)] = tc; }
@@ -317,18 +317,33 @@ async function parseStreamingResponse(res: Response): Promise<{
 
 // ── Agent turn ──
 
-async function runAgentTurn(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, config: AgentConfig, attempt = 1): Promise<{
+async function runAgentTurn(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, config: AgentConfig, isAborted: () => boolean, attempt = 1): Promise<{
   newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }> {
   void config;
+  const abortController = new AbortController();
+  const abortCheck = setInterval(() => { if (isAborted()) abortController.abort(); }, 500);
+  let result;
+  try {
+    result = await runAgentTurnInner(messages, tools, handler, attempt, abortController.signal);
+    return result;
+  } finally {
+    clearInterval(abortCheck);
+  }
+}
+
+async function runAgentTurnInner(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, attempt = 1, signal?: AbortSignal): Promise<{
+  newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+}> {
   const res = await fetch("/api/llm", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 32768, stream: true }),
+    signal,
   });
   if (res.status === 504 && attempt < 3) {
     const backoff = 2000 * attempt;
     await new Promise((r) => setTimeout(r, backoff));
-    return runAgentTurn(messages, tools, handler, config, attempt + 1);
+    return runAgentTurnInner(messages, tools, handler, attempt + 1, signal);
   }
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -416,8 +431,8 @@ function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string)
       switch (name) {
         case "write_file": {
           const path = args.path as string;
-          if (path.endsWith("core.md") && workspace.has(path)) {
-            return JSON.stringify({ error: `core.md already exists. Read it, then move to creating notes.`, path });
+          if (workspace.has(path)) {
+            return JSON.stringify({ error: `File already exists in workspace: "${path}". Use read_file to check it instead of rewriting. Move on to creating files that don't exist yet.`, path });
           }
           const content = args.content as string | undefined;
           if (content && content.startsWith("[FILE STORED —")) {
@@ -641,6 +656,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
   let lastFilePath = "";
   let lastToolName = "";
   let consecutiveSameFile = 0;
+  let consecutiveIdleTurns = 0;
 
   const { handler: toolHandlerFn, getSection } = makeToolHandler(workspace, ragChapterPath);
 
@@ -695,7 +711,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
     }
 
     try {
-      const result = await runAgentTurn(messages, tools, toolHandlerFn, config);
+      const result = await runAgentTurn(messages, tools, toolHandlerFn, config, () => callbacks.isAborted());
       messages.length = 0;
       messages.push(...result.newMessages);
 
@@ -745,7 +761,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
           if (tail.length >= 6 && pendingTools === 0 && m.role !== "tool") break;
         }
         messages.length = 0;
-        messages.push(params.messages[0], params.messages[1], ...tail);
+        messages.push(messages[0], messages[1], ...tail);
       }
 
       // Batch index every 5 turns
@@ -756,11 +772,13 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       callbacks.onProgress({ messages, steps: result.steps, turn: currentTurn });
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
-        consecutiveSameFile++;
-        if (consecutiveSameFile >= MAX_CONSECUTIVE_SAME_ACTION) {
+        consecutiveIdleTurns++;
+        if (consecutiveIdleTurns >= MAX_CONSECUTIVE_SAME_ACTION) {
           throw new Error(`Loop detected: ${MAX_CONSECUTIVE_SAME_ACTION} consecutive idle turns (no tool calls or content)`);
         }
         messages.push({ role: "user", content: "Continue the work. If you are completely done with all tasks (notes, questions, flashcards, quizzes, revision, verification, placeholders), call the final_report tool with a summary." });
+      } else {
+        consecutiveIdleTurns = 0;
       }
     } catch (err: any) {
       if (getSection()) await embedSection(getSection()!).catch(() => {});
@@ -777,13 +795,12 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
 // ── Vault seeding ──
 
 async function seedVectorStore(vaultNotes: { path: string; content: string }[], chapterPath: string): Promise<void> {
-  const normChapterPath = normalizePath(chapterPath);
-  const chapterNameUnderscored = normChapterPath.replace(/[_]/g, " ").trim().toLowerCase();
+  const normChapterPath = normalizePath(chapterPath).toLowerCase();
   let queuedCount = 0;
   for (const n of vaultNotes) {
-    const normPath = normalizePath(n.path);
+    const normPath = normalizePath(n.path).toLowerCase();
     const matchesPath = normPath.split("/").includes(normChapterPath);
-    const matchesFallback = !matchesPath && chapterNameUnderscored.length > 0 && normPath.toLowerCase().startsWith(chapterNameUnderscored + "/");
+    const matchesFallback = !matchesPath && normChapterPath.length > 0 && normPath.startsWith(normChapterPath + "/");
     if (matchesPath || matchesFallback) {
       const type = normPath.includes("/questions/") ? "questions" : normPath.includes("/notes/") ? "notes" : "other";
       queueDocument(n.path, n.content, chapterPath, type, undefined, true);

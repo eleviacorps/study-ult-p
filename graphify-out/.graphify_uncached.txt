@@ -1,0 +1,14 @@
+D:\Programming\Web\StudyUlt2\public\skills\study-ult\skill.md
+D:\Programming\Web\StudyUlt2\public\skills\study-ult\references\flashcard-patterns.md
+D:\Programming\Web\StudyUlt2\public\skills\study-ult\references\note-formatting.md
+D:\Programming\Web\StudyUlt2\public\skills\study-ult\references\note-template-full.md
+D:\Programming\Web\StudyUlt2\public\skills\study-ult\references\question-patterns.md
+D:\Programming\Web\StudyUlt2\public\skills\study-ult\references\vault-structure.md
+D:\Programming\Web\StudyUlt2\src\lib\note-agent\RAG-ARCHITECTURE.md
+D:\Programming\Web\StudyUlt2\public\app-logo.png
+D:\Programming\Web\StudyUlt2\public\file.svg
+D:\Programming\Web\StudyUlt2\public\globe.svg
+D:\Programming\Web\StudyUlt2\public\next.svg
+D:\Programming\Web\StudyUlt2\public\splash-screen-logo.png
+D:\Programming\Web\StudyUlt2\public\vercel.svg
+D:\Programming\Web\StudyUlt2\public\window.svg
