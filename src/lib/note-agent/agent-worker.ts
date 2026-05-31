@@ -131,13 +131,19 @@ async function processIndexBatch(): Promise<void> {
 
 async function seedVectorStore(vaultNotes: { path: string; content: string }[], chapterPath: string): Promise<void> {
   const normChapterPath = normalizePath(chapterPath);
+  // Build a space-normalized version for matching against note.chapter fallback paths
+  const chapterNameUnderscored = normChapterPath.replace(/[_]/g, " ").trim().toLowerCase();
   let queuedCount = 0;
   for (const n of vaultNotes) {
     const normPath = normalizePath(n.path);
     // Match by path segment: chapter "Electrostatics" matches "Physics/Electrostatics/notes/x.md"
     // or "Electrostatics/notes/x.md"
-    if (normPath.split("/").includes(normChapterPath)) {
-      const type = n.path.includes("/questions/") ? "questions" : n.path.includes("/notes/") ? "notes" : "other";
+    const matchesPath = normPath.split("/").includes(normChapterPath);
+    // Fallback: match by chapter name in path when note.path was constructed from
+    // chapter name (e.g., "Sexual Reproduction in flowering Plants/notes/x.md")
+    const matchesFallback = !matchesPath && chapterNameUnderscored.length > 0 && normPath.toLowerCase().startsWith(chapterNameUnderscored + "/");
+    if (matchesPath || matchesFallback) {
+      const type = normPath.includes("/questions/") ? "questions" : normPath.includes("/notes/") ? "notes" : "other";
       queueDocument(n.path, n.content, chapterPath, type, undefined, true);
       queuedCount++;
     }
