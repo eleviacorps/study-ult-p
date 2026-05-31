@@ -104,7 +104,17 @@ async function mergeRemoteNotes(vault: VaultContent): Promise<VaultContent> {
     if (!notesRes.ok) return vault;
     const { notes: dbNotes } = await notesRes.json();
     if (Array.isArray(dbNotes) && dbNotes.length > 0) {
-      return mergeNotesIntoVault(vault, dbNotes);
+      const mapped = dbNotes.map((n: Record<string, unknown>) => {
+        const parts = (typeof n.path === "string" ? n.path : "").split("/");
+        const filename = parts[parts.length - 1].replace(".md", "");
+        return {
+          ...n,
+          id: filename,
+          links: [],
+          backlinks: [],
+        } as unknown as Note;
+      });
+      return mergeNotesIntoVault(vault, mapped);
     }
   } catch {
     // Supabase not configured or offline

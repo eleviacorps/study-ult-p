@@ -24,7 +24,7 @@ Each write_file call MUST include BOTH required parameters. Failure to include b
 ```text
 write_file(path="ChapterPath/notes/topic.md", content="# Topic Name\n\n...full content here...")
 ```
-The `path` and `content` parameters are both REQUIRED. Never call write_file without content. If content is missing, the model will see an error and waste a turn retrying. Always write the full file content in the `content` parameter — do not ask the user to provide it.
+THE `path` AND `content` PARAMETERS ARE BOTH (REQUIRED) ITS CRITICAL. NEVER CALL write_file WITHOUT *CONTENT*. IF *CONTENT* IS MISSING, THE MODEL WILL SEE AN ERROR AND WASTE A TURN SOLVING THAT. ALWAYS FREAKING WRITE THE FULL *CONTENT* IN THE `content` PARAMETER — DO NOT ASK THE USER TO PROVIDE IT, DO NOT - I MEANT IT, DO NOT CALL write_file WITHOUT *CONTENT* - `content` PARAMETER -ITS HIGHLY IMPORTANT AND CRITICAL.
 
 ### Priority Order — WRITE ALL FIRST, ASSESS ONCE AT END
 1. Chapter core.md (write once, then never touch again)
