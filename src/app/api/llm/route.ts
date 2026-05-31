@@ -30,6 +30,11 @@ export async function POST(request: Request) {
     if (messages.length === 0) {
       return NextResponse.json({ error: "missing_messages" }, { status: 400 });
     }
+    // Reject oversized requests before forwarding to provider
+    const estimatedSize = JSON.stringify({ messages }).length;
+    if (estimatedSize > 500_000) {
+      return NextResponse.json({ error: "request_too_large", detail: `Payload ${(estimatedSize / 1024).toFixed(0)}KB exceeds 500KB limit` }, { status: 413 });
+    }
 
     const baseUrl = getServerAiBaseUrl();
     const model = process.env.AI_MODEL || DEFAULT_AI_MODEL;
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
     const requestBody: Record<string, unknown> = {
       model,
       messages,
-      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 65536) : 65536,
+      max_tokens: typeof body.max_tokens === "number" ? Math.min(body.max_tokens, 4096) : 4096,
       temperature: typeof body.temperature === "number" ? body.temperature : 0.25,
       top_p: typeof body.top_p === "number" ? body.top_p : 0.9,
       stream: isStream,

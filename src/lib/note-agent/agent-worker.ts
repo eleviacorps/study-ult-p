@@ -211,7 +211,7 @@ async function runAgentTurn(
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
-      max_tokens: 65536,
+      max_tokens: 4096,
     }),
   });
 
@@ -302,27 +302,35 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
 
     case "read_file": {
       const path = args.path as string;
+      const needsFull = args.full === true;
+
       // Per-path read cache — avoid re-reading same file repeatedly
       const cached = _readCache.get(path);
-      if (cached !== undefined) return cached;
+      if (cached !== undefined && !needsFull) return cached;
 
       let content = workspace.get(path);
-      if (content) {
-        const result = JSON.stringify({ path, content, size: content.length });
-        _readCache.set(path, result);
-        return result;
+      if (!content) {
+        // Fallback: try RAG (files indexed but not in current workspace)
+        try {
+          const ragContent = await getDocument(path);
+          if (ragContent) {
+            workspace.set(path, ragContent);
+            content = ragContent;
+          }
+        } catch { /* ignore */ }
       }
 
-      // Fallback: try RAG (files indexed but not in current workspace)
-      try {
-        const ragContent = await getDocument(path);
-        if (ragContent) {
-          workspace.set(path, ragContent);
-          const result = JSON.stringify({ path, content: ragContent, size: ragContent.length, source: "rag" });
+      if (content) {
+        let result: string;
+        if (needsFull) {
+          result = JSON.stringify({ path, content, size: content.length });
+        } else {
+          const excerpt = content.replace(/\n/g, " ").substring(0, 300).trim();
+          result = JSON.stringify({ path, size: content.length, excerpt, mode: "compact" });
           _readCache.set(path, result);
-          return result;
         }
-      } catch { /* ignore */ }
+        return result;
+      }
 
       return JSON.stringify({ error: "File not found", path });
     }
@@ -337,38 +345,35 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
 
     case "assess_quality": {
       const chapterPath = (args.chapterPath as string) || "";
+      const detailed = args.detailed === true;
       const allFiles = Array.from(workspace.keys()).filter((p) => p.endsWith(".md"));
       const chapterFiles = allFiles.filter((p) => p.startsWith(chapterPath));
-      const results: Record<string, unknown> = {};
+      const summary: Record<string, unknown> = { chapter: chapterPath, mode: detailed ? "detailed" : "compact" };
 
       const coreMd = workspace.get(`${chapterPath}/core.md`);
       if (coreMd) {
         const topicLinks = [...coreMd.matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1]);
-        results.topicsInCore = topicLinks.length;
-        results.topicsList = topicLinks;
+        summary.topicsInCore = topicLinks.length;
+        if (detailed) summary.topicsList = topicLinks;
       } else {
-        results.topicsInCore = 0;
-        results.topicsList = [];
-        results.missingCore = true;
+        summary.topicsInCore = 0;
+        summary.missingCore = true;
       }
 
       const noteFiles = chapterFiles.filter((p) => p.includes("/notes/"));
-      results.noteCount = noteFiles.length;
+      summary.noteCount = noteFiles.length;
       const notesShort: { path: string; lines: number }[] = [];
       for (const nf of noteFiles) {
         const content = workspace.get(nf) || "";
         const lines = content.split("\n").length;
         if (lines < 400) notesShort.push({ path: nf, lines });
       }
-      results.notesShort = notesShort;
+      if (detailed) summary.notesShort = notesShort.slice(0, 10);
+      summary.notesShortCount = notesShort.length;
 
       const PLACEHOLDER_PATTERNS = [
-        /coming\s+soon/i,
-        /add\s+more/i,
-        /todo/i,
-        /placeholder/i,
-        /\(\+?\d+\s*questions?\s*more?\)/i,
-        /more\s+questions?/i,
+        /coming\s+soon/i, /add\s+more/i, /todo/i,
+        /placeholder/i, /\(\+?\d+\s*questions?\s*more?\)/i, /more\s+questions?/i,
       ];
       const placeholders: { file: string; line: number; text: string }[] = [];
       for (const f of chapterFiles) {
@@ -383,47 +388,25 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
           }
         }
       }
-      results.placeholders = placeholders;
+      if (detailed) summary.placeholders = placeholders.slice(0, 20);
+      summary.placeholderCount = placeholders.length;
 
-      const qFile = workspace.get(`${chapterPath}/questions/100_questions.md`);
-      if (qFile) {
-        const qCount = (qFile.match(/## Q\d+\./g) || []).length;
-        results.questionCount = qCount;
-        results.questionCountOk = qCount >= 100;
-      } else {
-        results.questionCount = 0;
-        results.questionCountOk = false;
-      }
-
-      const mcqFile = workspace.get(`${chapterPath}/questions/100_mcqs.md`);
-      if (mcqFile) {
-        const mcqCount = (mcqFile.match(/### Q\d+\./g) || []).length;
-        results.mcqCount = mcqCount;
-        results.mcqCountOk = mcqCount >= 100;
-      } else {
-        results.mcqCount = 0;
-        results.mcqCountOk = false;
-      }
-
-      const flashFile = workspace.get(`${chapterPath}/flashcards/100_flashcards.md`);
-      if (flashFile) {
-        const flashCount = (flashFile.match(/## FC\d+\./g) || []).length;
-        results.flashcardCount = flashCount;
-        results.flashcardCountOk = flashCount >= 100;
-      } else {
-        results.flashcardCount = 0;
-        results.flashcardCountOk = false;
-      }
-
-      const quizFile = workspace.get(`${chapterPath}/quizzes/100_quizzes.md`);
-      if (quizFile) {
-        const quizCount = (quizFile.match(/### Q\d+\./g) || []).length;
-        results.quizCount = quizCount;
-        results.quizCountOk = quizCount >= 100;
-      } else {
-        results.quizCount = 0;
-        results.quizCountOk = false;
-      }
+      const readCount = (file: string, pattern: RegExp): number => {
+        const c = workspace.get(file) || "";
+        return (c.match(pattern) || []).length;
+      };
+      const qCount = readCount(`${chapterPath}/questions/100_questions.md`, /## Q\d+\./g);
+      const mcqCount = readCount(`${chapterPath}/questions/100_mcqs.md`, /### Q\d+\./g);
+      const flashCount = readCount(`${chapterPath}/flashcards/100_flashcards.md`, /## FC\d+\./g);
+      const quizCount = readCount(`${chapterPath}/quizzes/100_quizzes.md`, /### Q\d+\./g);
+      summary.questionCount = qCount;
+      summary.questionCountOk = qCount >= 100;
+      summary.mcqCount = mcqCount;
+      summary.mcqCountOk = mcqCount >= 100;
+      summary.flashcardCount = flashCount;
+      summary.flashcardCountOk = flashCount >= 100;
+      summary.quizCount = quizCount;
+      summary.quizCountOk = quizCount >= 100;
 
       const brokenLinks: string[] = [];
       const existingPaths = new Set(chapterFiles);
@@ -439,31 +422,31 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
           }
         }
       }
-      results.brokenWikilinks = brokenLinks;
+      if (detailed) summary.brokenWikilinks = brokenLinks.slice(0, 20);
+      summary.brokenLinkCount = brokenLinks.length;
 
-      let hasCallouts = false;
-      let hasLatex = false;
-      let hasTables = false;
+      let hasCallouts = false, hasLatex = false, hasTables = false;
       for (const f of chapterFiles) {
         const content = workspace.get(f) || "";
         if (/\[![\w-]+\]/.test(content)) hasCallouts = true;
         if (/\$\$/.test(content)) hasLatex = true;
         if (/\|.*\|.*\|/.test(content)) hasTables = true;
       }
-      results.formatting = { callouts: hasCallouts, latex: hasLatex, tables: hasTables };
+      summary.formatting = { callouts: hasCallouts, latex: hasLatex, tables: hasTables };
 
       const issues: string[] = [];
       if (notesShort.length > 0) issues.push(`${notesShort.length} notes under 400 lines`);
       if (placeholders.length > 0) issues.push(`${placeholders.length} placeholder texts found`);
-      if (!results.questionCountOk) issues.push(`Questions: ${results.questionCount}/100`);
-      if (!results.mcqCountOk) issues.push(`MCQs: ${results.mcqCount}/100`);
-      if (!results.flashcardCountOk) issues.push(`Flashcards: ${results.flashcardCount}/100`);
-      if (!results.quizCountOk) issues.push(`Quizzes: ${results.quizCount}/100`);
+      if (!summary.questionCountOk) issues.push(`Questions: ${summary.questionCount}/100`);
+      if (!summary.mcqCountOk) issues.push(`MCQs: ${summary.mcqCount}/100`);
+      if (!summary.flashcardCountOk) issues.push(`Flashcards: ${summary.flashcardCount}/100`);
+      if (!summary.quizCountOk) issues.push(`Quizzes: ${summary.quizCount}/100`);
       if (brokenLinks.length > 0) issues.push(`${brokenLinks.length} broken wikilinks`);
-      results.issues = issues;
-      results.passed = issues.length === 0;
+      summary.issues = issues.slice(0, detailed ? 50 : 10);
+      summary.totalIssues = issues.length;
+      summary.passed = issues.length === 0;
 
-      return JSON.stringify({ chapter: chapterPath, ...results });
+      return JSON.stringify(summary);
     }
 
     case "final_report":
@@ -538,6 +521,15 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     // Build retrieval query from structured state, not assistant prose
     await injectRagContext(messages, chapterPath, chapterName, currentTurn, allToolCalls);
 
+    // Payload budget check — reject oversized conversations before sending to LLM
+    const payloadEstimate = JSON.stringify({ messages, tools }).length;
+    if (payloadEstimate > 200_000) {
+      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 200KB budget, forcing window truncation`);
+      const truncated = [messages[0], messages[1], ...messages.slice(-4)];
+      messages.length = 0;
+      messages.push(...truncated);
+    }
+
     try {
       const result = await runAgentTurn(messages, tools, toolHandler, config);
       messages.length = 0;
@@ -566,8 +558,9 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
         }
       }
 
-      // Telemetry: log turn info
-      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs, ${pendingIndexCount()} pending queue`);
+      // Telemetry: log turn info with payload size
+      const turnPayloadKB = Math.round(JSON.stringify({ messages }).length / 1024);
+      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs (~${turnPayloadKB}KB), ${pendingIndexCount()} pending queue`);
 
       if (result.finished) {
         // Flush pending index writes before finishing

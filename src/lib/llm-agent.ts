@@ -49,7 +49,7 @@ export async function runAgentTurn(
       messages,
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
-      max_tokens: 65536,
+      max_tokens: 4096,
     }),
   });
 
@@ -125,6 +125,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
         type: "object",
         properties: {
           path: { type: "string", description: "File path relative to vault root" },
+          full: { type: "boolean", description: "If true, returns full content. Default: compact (path, size, excerpt). Request full only when you must verify byte-level correctness." },
         },
         required: ["path"],
       },
@@ -145,11 +146,12 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "assess_quality",
-      description: "FINAL ASSESSMENT: Read core.md for topic list, then verify ALL notes exist, check note length (400+ lines), count questions (exactly 100), MCQs (exactly 100), flashcards (100+), quizzes (100+), detect placeholders, broken wikilinks, and formatting issues across the ENTIRE chapter.",
+      description: "FINAL ASSESSMENT: Verify ALL notes exist, check note length (400+ lines), count questions (exactly 100), MCQs (exactly 100), flashcards (100+), quizzes (100+), detect placeholders, broken wikilinks, and formatting issues across the ENTIRE chapter.",
       parameters: {
         type: "object",
         properties: {
           chapterPath: { type: "string", description: "Chapter directory path (e.g. 'Electrostatics')" },
+          detailed: { type: "boolean", description: "If true, returns full diagnostic list. Default: compact (counts + first 5 issues). Use compact for general assessment; request detailed when you need exact file/line info." },
         },
         required: ["chapterPath"],
       },
