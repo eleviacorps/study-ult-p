@@ -65,26 +65,22 @@ export async function POST(request: Request) {
 
     console.log(`[LLM ${reqId}] ← ${res.status}`);
 
-    if (isStream) {
-      return new Response(res.body, {
-        status: res.status,
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
+    // Always pipe the provider response body through — do NOT buffer it.
+    // Buffering with await res.text() keeps the Edge function wall clock
+    // ticking until the entire response arrives. On Hobby (30s wall limit),
+    // a slow provider response causes FUNCTION_INVOCATION_TIMEOUT.
+    // Piping returns the function as soon as the first byte arrives (~1-3s).
+    if (!res.body) {
+      return NextResponse.json({ error: "empty_response" }, { status: 502 });
     }
-
-    const text = await res.text().catch(() => "");
-
-    if (!res.ok) {
-      console.log(`[LLM ${reqId}] error body:`, text.substring(0, 3000));
-    }
-
-    const data = (() => { try { return JSON.parse(text); } catch { return {}; } })();
-    console.log(`[LLM ${reqId}] √ done`);
-    return NextResponse.json(data, { status: res.status });
+    const contentType = isStream ? "text/event-stream" : "application/json";
+    return new Response(res.body, {
+      status: res.status,
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": isStream ? "no-cache" : "private",
+      },
+    });
   } catch (err: unknown) {
     console.log(`[LLM ${reqId}] × exception:`, err instanceof Error ? err.message : err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "unknown_error" }, { status: 500 });
