@@ -201,6 +201,92 @@ async function injectRagContext(
   }
 }
 
+// ── SSE streaming parser ──
+// Reads an OpenAI-compatible SSE stream and reconstructs the full response.
+// TTFB = first token (~1s), not full generation (~30s), so the edge function
+// returns instantly and parsing happens client-side with no timeout limit.
+
+async function parseStreamingResponse(res: Response): Promise<{
+  message: Record<string, unknown>;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+}> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const contentParts: string[] = [];
+  const reasoningParts: string[] = [];
+  const toolCalls: Record<number, { id: string; type: string; function: { name: string; arguments: string } }> = {};
+  let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
+        const payload = trimmed.slice(6).trim();
+        if (payload === "[DONE]") continue;
+
+        let chunk: any;
+        try { chunk = JSON.parse(payload); } catch { continue; }
+
+        // Usage may come in the final chunk (non-standard but some providers include it)
+        if (chunk.usage) {
+          usage = { prompt_tokens: chunk.usage.prompt_tokens ?? 0, completion_tokens: chunk.usage.completion_tokens ?? 0, total_tokens: chunk.usage.total_tokens ?? 0 };
+        }
+
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+
+        const delta = choice.delta;
+        if (!delta) continue;
+
+        if (delta.content) contentParts.push(delta.content);
+        if (delta.reasoning_content) reasoningParts.push(delta.reasoning_content);
+
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCalls[idx]) {
+              toolCalls[idx] = {
+                id: tc.id || "",
+                type: "function",
+                function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" },
+              };
+            } else {
+              if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
+              if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
+              if (tc.id) toolCalls[idx].id = tc.id;
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // If aborted mid-stream, use whatever was accumulated
+    if (contentParts.length === 0 && Object.keys(toolCalls).length === 0) throw err;
+    console.warn("[Agent] stream aborted, using partial response");
+  }
+
+  const content = contentParts.join("") || null;
+  const message: Record<string, unknown> = { role: "assistant", content };
+  if (reasoningParts.length > 0) message.reasoning_content = reasoningParts.join("");
+  if (Object.keys(toolCalls).length > 0) {
+    message.tool_calls = Object.keys(toolCalls)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => toolCalls[Number(k)]);
+  }
+
+  return { message, usage };
+}
+
 // ── Agent turn ──
 
 async function runAgentTurn(
@@ -220,11 +306,12 @@ async function runAgentTurn(
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
       max_tokens: 4096,
+      stream: true,
     }),
   });
 
   if (res.status === 504 && attempt < 3) {
-    const backoff = 2000 * attempt; // 2s, 4s
+    const backoff = 2000 * attempt;
     console.warn(`[Agent] 504 on attempt ${attempt}, retrying in ${backoff}ms...`);
     await new Promise((r) => setTimeout(r, backoff));
     return runAgentTurn(messages, tools, handler, config, attempt + 1);
@@ -235,16 +322,14 @@ async function runAgentTurn(
     throw new Error(`API error (${res.status}): ${err}`);
   }
 
-  const data = await res.json();
-  const usage = data.usage ? { prompt_tokens: data.usage.prompt_tokens ?? 0, completion_tokens: data.usage.completion_tokens ?? 0, total_tokens: data.usage.total_tokens ?? 0 } : undefined;
-  console.log(`[Tokens] prompt=${usage?.prompt_tokens ?? "?"} completion=${usage?.completion_tokens ?? "?"} total=${usage?.total_tokens ?? "?"}`);
-  const choice = data.choices?.[0];
-  if (!choice) throw new Error("No response from API");
+  // Parse SSE stream from the provider — TTFB is ~1s (first token), not 30s (full generation)
+  const { message: msg, usage } = await parseStreamingResponse(res);
 
-  const msg = choice.message || {};
-  const msgContent = msg.content || "";
-  const reasoningContent: string | undefined = msg.reasoning_content;
-  const toolCalls: ToolCall[] = msg.tool_calls || [];
+  const msgContent = (msg.content as string) || "";
+  const reasoningContent = msg.reasoning_content as string | undefined;
+  const toolCalls = (msg.tool_calls as ToolCall[]) || [];
+
+  console.log(`[Tokens] ${usage ? `prompt=${usage.prompt_tokens} completion=${usage.completion_tokens} total=${usage.total_tokens}` : "usage not reported (streaming)"}`);
 
   const step: AgentStep = {
     turn: 0,
