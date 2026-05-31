@@ -65,6 +65,17 @@ let workspace = new Map<string, string>();
 let abortFlag = false;
 let ragChapterPath = "";
 
+// ── Loop guards ──
+let _parseFailCount = 0;
+let _consecutiveSameFile = 0;
+let _lastFilePath = "";
+let _lastToolName = "";
+let _lastToolArgsJsonHash = "";
+let _readCache = new Map<string, string>();
+
+const MAX_CONSECUTIVE_PARSE_FAILS = 3;
+const MAX_CONSECUTIVE_SAME_ACTION = 4;
+
 // ── Retrieval state tracking — prevents loops and redundant searches ──
 
 let lastRetrievalQuery = "";
@@ -100,6 +111,10 @@ function retrievalQueryHash(query: string): string {
   return query.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 100);
 }
 
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
+}
+
 // ── Indexing queue processing ──
 
 let lastIndexProcessTurn = -1;
@@ -114,18 +129,36 @@ async function processIndexBatch(): Promise<void> {
 // ── Vault seeding ──
 
 async function seedVectorStore(vaultNotes: { path: string; content: string }[], chapterPath: string): Promise<void> {
+  const normChapterPath = normalizePath(chapterPath);
+  let queuedCount = 0;
   for (const n of vaultNotes) {
-    if (n.path.startsWith(chapterPath)) {
+    const normPath = normalizePath(n.path);
+    // Match by path segment: chapter "Electrostatics" matches "Physics/Electrostatics/notes/x.md"
+    // or "Electrostatics/notes/x.md"
+    if (normPath.split("/").includes(normChapterPath)) {
       const type = n.path.includes("/questions/") ? "questions" : n.path.includes("/notes/") ? "notes" : "other";
       queueDocument(n.path, n.content, chapterPath, type);
+      queuedCount++;
     }
   }
+  console.log(`[Agent] seeding vault: ${queuedCount}/${vaultNotes.length} docs match chapter "${chapterPath}"`);
+
   // Drain the entire queue — process batches until nothing remains
+  let stallGuard = 0;
   while (pendingIndexCount() > 0) {
-    await processDocumentQueue();
+    const result = await processDocumentQueue();
+    if (result.indexed === 0 && result.skipped === 0) {
+      stallGuard++;
+      if (stallGuard >= 3) {
+        console.warn(`[Agent] queue drain stalled: ${pendingIndexCount()} items stuck`);
+        break;
+      }
+    } else {
+      stallGuard = 0;
+    }
   }
   const tel = getIndexTelemetry();
-  console.log(`[Agent] seeded ${tel.docsIndexed} vault docs`);
+  console.log(`[Agent] seeded ${tel.docsIndexed} vault docs (${tel.chunksIndexed} chunks, ${tel.skippedSameHash} skipped, ${tel.embeddingCalls} embed calls)`);
   resetIndexTelemetry();
 }
 
@@ -212,10 +245,34 @@ async function runAgentTurn(
     const newMsgs = [...messages, assistantMsg];
     for (const tc of toolCalls) {
       if (abortFlag) break;
-      const args = JSON.parse(tc.function.arguments);
+      let args: Record<string, unknown>;
+      try {
+        args = JSON.parse(tc.function.arguments);
+      } catch {
+        _parseFailCount++;
+        if (_parseFailCount >= MAX_CONSECUTIVE_PARSE_FAILS) {
+          throw new Error(`Too many malformed tool calls (${_parseFailCount} consecutive parse failures)`);
+        }
+        const errBody = JSON.stringify({ error: `Invalid JSON in arguments for ${tc.function.name}` });
+        step.toolCalls.push({ name: tc.function.name, args: {}, result: errBody });
+        newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
+        continue;
+      }
+      _parseFailCount = 0;
       const result = await handler(tc.function.name, args);
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
+    }
+    // Compact write_file arguments in the assistant message to stop context bloat
+    for (const tc2 of toolCalls) {
+      if (tc2.function.name !== "write_file") continue;
+      try {
+        const a = JSON.parse(tc2.function.arguments);
+        const content = a.content as string;
+        const excerpt = (content || "").replace(/\n/g, " ").substring(0, 150).trim();
+        a.content = `[FILE STORED — path: ${a.path}, bytes: ${(content || "").length}, excerpt: ${excerpt}...]`;
+        tc2.function.arguments = JSON.stringify(a);
+      } catch { /* leave as-is if compact fails */ }
     }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response };
   }
@@ -236,6 +293,7 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       const path = args.path as string;
       const content = args.content as string;
       workspace.set(path, content);
+      _readCache.delete(path); // invalidate cached read
       const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
       // Queue for batch indexing — does NOT block the agent
       queueDocument(path, content, ragChapterPath, type);
@@ -244,8 +302,28 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
 
     case "read_file": {
       const path = args.path as string;
-      const content = workspace.get(path);
-      if (content) return JSON.stringify({ path, content, size: content.length });
+      // Per-path read cache — avoid re-reading same file repeatedly
+      const cached = _readCache.get(path);
+      if (cached !== undefined) return cached;
+
+      let content = workspace.get(path);
+      if (content) {
+        const result = JSON.stringify({ path, content, size: content.length });
+        _readCache.set(path, result);
+        return result;
+      }
+
+      // Fallback: try RAG (files indexed but not in current workspace)
+      try {
+        const ragContent = await getDocument(path);
+        if (ragContent) {
+          workspace.set(path, ragContent);
+          const result = JSON.stringify({ path, content: ragContent, size: ragContent.length, source: "rag" });
+          _readCache.set(path, result);
+          return result;
+        }
+      } catch { /* ignore */ }
+
       return JSON.stringify({ error: "File not found", path });
     }
 
@@ -420,6 +498,14 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
 
   ragChapterPath = chapterPath;
 
+  // Reset loop guards for this run
+  _parseFailCount = 0;
+  _consecutiveSameFile = 0;
+  _lastFilePath = "";
+  _lastToolName = "";
+  _lastToolArgsJsonHash = "";
+  _readCache.clear();
+
   const MAX_TURNS = 150;
   const messages = structuredClone(initialMessages);
   let currentTurn = 0;
@@ -457,10 +543,31 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       messages.length = 0;
       messages.push(...result.newMessages);
 
-      // Track tool calls for query construction
-      for (const tc of result.steps.flatMap((s) => s.toolCalls)) {
+      // Track tool calls for query construction + loop detection
+      const thisTurnCalls = result.steps.flatMap((s) => s.toolCalls);
+      for (const tc of thisTurnCalls) {
         allToolCalls.push({ turn: currentTurn, name: tc.name, args: tc.args });
       }
+
+      // Detect repeated actions on the same file
+      for (const tc of thisTurnCalls) {
+        if (tc.name === "read_file" || tc.name === "write_file") {
+          const path = (tc.args.path as string) || "";
+          if (path && path === _lastFilePath && tc.name === _lastToolName) {
+            _consecutiveSameFile++;
+            if (_consecutiveSameFile >= MAX_CONSECUTIVE_SAME_ACTION) {
+              throw new Error(`Loop detected: repeated "${tc.name}" on "${path}" ${_consecutiveSameFile + 1} consecutive times`);
+            }
+          } else if (path) {
+            _consecutiveSameFile = 0;
+            _lastFilePath = path;
+            _lastToolName = tc.name;
+          }
+        }
+      }
+
+      // Telemetry: log turn info
+      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs, ${pendingIndexCount()} pending queue`);
 
       if (result.finished) {
         // Flush pending index writes before finishing
@@ -500,6 +607,11 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
       self.postMessage({ type: "progress", messages, steps: result.steps, turn: currentTurn } satisfies WorkerProgressUpdate);
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
+        // Track consecutive idle turns (no tool calls, no content)
+        _consecutiveSameFile++;
+        if (_consecutiveSameFile >= MAX_CONSECUTIVE_SAME_ACTION) {
+          throw new Error(`Loop detected: ${MAX_CONSECUTIVE_SAME_ACTION} consecutive idle turns (no tool calls or content)`);
+        }
         messages.push({
           role: "user",
           content: "Continue the work. If you are completely done with all tasks (notes, questions, flashcards, quizzes, revision, verification, placeholders), call the final_report tool with a summary.",
