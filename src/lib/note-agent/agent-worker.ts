@@ -948,39 +948,27 @@ async function toolHandler(name: string, args: Record<string, unknown>): Promise
       const query = (args.query as string) || "";
       if (!query) return JSON.stringify({ error: "Missing query" });
       try {
-        // Use DuckDuckGo Lite API (free, no key) — lightweight HTML response
-        const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-        const html = await res.text();
-        // Extract result snippets and URLs from the simple HTML table
-        const snippets: string[] = [];
-        const linkRe = /<a[^>]*class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-        const snippetRe = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
-        let m: RegExpExecArray | null;
-        const links: string[] = [];
-        while ((m = linkRe.exec(html)) !== null) {
-          links.push(`${m[2]?.trim() || ""}: ${m[1]}`);
+        // Proxy through server API to avoid CORS (DuckDuckGo blocks client-side fetch)
+        const res = await fetch("/api/web-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) {
+          const err = await res.text().catch(() => "");
+          return JSON.stringify({ error: `Search API error (${res.status}): ${err}`, query });
         }
-        let i = 0;
-        while ((m = snippetRe.exec(html)) !== null && i < 5) {
-          const snippet = m[1]?.replace(/<[^>]+>/g, "").trim();
-          if (snippet) {
-            snippets.push(`${links[i] || `Result ${i + 1}`}\n${snippet}`);
-            i++;
-          }
+        const data = await res.json();
+        const results: { title?: string; snippet?: string }[] = data.results || [];
+        if (results.length === 0) {
+          return JSON.stringify({ query, results: [], warning: "No results found" });
         }
-        if (snippets.length === 0) {
-          // Fallback: try textise dot iitty
-          const fallbackUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-          const fallbackRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(10_000) });
-          const fallbackHtml = await fallbackRes.text();
-          const fallbackSnippets = [...fallbackHtml.matchAll(/class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g)]
-            .slice(0, 5)
-            .map((s) => s[1]?.replace(/<[^>]+>/g, "").trim())
-            .filter(Boolean);
-          return JSON.stringify({ query, results: fallbackSnippets, source: "duckduckgo-html" });
-        }
-        return JSON.stringify({ query, results: snippets, source: "duckduckgo-lite" });
+        return JSON.stringify({
+          query,
+          results: results.map((r: { title?: string; snippet?: string }) => `${r.title || ""}${r.title ? ": " : ""}${r.snippet || ""}`.trim()).filter(Boolean),
+          count: results.length,
+        });
       } catch (err) {
         return JSON.stringify({ error: `Web search failed: ${err instanceof Error ? err.message : String(err)}`, query });
       }
