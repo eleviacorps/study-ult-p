@@ -69,6 +69,17 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
     setStudyState(loadStudyState());
   }, []);
 
+  useEffect(() => {
+    const onShow = () => setStudyState(loadStudyState());
+    window.addEventListener("focus", onShow);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") onShow();
+    });
+    return () => {
+      window.removeEventListener("focus", onShow);
+    };
+  }, []);
+
   const refresh = useCallback(() => {
     setUpdating(true);
     setStudyState(loadStudyState());
@@ -116,16 +127,20 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
   };
 
   const toggleTodo = (id: string, isAi: boolean) => {
+    let taskName = "";
     updateStudyState((state) => {
       const list = isAi ? state.aiTodos : state.userTodos;
       const item = list.find((t) => t.id === id);
       if (item) {
         item.completed = !item.completed;
         if (item.completed && isAi) {
-          addPoints(15, "Todo Completed", item.task);
+          taskName = item.task;
         }
       }
     });
+    if (taskName) {
+      addPoints(15, "Todo Completed", taskName);
+    }
     refresh();
   };
 

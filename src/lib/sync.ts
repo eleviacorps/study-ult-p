@@ -1,24 +1,37 @@
 import { createClient } from "@/lib/supabase/client";
 import type { StudyState } from "@/lib/study-state";
-import { buildStudentStateSnapshot } from "@/lib/ai-retrieval";
 
 let _pendingState: StudyState | null = null;
 let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+const SYNC_DEBOUNCE_MS = 2000;
+const SYNC_MAX_DELAY_MS = 10000;
+let _firstCall = 0;
+
+const PENDING_SYNC_KEY = "studyult-sync-pending";
+const LAST_SYNC_KEY = "studyult-last-synced";
 
 export function scheduleSync(state: StudyState) {
   _pendingState = state;
+  if (!_firstCall) _firstCall = Date.now();
+
   if (_syncTimer) clearTimeout(_syncTimer);
+
+  const elapsed = Date.now() - _firstCall;
+  const delay = Math.min(SYNC_DEBOUNCE_MS, Math.max(0, SYNC_MAX_DELAY_MS - elapsed));
+
   _syncTimer = setTimeout(async () => {
     if (_pendingState) {
       await syncState(_pendingState);
       _pendingState = null;
+      _firstCall = 0;
     }
-  }, 2000);
+  }, delay);
 }
 
 export function cancelPendingSync() {
   if (_syncTimer) clearTimeout(_syncTimer);
   _pendingState = null;
+  _firstCall = 0;
 }
 
 export async function syncState(state: StudyState): Promise<boolean> {
@@ -42,15 +55,53 @@ export async function syncState(state: StudyState): Promise<boolean> {
         longestStreak: state.longestStreak,
         lastStudyDate: state.lastStudyDate,
         chapterProgress: state.chapterProgress,
-        studentLearningState: buildStudentStateSnapshot(state),
+        studentLearningState: (await import("./ai-retrieval")).buildStudentStateSnapshot(state),
       }),
     });
 
-    if (!res.ok) return false;
-    localStorage.setItem("studyult-last-synced", String(Date.now()));
+    if (!res.ok) {
+      markPendingSync();
+      return false;
+    }
+    localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
+    clearPendingSync();
     return true;
   } catch {
+    markPendingSync();
     return false;
+  }
+}
+
+function markPendingSync() {
+  try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
+}
+
+function clearPendingSync() {
+  try { localStorage.removeItem(PENDING_SYNC_KEY); } catch {}
+}
+
+export function hasPendingSync(): boolean {
+  try { return localStorage.getItem(PENDING_SYNC_KEY) === "1"; } catch { return false; }
+}
+
+export function syncOnUnload(state: StudyState) {
+  const body = JSON.stringify({
+    points: state.points,
+    streak: state.streak,
+    longestStreak: state.longestStreak,
+    lastStudyDate: state.lastStudyDate,
+    studyMinutes: state.studyMinutes,
+    quizScores: state.quizScores,
+    testScores: state.testScores,
+    activitySnapshots: state.activitySnapshots,
+    topicAccuracy: state.topicAccuracy,
+    weakAreas: state.weakAreas,
+    chapterProgress: state.chapterProgress,
+  });
+  try {
+    navigator.sendBeacon("/api/sync", new Blob([body], { type: "application/json" }));
+  } catch {
+    markPendingSync();
   }
 }
 
@@ -120,9 +171,9 @@ export function mergeStates(local: StudyState, remote: Partial<StudyState>): Stu
     topicAccuracy: mergedTopics,
     weakAreas: local.weakAreas.length > 0 ? local.weakAreas : remote.weakAreas || [],
     chapterProgress: mergedCP,
-    points: remote.points ?? local.points,
-    streak: remote.streak ?? local.streak,
-    longestStreak: remote.longestStreak ?? local.longestStreak,
+    points: Math.max(local.points, remote.points ?? 0),
+    streak: Math.max(local.streak, remote.streak ?? 0),
+    longestStreak: Math.max(local.longestStreak, remote.longestStreak ?? 0),
     lastStudyDate: remote.lastStudyDate ?? local.lastStudyDate,
   };
 }

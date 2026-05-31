@@ -86,8 +86,18 @@ function getDefaultState(): StudyState {
 }
 
 function saveStudyState(state: StudyState) {
-  if (typeof window !== "undefined") {
+  if (typeof window === "undefined") return;
+  try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.error("StudyUlt: failed to save study state, clearing corrupted data", err);
+    try {
+      // Try clearing and re-saving once — handles QuotaExceededError
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // Storage permanently unavailable — degrade gracefully
+    }
   }
 }
 
@@ -252,4 +262,42 @@ export function computeAnalytics(state: StudyState) {
     recentTests: (state.testScores || []).slice(-10).reverse(),
     topicAccuracy: state.topicAccuracy || {},
   };
+}
+
+// Retry any failed sync on page load (handles tab-close-without-sync)
+if (typeof window !== "undefined") {
+  setTimeout(async () => {
+    try {
+      if (localStorage.getItem("studyult-sync-pending") !== "1") return;
+      const raw = localStorage.getItem("studyult-state");
+      if (!raw) return;
+      const { syncState } = await import("./sync");
+      await syncState(JSON.parse(raw));
+    } catch {}
+  }, 1000);
+}
+
+// Flush latest state to server on tab close (fire-and-forget via sendBeacon)
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", () => {
+    try {
+      const raw = localStorage.getItem("studyult-state");
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      const body = JSON.stringify({
+        points: s.points,
+        streak: s.streak,
+        longestStreak: s.longestStreak,
+        lastStudyDate: s.lastStudyDate,
+        studyMinutes: s.studyMinutes,
+        quizScores: s.quizScores,
+        testScores: s.testScores,
+        activitySnapshots: s.activitySnapshots,
+        topicAccuracy: s.topicAccuracy,
+        weakAreas: s.weakAreas,
+        chapterProgress: s.chapterProgress,
+      });
+      navigator.sendBeacon("/api/sync", new Blob([body], { type: "application/json" }));
+    } catch {}
+  });
 }
