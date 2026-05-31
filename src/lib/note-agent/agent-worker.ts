@@ -618,10 +618,10 @@ Continue with the next task. Check workspace for current files.${notes.length < 
         }
       }
 
-      // Telemetry: log turn info with payload and token usage
-      const turnPayloadKB = Math.round(JSON.stringify({ messages }).length / 1024);
-      const tokens = result.usage ? ` tokens=${result.usage.total_tokens}(${result.usage.prompt_tokens}+${result.usage.completion_tokens})` : "";
-      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs (~${turnPayloadKB}KB), ${pendingIndexCount()} pending queue${tokens}`);
+      // Telemetry: log turn info with token usage
+      const logTokens = result.usage ? ` tokens=${result.usage.total_tokens.toLocaleString()}(${result.usage.prompt_tokens.toLocaleString()}+${result.usage.completion_tokens.toLocaleString()})` : "";
+      console.log(`[Agent] Turn ${currentTurn}: ${thisTurnCalls.length} tool calls, ${messages.length} msgs${logTokens}, ${pendingIndexCount()} pending`);
+      if (result.usage?.prompt_tokens) lastPromptTokens = result.usage.prompt_tokens;
 
       if (result.finished) {
         // Flush pending index writes before finishing
