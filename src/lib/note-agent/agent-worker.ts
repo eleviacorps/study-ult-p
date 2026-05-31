@@ -522,8 +522,10 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
   _lastWrittenSection = null;
 
   const MAX_TURNS = 150;
+  const COMPACT_TOKEN_THRESHOLD = 800_000; // compact when prompt tokens exceed 80% of 1M context
   const messages = structuredClone(initialMessages);
   let currentTurn = 0;
+  let lastPromptTokens = 0;
 
   // Seed vault documents into RAG (batched, non-blocking after this)
   console.log("[Agent] seeding vault into RAG...");
@@ -557,10 +559,11 @@ self.onmessage = async (e: MessageEvent<WorkerInMessage>) => {
     // Build retrieval query from structured state, not assistant prose
     await injectRagContext(messages, chapterPath, chapterName, currentTurn, allToolCalls);
 
-    // Payload budget check — compact conversation instead of truncating
-    const payloadEstimate = JSON.stringify({ messages, tools }).length;
-    if (payloadEstimate > 180_000) {
-      console.warn(`[Agent] Payload ${(payloadEstimate / 1024).toFixed(0)}KB exceeds 180KB budget, compacting conversation`);
+    // Token budget check — compact when prompt tokens exceed 80% of 1M context window
+    if (lastPromptTokens > COMPACT_TOKEN_THRESHOLD) {
+      console.warn(`[Agent] Prompt ${lastPromptTokens.toLocaleString()} tokens exceeds ${(COMPACT_TOKEN_THRESHOLD / 1000).toFixed(0)}K threshold, compacting conversation`);
+      // Reset counter so we don't re-compact every turn
+      lastPromptTokens = 0;
       const systemMsg = messages[0];
       const userMsg = messages[1];
       // Build a structured state summary that replaces verbose tool chains
