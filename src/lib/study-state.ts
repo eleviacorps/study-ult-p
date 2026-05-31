@@ -264,17 +264,32 @@ export function computeAnalytics(state: StudyState) {
   };
 }
 
-// Retry any failed sync on page load (handles tab-close-without-sync)
+// Fetch remote state from Supabase and merge into local
+async function pullRemoteState() {
+  try {
+    const { loadRemoteState, mergeStates, syncState } = await import("./sync");
+    const raw = localStorage.getItem("studyult-state");
+    const local = raw ? JSON.parse(raw) : getDefaultState();
+
+    // Retry any pending (failed) sync first
+    if (localStorage.getItem("studyult-sync-pending") === "1") {
+      await syncState(local);
+    }
+
+    const remote = await loadRemoteState();
+    if (remote) {
+      const merged = mergeStates(local, remote);
+      saveStudyState(merged);
+    }
+  } catch {}
+  window.dispatchEvent(new CustomEvent("study-state-refreshed"));
+}
+
 if (typeof window !== "undefined") {
-  setTimeout(async () => {
-    try {
-      if (localStorage.getItem("studyult-sync-pending") !== "1") return;
-      const raw = localStorage.getItem("studyult-state");
-      if (!raw) return;
-      const { syncState } = await import("./sync");
-      await syncState(JSON.parse(raw));
-    } catch {}
-  }, 1000);
+  // Pull once on page load (after auth restores)
+  setTimeout(pullRemoteState, 1500);
+  // Then poll every 30s so phone changes appear on PC without refresh
+  setInterval(pullRemoteState, 30_000);
 }
 
 // Flush latest state to server on tab close (fire-and-forget via sendBeacon)

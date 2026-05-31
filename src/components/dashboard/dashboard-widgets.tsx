@@ -70,13 +70,15 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
   }, []);
 
   useEffect(() => {
-    const onShow = () => setStudyState(loadStudyState());
-    window.addEventListener("focus", onShow);
+    const refreshState = () => setStudyState(loadStudyState());
+    window.addEventListener("focus", refreshState);
+    window.addEventListener("study-state-refreshed", refreshState);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") onShow();
+      if (document.visibilityState === "visible") refreshState();
     });
     return () => {
-      window.removeEventListener("focus", onShow);
+      window.removeEventListener("focus", refreshState);
+      window.removeEventListener("study-state-refreshed", refreshState);
     };
   }, []);
 

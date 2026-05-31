@@ -15,8 +15,13 @@ export default function AnalyticsPage() {
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    const state = loadStudyState();
-    setData(computeAnalytics(state));
+    const refreshData = () => {
+      const state = loadStudyState();
+      setData(computeAnalytics(state));
+    };
+    refreshData();
+    window.addEventListener("study-state-refreshed", refreshData);
+    return () => window.removeEventListener("study-state-refreshed", refreshData);
   }, []);
 
   const refresh = () => {
