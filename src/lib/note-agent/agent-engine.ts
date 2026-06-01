@@ -229,12 +229,27 @@ Generate a compact structured summary of progress so far. Focus on what's been d
   try {
     const res = await fetch("/api/llm", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: compactionMessages, stream: false, max_tokens: 2048, temperature: 0.3 }),
+      body: JSON.stringify({ messages: compactionMessages, stream: true, max_tokens: 2048, temperature: 0.3 }),
     });
     if (!res.ok) return "";
-    const rawText = await res.text();
-    const data = JSON.parse(rawText);
-    return data.choices?.[0]?.message?.content || "";
+    const reader = res.body?.getReader();
+    if (!reader) return "";
+    const decoder = new TextDecoder();
+    let buffer = "", content = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]" || !payload) continue;
+        try { const delta = JSON.parse(payload).choices?.[0]?.delta; if (delta?.content) content += delta.content; } catch {}
+      }
+    }
+    return content;
   } catch { return ""; }
 }
 

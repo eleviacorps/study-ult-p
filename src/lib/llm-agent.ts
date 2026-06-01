@@ -50,6 +50,7 @@ export async function runAgentTurn(
       tools: tools.length > 0 ? tools : undefined,
       tool_choice: tools.length > 0 ? "auto" : undefined,
       max_tokens: 4096,
+      stream: true,
     }),
   });
 
@@ -58,14 +59,46 @@ export async function runAgentTurn(
     throw new Error(`API error (${res.status}): ${err}`);
   }
 
-  const data = await res.json();
-  const choice = data.choices?.[0];
-  if (!choice) throw new Error("No response from API");
-
-  const msg = choice.message || {};
-  const msgContent = msg.content || "";
-  const reasoningContent: string | undefined = msg.reasoning_content;
-  const toolCalls: ToolCall[] = msg.tool_calls || [];
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let _buf = "", _content = "", _reasoning = "";
+  const _tc: Record<number, ToolCall> = {};
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    _buf += decoder.decode(value, { stream: true });
+    const lines = _buf.split("\n");
+    _buf = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]" || !payload) continue;
+      try {
+        const chunk = JSON.parse(payload);
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        const delta = choice.delta || {};
+        if (delta.content) _content += delta.content;
+        if (delta.reasoning_content) _reasoning += delta.reasoning_content;
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!_tc[idx]) {
+              _tc[idx] = { id: tc.id || "", type: "function", function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" } };
+            } else {
+              if (tc.function?.name) _tc[idx].function.name += tc.function.name;
+              if (tc.function?.arguments) _tc[idx].function.arguments += tc.function.arguments;
+              if (tc.id) _tc[idx].id = tc.id;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+  const msgContent = _content;
+  const reasoningContent: string | undefined = _reasoning || undefined;
+  const toolCalls: ToolCall[] = Object.keys(_tc).length > 0 ? Object.keys(_tc).sort((a, b) => Number(a) - Number(b)).map((k) => _tc[Number(k)]) : [];
 
   const step: AgentStep = {
     turn: 0,
