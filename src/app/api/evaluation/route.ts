@@ -46,128 +46,133 @@ export async function POST(request: Request) {
   const today = new Date().toISOString().split("T")[0];
   const now = new Date().toISOString();
 
-  const errors: string[] = [];
-
-  const { error: attemptError } = await supabase.from("attempt_analytics").insert({
-    user_id: user.id,
-    surface: String(body.surface || "practice").slice(0, 80),
-    question_id: body.questionId ? String(body.questionId).slice(0, 200) : null,
-    concept_slug: conceptSlug,
-    topic,
-    chapter,
-    subject: body.subject ? String(body.subject).slice(0, 120) : null,
-    correct,
-    score,
-    max_score: maxScore,
-    feedback: String(body.feedback || "").slice(0, 2000),
-    misconception: String(body.misconception || "").slice(0, 500),
-    metadata: body.metadata || {},
-  });
-  if (attemptError) errors.push(`attempt_analytics: ${attemptError.message}`);
-
-  const { data: existingMastery } = await supabase
-    .from("student_mastery")
-    .select("mastery,confidence,evidence")
-    .eq("user_id", user.id)
-    .eq("concept_slug", conceptSlug)
-    .single();
-
-  const previousMastery = toNumber((existingMastery as any)?.mastery, 0);
-  const previousConfidence = toNumber((existingMastery as any)?.confidence, 0);
-  const nextMastery = clamp(previousMastery * 0.72 + accuracy * 0.28);
-  const nextConfidence = clamp(previousConfidence + (correct ? 6 : 3));
-  const evidence = Array.isArray((existingMastery as any)?.evidence) ? (existingMastery as any).evidence.slice(-9) : [];
-  evidence.push({ at: now, surface: body.surface || "practice", correct, score, maxScore, questionId: body.questionId || null });
-
-  const { error: masteryError } = await supabase.from("student_mastery").upsert(
-    {
+  // Phase 1: all independent reads and writes
+  const p1 = await Promise.all([
+    supabase.from("attempt_analytics").insert({
       user_id: user.id,
+      surface: String(body.surface || "practice").slice(0, 80),
+      question_id: body.questionId ? String(body.questionId).slice(0, 200) : null,
       concept_slug: conceptSlug,
-      mastery: nextMastery,
-      confidence: nextConfidence,
-      evidence,
-      updated_at: now,
-    },
-    { onConflict: "user_id,concept_slug" }
-  );
-  if (masteryError) errors.push(`student_mastery: ${masteryError.message}`);
-
-  if (!correct) {
-    const misconception = String(body.misconception || body.feedback || `Needs recovery on ${topic}`).slice(0, 500);
-    const { error: misconceptionError } = await supabase.from("student_misconceptions").insert({
-      user_id: user.id,
-      concept_slug: conceptSlug,
-      pattern: misconception,
-      severity: accuracy < 40 ? "high" : "medium",
-      evidence: [{ at: now, questionId: body.questionId || null, score, maxScore }],
-    });
-    if (misconceptionError) errors.push(`student_misconceptions: ${misconceptionError.message}`);
-
-    const { error: taskError } = await supabase.from("student_recovery_tasks").insert({
-      user_id: user.id,
-      concept_slug: conceptSlug,
-      task: `Review ${topic} and retry one targeted question`,
-      source: "evaluation",
-      status: "pending",
-      metadata: { chapter, surface: body.surface || "practice", accuracy },
-    });
-    if (taskError) errors.push(`student_recovery_tasks: ${taskError.message}`);
-  }
-
-  const { data: daily } = await supabase
-    .from("daily_learning_metrics")
-    .select("attempts,correct")
-    .eq("user_id", user.id)
-    .eq("date", today)
-    .single();
-  const dailyAttempts = toNumber((daily as any)?.attempts, 0) + 1;
-  const dailyCorrect = toNumber((daily as any)?.correct, 0) + (correct ? 1 : 0);
-  const { error: dailyError } = await supabase.from("daily_learning_metrics").upsert(
-    {
-      user_id: user.id,
-      date: today,
-      attempts: dailyAttempts,
-      correct: dailyCorrect,
-      metadata: { accuracy: Math.round((dailyCorrect / Math.max(1, dailyAttempts)) * 100) },
-      updated_at: now,
-    },
-    { onConflict: "user_id,date" }
-  );
-  if (dailyError) errors.push(`daily_learning_metrics: ${dailyError.message}`);
-
-  const { data: velocity } = await supabase
-    .from("topic_velocity")
-    .select("attempts,correct,last_accuracy")
-    .eq("user_id", user.id)
-    .eq("topic", topic)
-    .single();
-  const topicAttempts = toNumber((velocity as any)?.attempts, 0) + 1;
-  const topicCorrect = toNumber((velocity as any)?.correct, 0) + (correct ? 1 : 0);
-  const previousAccuracy = toNumber((velocity as any)?.last_accuracy, 0);
-  const lastAccuracy = clamp((topicCorrect / Math.max(1, topicAttempts)) * 100);
-  const { error: velocityError } = await supabase.from("topic_velocity").upsert(
-    {
-      user_id: user.id,
       topic,
       chapter,
-      attempts: topicAttempts,
-      correct: topicCorrect,
-      last_accuracy: lastAccuracy,
-      velocity: lastAccuracy - previousAccuracy,
-      updated_at: now,
-    },
-    { onConflict: "user_id,topic" }
-  );
-  if (velocityError) errors.push(`topic_velocity: ${velocityError.message}`);
+      subject: body.subject ? String(body.subject).slice(0, 120) : null,
+      correct,
+      score,
+      max_score: maxScore,
+      feedback: String(body.feedback || "").slice(0, 2000),
+      misconception: String(body.misconception || "").slice(0, 500),
+      metadata: body.metadata || {},
+    }),
+    supabase.from("student_mastery")
+      .select("mastery,confidence,evidence")
+      .eq("user_id", user.id)
+      .eq("concept_slug", conceptSlug)
+      .single(),
+    supabase.from("daily_learning_metrics")
+      .select("attempts,correct")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .single(),
+    supabase.from("topic_velocity")
+      .select("attempts,correct,last_accuracy")
+      .eq("user_id", user.id)
+      .eq("topic", topic)
+      .single(),
+    supabase.from("performance_trends").insert({
+      user_id: user.id,
+      metric: "attempt_accuracy",
+      scope: topic,
+      value: accuracy,
+      metadata: { chapter, surface: body.surface || "practice", correct },
+    }),
+    ...(!correct ? [
+      supabase.from("student_misconceptions").insert({
+        user_id: user.id,
+        concept_slug: conceptSlug,
+        pattern: String(body.misconception || body.feedback || `Needs recovery on ${topic}`).slice(0, 500),
+        severity: accuracy < 40 ? "high" : "medium",
+        evidence: [{ at: now, questionId: body.questionId || null, score, maxScore }],
+      }),
+      supabase.from("student_recovery_tasks").insert({
+        user_id: user.id,
+        concept_slug: conceptSlug,
+        task: `Review ${topic} and retry one targeted question`,
+        source: "evaluation",
+        status: "pending",
+        metadata: { chapter, surface: body.surface || "practice", accuracy },
+      }),
+    ] : []),
+  ]);
 
-  const { error: trendError } = await supabase.from("performance_trends").insert({
-    user_id: user.id,
-    metric: "attempt_accuracy",
-    scope: topic,
-    value: accuracy,
-    metadata: { chapter, surface: body.surface || "practice", correct },
-  });
-  if (trendError) errors.push(`performance_trends: ${trendError.message}`);
+  const [attemptResult, masteryResult, dailyResult, velocityResult, trendResult, ...restResults] = p1;
+
+  const errors: string[] = [];
+  if (attemptResult.error) errors.push(`attempt_analytics: ${attemptResult.error.message}`);
+  if (trendResult.error) errors.push(`performance_trends: ${trendResult.error.message}`);
+
+  if (!correct) {
+    for (const r of restResults) {
+      if (r.error) errors.push(r.error.message);
+    }
+  }
+
+  // Phase 2: derived upserts
+  const previousMastery = toNumber((masteryResult.data as any)?.mastery, 0);
+  const previousConfidence = toNumber((masteryResult.data as any)?.confidence, 0);
+  const nextMastery = clamp(previousMastery * 0.72 + accuracy * 0.28);
+  const nextConfidence = clamp(previousConfidence + (correct ? 6 : 3));
+  const evidence = Array.isArray((masteryResult.data as any)?.evidence) ? (masteryResult.data as any).evidence.slice(-9) : [];
+  evidence.push({ at: now, surface: body.surface || "practice", correct, score, maxScore, questionId: body.questionId || null });
+
+  const dailyAttempts = toNumber((dailyResult.data as any)?.attempts, 0) + 1;
+  const dailyCorrect = toNumber((dailyResult.data as any)?.correct, 0) + (correct ? 1 : 0);
+
+  const topicAttempts = toNumber((velocityResult.data as any)?.attempts, 0) + 1;
+  const topicCorrect = toNumber((velocityResult.data as any)?.correct, 0) + (correct ? 1 : 0);
+  const previousAccuracy = toNumber((velocityResult.data as any)?.last_accuracy, 0);
+  const lastAccuracy = clamp((topicCorrect / Math.max(1, topicAttempts)) * 100);
+
+  const p2 = await Promise.all([
+    supabase.from("student_mastery").upsert(
+      {
+        user_id: user.id,
+        concept_slug: conceptSlug,
+        mastery: nextMastery,
+        confidence: nextConfidence,
+        evidence,
+        updated_at: now,
+      },
+      { onConflict: "user_id,concept_slug" }
+    ),
+    supabase.from("daily_learning_metrics").upsert(
+      {
+        user_id: user.id,
+        date: today,
+        attempts: dailyAttempts,
+        correct: dailyCorrect,
+        metadata: { accuracy: Math.round((dailyCorrect / Math.max(1, dailyAttempts)) * 100) },
+        updated_at: now,
+      },
+      { onConflict: "user_id,date" }
+    ),
+    supabase.from("topic_velocity").upsert(
+      {
+        user_id: user.id,
+        topic,
+        chapter,
+        attempts: topicAttempts,
+        correct: topicCorrect,
+        last_accuracy: lastAccuracy,
+        velocity: lastAccuracy - previousAccuracy,
+        updated_at: now,
+      },
+      { onConflict: "user_id,topic" }
+    ),
+  ]);
+
+  for (const { error } of p2) {
+    if (error) errors.push(error.message);
+  }
 
   if (errors.length > 0) return NextResponse.json({ recorded: false, errors }, { status: 207 });
   return NextResponse.json({ recorded: true, conceptSlug, mastery: nextMastery, confidence: nextConfidence });

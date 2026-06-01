@@ -92,59 +92,51 @@ export async function POST(request: Request) {
     // Keep deterministic profile so onboarding is not blocked by AI service availability.
   }
 
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      name,
-      username,
-      onboarding_completed: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" }
-  );
-  if (profileError) {
-    if (profileError.message.includes("idx_profiles_username")) {
+  const results = await Promise.all([
+    supabase.from("profiles").upsert(
+      { id: user.id, name, username, onboarding_completed: true, updated_at: new Date().toISOString() },
+      { onConflict: "id" }
+    ).then(r => ({ ...r, label: "profiles" as const })),
+    supabase.from("student_goal_profiles").upsert(
+      {
+        user_id: user.id,
+        exam_goals: Array.isArray(survey.target_exams) ? survey.target_exams : [],
+        preferred_difficulty: cleanText(survey.preferred_difficulty) || "Moderate",
+        survey,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    ).then(r => ({ ...r, label: "goal_profiles" as const })),
+    supabase.from("student_ai_profiles").upsert(
+      {
+        user_id: user.id,
+        tutor_personality_prompt: aiProfile.tutor_personality_prompt,
+        generated_learning_profile: aiProfile.generated_learning_profile,
+        adaptive_strategy: aiProfile.adaptive_strategy,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    ).then(r => ({ ...r, label: "ai_profiles" as const })),
+    supabase.from("student_learning_state").upsert(
+      {
+        user_id: user.id,
+        exam_goals: Array.isArray(survey.target_exams) ? survey.target_exams : [],
+        preferred_difficulty: cleanText(survey.preferred_difficulty) || "Moderate",
+        tutor_personality_prompt: aiProfile.tutor_personality_prompt,
+        generated_learning_profile: aiProfile.generated_learning_profile,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    ).then(r => ({ ...r, label: "learning_state" as const })),
+  ]);
+
+  for (const { error, label } of results) {
+    if (!error) continue;
+    if (label === "profiles" && error.message.includes("idx_profiles_username")) {
       return NextResponse.json({ error: "username_taken" }, { status: 409 });
     }
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  const { error: goalError } = await supabase.from("student_goal_profiles").upsert(
-    {
-      user_id: user.id,
-      exam_goals: Array.isArray(survey.target_exams) ? survey.target_exams : [],
-      preferred_difficulty: cleanText(survey.preferred_difficulty) || "Moderate",
-      survey,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
-  if (goalError) return NextResponse.json({ error: goalError.message }, { status: 500 });
-
-  const { error: aiProfileError } = await supabase.from("student_ai_profiles").upsert(
-    {
-      user_id: user.id,
-      tutor_personality_prompt: aiProfile.tutor_personality_prompt,
-      generated_learning_profile: aiProfile.generated_learning_profile,
-      adaptive_strategy: aiProfile.adaptive_strategy,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
-  if (aiProfileError) return NextResponse.json({ error: aiProfileError.message }, { status: 500 });
-
-  const { error: stateError } = await supabase.from("student_learning_state").upsert(
-    {
-      user_id: user.id,
-      exam_goals: Array.isArray(survey.target_exams) ? survey.target_exams : [],
-      preferred_difficulty: cleanText(survey.preferred_difficulty) || "Moderate",
-      tutor_personality_prompt: aiProfile.tutor_personality_prompt,
-      generated_learning_profile: aiProfile.generated_learning_profile,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
-  if (stateError) return NextResponse.json({ error: stateError.message }, { status: 500 });
 
   return NextResponse.json({ completed: true, aiProfile });
 }

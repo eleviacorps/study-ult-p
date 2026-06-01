@@ -15,159 +15,194 @@ export async function POST(request: Request) {
   const body = await request.json();
   const userId = user.id;
   const errors: string[] = [];
+  const tasks: Promise<void>[] = [];
 
-  // Study minutes — upsert by (user_id, date)
   if (body.studyMinutes) {
     for (const [date, minutes] of Object.entries(body.studyMinutes)) {
-      const { error } = await supabase.from("study_sessions").upsert(
-        { user_id: userId, date, minutes: minutes as number },
-        { onConflict: "user_id,date" }
+      tasks.push(
+        (async () => {
+          const { error } = await supabase.from("study_sessions").upsert(
+            { user_id: userId, date, minutes: minutes as number },
+            { onConflict: "user_id,date" }
+          );
+          if (error) errors.push(`study_sessions: ${error.message}`);
+        })()
       );
-      if (error) errors.push(`study_sessions: ${error.message}`);
     }
   }
 
-  // Quiz scores — upsert by (user_id, date)
   if (body.quizScores) {
     for (const q of body.quizScores) {
-      const { error } = await supabase.from("quiz_scores").upsert(
-        { user_id: userId, date: q.date, score: q.score, total: q.total, net_score: q.netScore },
-        { onConflict: "user_id,date" }
+      tasks.push(
+        (async () => {
+          const { error } = await supabase.from("quiz_scores").upsert(
+            { user_id: userId, date: q.date, score: q.score, total: q.total, net_score: q.netScore },
+            { onConflict: "user_id,date" }
+          );
+          if (error) errors.push(`quiz_scores: ${error.message}`);
+        })()
       );
-      if (error) errors.push(`quiz_scores: ${error.message}`);
     }
   }
 
-  // Test scores — upsert by (user_id, date, chapter)
   if (body.testScores) {
     for (const t of body.testScores) {
-      const { error } = await supabase.from("test_scores").upsert(
-        { user_id: userId, date: t.date, score: t.score, total: t.total, chapter: t.chapter },
-        { onConflict: "user_id,date,chapter" }
+      tasks.push(
+        (async () => {
+          const { error } = await supabase.from("test_scores").upsert(
+            { user_id: userId, date: t.date, score: t.score, total: t.total, chapter: t.chapter },
+            { onConflict: "user_id,date,chapter" }
+          );
+          if (error) errors.push(`test_scores: ${error.message}`);
+        })()
       );
-      if (error) errors.push(`test_scores: ${error.message}`);
     }
   }
 
-  // Activity snapshots — upsert by (user_id, timestamp, type)
   if (body.activitySnapshots) {
     for (const a of body.activitySnapshots) {
-      const { error } = await supabase.from("activity_snapshots").upsert(
-        {
-          user_id: userId,
-          timestamp: a.timestamp,
-          type: a.type,
-          score: a.score ?? null,
-          total: a.total ?? null,
-          label: a.label || "",
-          items: a.items || [],
-        },
-        { onConflict: "user_id,timestamp,type" }
+      tasks.push(
+        (async () => {
+          const { error } = await supabase.from("activity_snapshots").upsert(
+            {
+              user_id: userId,
+              timestamp: a.timestamp,
+              type: a.type,
+              score: a.score ?? null,
+              total: a.total ?? null,
+              label: a.label || "",
+              items: a.items || [],
+            },
+            { onConflict: "user_id,timestamp,type" }
+          );
+          if (error) errors.push(`activity: ${error.message}`);
+        })()
       );
-      if (error) errors.push(`activity: ${error.message}`);
     }
   }
 
-  // Topic accuracy — upsert by (user_id, topic)
   if (body.topicAccuracy) {
     for (const [topic, data] of Object.entries(body.topicAccuracy)) {
       const d = data as { correct: number; total: number };
-      const { error } = await supabase.from("topic_accuracy").upsert(
-        { user_id: userId, topic, correct: d.correct, total: d.total, updated_at: new Date().toISOString() },
-        { onConflict: "user_id,topic" }
+      tasks.push(
+        (async () => {
+          const { error } = await supabase.from("topic_accuracy").upsert(
+            { user_id: userId, topic, correct: d.correct, total: d.total, updated_at: new Date().toISOString() },
+            { onConflict: "user_id,topic" }
+          );
+          if (error) errors.push(`topic_accuracy: ${error.message}`);
+        })()
       );
-      if (error) errors.push(`topic_accuracy: ${error.message}`);
     }
   }
 
-  // Weak areas — replace (computed from accuracy, not append-only)
   if (body.weakAreas) {
-    await supabase.from("weak_areas").delete().eq("user_id", userId);
-    if (body.weakAreas.length > 0) {
-      const rows = body.weakAreas.map((w: any) => ({
-        user_id: userId, topic: w.topic, accuracy: w.accuracy, chapter: w.chapter, type: w.type || "topic",
-      }));
-      const { error } = await supabase.from("weak_areas").insert(rows);
-      if (error) errors.push(`weak_areas: ${error.message}`);
-    }
+    tasks.push(
+      (async () => {
+        const { error: delErr } = await supabase.from("weak_areas").delete().eq("user_id", userId);
+        if (delErr) { errors.push(`weak_areas: ${delErr.message}`); return; }
+        if (body.weakAreas.length > 0) {
+          const rows = body.weakAreas.map((w: any) => ({
+            user_id: userId, topic: w.topic, accuracy: w.accuracy, chapter: w.chapter, type: w.type || "topic",
+          }));
+          const { error: insErr } = await supabase.from("weak_areas").insert(rows);
+          if (insErr) errors.push(`weak_areas: ${insErr.message}`);
+        }
+      })()
+    );
   }
 
-  // Points — upsert
   if (typeof body.points === "number") {
-    const { error } = await supabase.from("user_points").upsert(
-      { user_id: userId, points: body.points, updated_at: new Date().toISOString() },
-      { onConflict: "user_id" }
+    tasks.push(
+      (async () => {
+        const { error } = await supabase.from("user_points").upsert(
+          { user_id: userId, points: body.points, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        );
+        if (error) errors.push(`user_points: ${error.message}`);
+      })()
     );
-    if (error) errors.push(`user_points: ${error.message}`);
   }
 
-  // Streak — upsert
   if (body.streak !== undefined) {
-    const { error } = await supabase.from("study_streaks").upsert(
-      {
-        user_id: userId,
-        current_streak: body.streak,
-        longest_streak: body.longestStreak || body.streak,
-        last_study_date: body.lastStudyDate || new Date().toISOString().split("T")[0],
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
+    tasks.push(
+      (async () => {
+        const { error } = await supabase.from("study_streaks").upsert(
+          {
+            user_id: userId,
+            current_streak: body.streak,
+            longest_streak: body.longestStreak || body.streak,
+            last_study_date: body.lastStudyDate || new Date().toISOString().split("T")[0],
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+        if (error) errors.push(`study_streaks: ${error.message}`);
+      })()
     );
-    if (error) errors.push(`study_streaks: ${error.message}`);
   }
 
   if (body.studentLearningState) {
     const cognitiveState = body.studentLearningState;
-    const { error } = await supabase.from("student_learning_state").upsert(
-      {
-        user_id: userId,
-        mastery_map: cognitiveState.mastery_map || {},
-        weak_topics: cognitiveState.weak_topics || [],
-        confidence_levels: cognitiveState.confidence_levels || {},
-        misconception_patterns: cognitiveState.misconception_patterns || [],
-        recent_failures: cognitiveState.recent_failures || [],
-        learning_velocity: cognitiveState.learning_velocity || {},
-        focus_topics: cognitiveState.focus_topics || [],
-        recovery_queue: cognitiveState.recovery_queue || [],
-        forgetting_curve_state: cognitiveState.forgetting_curve_state || {},
-        solved_question_embeddings: cognitiveState.solved_question_embeddings || [],
-        concept_relationships: cognitiveState.concept_relationships || [],
-        exam_goals: cognitiveState.exam_goals || [],
-        preferred_difficulty: cognitiveState.preferred_difficulty || "adaptive",
-        tutor_personality_prompt: cognitiveState.tutor_personality_prompt || "",
-        generated_learning_profile: cognitiveState.generated_learning_profile || "",
-        adaptive_recommendations: cognitiveState.adaptive_recommendations || [],
-        streak_data: cognitiveState.streak_data || {},
-        study_patterns: cognitiveState.study_patterns || {},
-        performance_trends: cognitiveState.performance_trends || {},
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
+    tasks.push(
+      (async () => {
+        const { error } = await supabase.from("student_learning_state").upsert(
+          {
+            user_id: userId,
+            mastery_map: cognitiveState.mastery_map || {},
+            weak_topics: cognitiveState.weak_topics || [],
+            confidence_levels: cognitiveState.confidence_levels || {},
+            misconception_patterns: cognitiveState.misconception_patterns || [],
+            recent_failures: cognitiveState.recent_failures || [],
+            learning_velocity: cognitiveState.learning_velocity || {},
+            focus_topics: cognitiveState.focus_topics || [],
+            recovery_queue: cognitiveState.recovery_queue || [],
+            forgetting_curve_state: cognitiveState.forgetting_curve_state || {},
+            solved_question_embeddings: cognitiveState.solved_question_embeddings || [],
+            concept_relationships: cognitiveState.concept_relationships || [],
+            exam_goals: cognitiveState.exam_goals || [],
+            preferred_difficulty: cognitiveState.preferred_difficulty || "adaptive",
+            tutor_personality_prompt: cognitiveState.tutor_personality_prompt || "",
+            generated_learning_profile: cognitiveState.generated_learning_profile || "",
+            adaptive_recommendations: cognitiveState.adaptive_recommendations || [],
+            streak_data: cognitiveState.streak_data || {},
+            study_patterns: cognitiveState.study_patterns || {},
+            performance_trends: cognitiveState.performance_trends || {},
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
+        if (error) errors.push(`student_learning_state: ${error.message}`);
+      })()
     );
-    if (error) errors.push(`student_learning_state: ${error.message}`);
   }
 
-  // Chapter progress — upsert per chapter
   if (body.chapterProgress) {
     for (const cp of body.chapterProgress) {
-      const { error } = await supabase.from("chapter_progress").upsert(
-        {
-          user_id: userId,
-          chapter: cp.chapter,
-          subject: cp.subject,
-          completed_topics: cp.completedTopics,
-          total_topics: cp.totalTopics,
-          questions_attempted: cp.questionsAttempted,
-          questions_correct: cp.questionsCorrect,
-          flashcards_reviewed: cp.flashcardsReviewed,
-          flashcards_mastered: cp.flashcardsMastered,
-          last_studied_at: cp.lastStudiedAt || new Date().toISOString(),
-        },
-        { onConflict: "user_id,chapter,subject" }
+      tasks.push(
+        (async () => {
+          const { error } = await supabase.from("chapter_progress").upsert(
+            {
+              user_id: userId,
+              chapter: cp.chapter,
+              subject: cp.subject,
+              completed_topics: cp.completedTopics,
+              total_topics: cp.totalTopics,
+              questions_attempted: cp.questionsAttempted,
+              questions_correct: cp.questionsCorrect,
+              flashcards_reviewed: cp.flashcardsReviewed,
+              flashcards_mastered: cp.flashcardsMastered,
+              last_studied_at: cp.lastStudiedAt || new Date().toISOString(),
+            },
+            { onConflict: "user_id,chapter,subject" }
+          );
+          if (error) errors.push(`chapter_progress: ${error.message}`);
+        })()
       );
-      if (error) errors.push(`chapter_progress: ${error.message}`);
     }
   }
+
+  await Promise.all(tasks);
 
   if (errors.length > 0) {
     return NextResponse.json({ synced: false, errors });
