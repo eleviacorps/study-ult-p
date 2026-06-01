@@ -139,7 +139,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, stream: true, reasoning: "low" }),
+        body: JSON.stringify({ messages, stream: true, reasoning: false }),
       });
 
       if (!res.ok) {
