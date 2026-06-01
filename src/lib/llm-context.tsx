@@ -70,7 +70,7 @@ async function proxyCompletion(messages: { role: string; content: string }[], at
     const res = await fetch("/api/llm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, stream: true, thinking: { type: "disabled" } }),
+      body: JSON.stringify({ messages, stream: true, reasoning: "low" }),
     });
     if (res.status === 504 && attempt < 3) {
       await new Promise((r) => setTimeout(r, 2000 * attempt));
@@ -139,7 +139,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, stream: true, thinking: { type: "disabled" } }),
+        body: JSON.stringify({ messages, stream: true, reasoning: "low" }),
       });
 
       if (!res.ok) {
