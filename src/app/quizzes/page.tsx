@@ -234,7 +234,7 @@ export default function QuizPage() {
         if (wrongSummary) {
           const ctx = PROMPTS.QUIZ_COACH.replace("{SCORE}", String(correct)).replace("{TOTAL}", String(qs.length)).replace("{NET_SCORE}", String(netScore));
           const analysis = PROMPTS.QUIZ_WRONG_ANALYSIS.replace("{WRONG_SUMMARY}", wrongSummary);
-          const { content } = await ask(ctx, analysis, { reasoning: false });
+          const { content } = await ask(ctx, analysis);
           setScore((prev) => prev ? { ...prev, feedback: content } : prev);
         }
       } catch {}

@@ -79,26 +79,36 @@ export default function TestTakePage() {
   questionsRef.current = questions;
   answersRef.current = answers;
 
-  function parseJsonArray(text: string): TestQuestion[] | null {
-    // Strategy 1: strip markdown code fences, then try parsing whole response
-    const noFences = text.replace(/```(?:json)?\s*/gi, "").replace(/\s*```/g, "").trim();
-    try {
-      const parsed = JSON.parse(noFences);
-      if (Array.isArray(parsed)) return parsed as TestQuestion[];
-    } catch {}
+  function extractBracketedArray(text: string): string | null {
+    const cleaned = text.replace(/```(?:json)?\s*/gi, "").replace(/\s*```/g, "").trim();
+    const start = cleaned.indexOf('[');
+    if (start < 0) return null;
 
-    // Strategy 2: find `[{...}]` or `[   {...}]` anywhere in the text
-    const jsonMatch = text.match(/\[[\s\S]*?\]\s*(?:\n|$)/);
-    if (jsonMatch) {
-      try {
-        const cleaned = jsonMatch[0]
-          .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
-          .replace(/,\s*\]/g, "]")
-          .trim();
-        const parsed = JSON.parse(cleaned);
-        if (Array.isArray(parsed)) return parsed as TestQuestion[];
-      } catch {}
+    let depth = 0, inString = false, escapeNext = false;
+    for (let i = start; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (escapeNext) { escapeNext = false; continue; }
+      if (ch === '\\' && inString) { escapeNext = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '[') depth++;
+      else if (ch === ']') { depth--; if (depth === 0) return cleaned.substring(start, i + 1); }
     }
+    return null;
+  }
+
+  function parseJsonArray(text: string): TestQuestion[] | null {
+    const json = extractBracketedArray(text);
+    if (!json) return null;
+    try {
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter(
+          (q: any) => q.text && typeof q.correctIndex === "number" && (q.type === "input" || (Array.isArray(q.options) && q.options.length >= 2))
+        );
+        return valid.length > 0 ? valid : null;
+      }
+    } catch {}
     return null;
   }
 
@@ -109,50 +119,35 @@ export default function TestTakePage() {
     const chapterQs = vault?.questions.filter((q) => q.chapter === chapterName) || [];
     const shuffled = [...chapterQs].sort(() => Math.random() - 0.5);
 
-    if (shuffled.length === 0) {
-      setErrorMessage("No questions available for this chapter in the vault.");
+    if (shuffled.length < actualCount) {
+      setErrorMessage(`Only ${shuffled.length} questions available for this chapter — need ${actualCount}.`);
       setPhase("config");
       return;
     }
 
     const questionsContent = shuffled.map((q, i) =>
-      `Q${i+1}. ${q.given || q.title}\nOptions: ${q.options?.map(o => `${o.label}) ${o.text}`).join(" | ") || "N/A"}\nAnswer: ${q.answer}\nDifficulty: ${q.difficulty}\n`
-    ).join("\n").substring(0, 8000);
+      `Q${i+1}. ${q.given || q.title}\nOptions: ${q.options?.map(o => `${o.label}) ${o.text}`).join(" | ") || "N/A"}\nAnswer: ${q.answer}\nDifficulty: ${q.difficulty}`
+    ).join("\n\n").substring(0, 8000);
 
-    let mapped: TestQuestion[] | null = null;
-
-    // Try AI-based question selection with proper answer mapping
     try {
       const prompt = PROMPTS.TEST_GENERATOR.replace("{COUNT}", String(actualCount)).replace("{QUESTIONS}", questionsContent);
-      const { content: response } = await ask(prompt, "", { reasoning: false });
+      const { content: response } = await ask(prompt, "");
       const parsed = parseJsonArray(response);
       if (parsed && parsed.length > 0) {
-        mapped = parsed.slice(0, actualCount);
+        setQuestions(parsed.slice(0, actualCount));
+        setTimeLeft(timeMinutes * 60);
+        setTimeSpent(0);
+        setCurrentQ(0);
+        setAnswers(new Map());
+        setMarked(new Set());
+        setPhase("started");
+        clearTestProgress();
+        return;
       }
     } catch {}
 
-    // Fallback: use vault questions directly
-    if (!mapped) {
-      const selected = shuffled.slice(0, actualCount);
-      mapped = selected.map((q) => ({
-        text: q.given || q.title || "",
-        options: q.options?.map((o) => `${o.label}) ${o.text}`) || ["A", "B", "C", "D"],
-        correctIndex: q.options?.findIndex((o) => {
-          const answerLabel = (q.answer || "").trim().charAt(0).toUpperCase();
-          return o.label.toUpperCase() === answerLabel;
-        }) ?? 0,
-        type: "mcq" as const,
-      }));
-    }
-
-    setQuestions(mapped);
-    setTimeLeft(timeMinutes * 60);
-    setTimeSpent(0);
-    setCurrentQ(0);
-    setAnswers(new Map());
-    setMarked(new Set());
-    setPhase("started");
-    clearTestProgress();
+    setErrorMessage("AI failed to generate questions. Check that the vault has properly formatted questions.");
+    setPhase("config");
   }, [vault, chapterName, questionCount, timeMinutes, customQuestionCount, ask]);
 
   useEffect(() => {
@@ -291,7 +286,7 @@ export default function TestTakePage() {
 
         const analysisPrompt = PROMPTS.TEST_WRONG_ANALYSIS.replace("{WRONG_QUESTIONS}", wrongQs);
 
-        const { content } = await ask(feedbackContext, analysisPrompt, { reasoning: false });
+        const { content } = await ask(feedbackContext, analysisPrompt);
         setScore((prev) => prev ? { ...prev, feedback: content } : prev);
       } catch {}
       setAiScoreLoading(false);
