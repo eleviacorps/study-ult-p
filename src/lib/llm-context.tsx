@@ -62,7 +62,7 @@ async function writeCachedResponse(messages: { role: string; content: string }[]
   }
 }
 
-async function proxyCompletion(messages: { role: string; content: string }[], reasoning?: boolean, attempt = 1): Promise<LlmResponse> {
+async function proxyCompletion(messages: { role: string; content: string }[], attempt = 1): Promise<LlmResponse> {
   try {
     const cached = await readCachedResponse(messages);
     if (cached) return cached;
@@ -70,11 +70,11 @@ async function proxyCompletion(messages: { role: string; content: string }[], re
     const res = await fetch("/api/llm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, max_tokens: 4096, reasoning, stream: true }),
+      body: JSON.stringify({ messages, stream: true, reasoning: "low" }),
     });
     if (res.status === 504 && attempt < 3) {
       await new Promise((r) => setTimeout(r, 2000 * attempt));
-      return proxyCompletion(messages, reasoning, attempt + 1);
+      return proxyCompletion(messages, attempt + 1);
     }
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -106,10 +106,6 @@ async function proxyCompletion(messages: { role: string; content: string }[], re
       }
     }
 
-    // Fallback: if no content but we got reasoning, use reasoning as content
-    if (!content && reasoningContent) {
-      content = reasoningContent;
-    }
     const response = { content, reasoning: reasoningContent };
     if (response.content) await writeCachedResponse(messages, response);
     return response;
@@ -127,7 +123,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const messages = question
         ? [{ role: "system", content: context }, { role: "user", content: question }]
         : [{ role: "user", content: context }];
-      return await proxyCompletion(messages, options?.reasoning);
+      return await proxyCompletion(messages);
     } finally {
       setIsAsking(false);
     }
@@ -143,7 +139,7 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/llm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, max_tokens: 4096, stream: true, reasoning: options?.reasoning }),
+        body: JSON.stringify({ messages, stream: true, reasoning: "low" }),
       });
 
       if (!res.ok) {
@@ -160,7 +156,6 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
       const decoder = new TextDecoder();
       let buffer = "";
       let yieldedContent = false;
-      let reasoningBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -178,21 +173,14 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta;
               const content = delta?.content || "";
-              const reasoning = delta?.reasoning_content || "";
               if (content) { yieldedContent = true; yield content; }
-              if (reasoning) reasoningBuffer += reasoning;
             } catch {}
           }
         }
       }
 
       if (!yieldedContent) {
-        if (reasoningBuffer) {
-          console.warn("[askStream] only reasoning_content, no content — showing reasoning as fallback");
-          yield reasoningBuffer;
-        } else {
-          console.warn("[askStream] stream completed with no tokens at all");
-        }
+        console.warn("[askStream] stream completed with no tokens at all");
       }
     } finally {
       setIsAsking(false);
