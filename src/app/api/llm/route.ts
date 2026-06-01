@@ -55,6 +55,7 @@ export async function POST(request: Request) {
     if (Array.isArray(body.tools)) requestBody.tools = body.tools;
     if (body.tool_choice) requestBody.tool_choice = body.tool_choice;
     if (body.reasoning !== undefined) requestBody.reasoning = body.reasoning;
+    if (body.thinking !== undefined) requestBody.thinking = body.thinking;
 
     console.log(`[LLM ${reqId}] → ${baseUrl}/v1/chat/completions model=${model} msgs=${messages.length} max_tokens=${requestBody.max_tokens}`);
 
