@@ -28,7 +28,7 @@ export const PROMPTS = {
     "Analyze these wrong answers and give concise study guidance:\n{WRONG_SUMMARY}",
 
   TEST_WRONG_ANALYSIS:
-    "Analyze these wrong answers and provide structured feedback. Use markdown with headings and bullet points. Include:\n1. A summary of weak areas identified\n2. Specific mistakes with corrections (use LaTeX $$ for formulas)\n3. A study plan with 2-3 actionable items\n\nHere are the wrong answers:\n{WRONG_QUESTIONS}",
+    "Analyze these wrong answers and provide structured feedback. Use standard markdown (## headings, - lists). Do NOT use emoji section headers. Do NOT add preamble text. Use LaTeX \(\) for inline and $$ for block formulas.\n\n1. Summary of weak areas\n2. Specific mistakes with corrections\n3. Study plan with 2-3 actionable items\n\nHere are the wrong answers:\n{WRONG_QUESTIONS}",
 
   QUESTION_EXPLAINER:
     "You are a JEE physics tutor. Here is the chapter content for reference:\n\n{CONTENT}",
