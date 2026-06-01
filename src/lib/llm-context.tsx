@@ -106,6 +106,10 @@ async function proxyCompletion(messages: { role: string; content: string }[], re
       }
     }
 
+    // Fallback: if no content but we got reasoning, use reasoning as content
+    if (!content && reasoningContent) {
+      content = reasoningContent;
+    }
     const response = { content, reasoning: reasoningContent };
     if (response.content) await writeCachedResponse(messages, response);
     return response;
@@ -155,7 +159,8 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
 
       const decoder = new TextDecoder();
       let buffer = "";
-      let yieldedAny = false;
+      let yieldedContent = false;
+      let reasoningBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -173,14 +178,21 @@ export function LlmProvider({ children }: { children: React.ReactNode }) {
               const parsed = JSON.parse(data);
               const delta = parsed.choices?.[0]?.delta;
               const content = delta?.content || "";
-              if (content) { yieldedAny = true; yield content; }
+              const reasoning = delta?.reasoning_content || "";
+              if (content) { yieldedContent = true; yield content; }
+              if (reasoning) reasoningBuffer += reasoning;
             } catch {}
           }
         }
       }
 
-      if (!yieldedAny) {
-        console.warn("[askStream] stream completed with no content tokens. Messages length:", messages.length, "question length:", question?.length);
+      if (!yieldedContent) {
+        if (reasoningBuffer) {
+          console.warn("[askStream] only reasoning_content, no content — showing reasoning as fallback");
+          yield reasoningBuffer;
+        } else {
+          console.warn("[askStream] stream completed with no tokens at all");
+        }
       }
     } finally {
       setIsAsking(false);
