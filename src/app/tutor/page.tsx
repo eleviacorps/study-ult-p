@@ -46,6 +46,7 @@ export default function TutorPage() {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [pending, setPending] = useState<PendingClarification>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
+  const [tokenReceived, setTokenReceived] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
 
@@ -148,7 +149,9 @@ export default function TutorPage() {
 
     let fullContent = "";
     let msgAdded = false;
+    setTokenReceived(false);
     const addOrUpdate = (content: string) => {
+      if (!msgAdded) setTokenReceived(true);
       setMessages((prev) => {
         if (!msgAdded) {
           msgAdded = true;
@@ -345,6 +348,24 @@ export default function TutorPage() {
                 </div>
               </motion.div>
             )
+          )}
+          {isAsking && !tokenReceived && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 pl-0.5">
+                <div className="w-5 h-5 rounded-lg bg-[#1856FF]/15 flex items-center justify-center border border-[#1856FF]/20">
+                  <Bot className="w-2.5 h-2.5 text-[#1856FF]" />
+                </div>
+                <span className="text-[10px] font-medium tracking-wide text-white/25">AI Tutor</span>
+              </div>
+              <div className="ml-7 flex items-center gap-2.5">
+                <div className="flex gap-1">
+                  {[0, 1, 2].map((j) => (
+                    <div key={j} className="w-1.5 h-1.5 rounded-full bg-[#1856FF]/30 animate-bounce" style={{ animationDelay: `${j * 0.15}s` }} />
+                  ))}
+                </div>
+                <span className="text-[10px] opacity-20">Thinking...</span>
+              </div>
+            </motion.div>
           )}
           {messages.length <= 1 && !pending && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
