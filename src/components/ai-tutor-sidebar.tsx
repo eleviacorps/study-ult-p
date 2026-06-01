@@ -78,6 +78,14 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
             return updated;
           });
         }
+        if (!fullContent) {
+          fullContent = "Sorry, I couldn't generate a response. Try rephrasing your question.";
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
+            return updated;
+          });
+        }
       } catch {
         fullContent = fullContent || "No response";
         setMessages((prev) => {

@@ -66,19 +66,41 @@ export async function POST(request: Request) {
 
     console.log(`[LLM ${reqId}] ← ${res.status}`);
 
-    // Always pipe the provider response body through — do NOT buffer it.
+    if (!res.body) {
+      return NextResponse.json({ error: "empty_response" }, { status: 502 });
+    }
+
+    const providerContentType = res.headers.get("content-type") || "";
+    const isProviderStreaming = providerContentType.includes("text/event-stream");
+
+    // If client asked for streaming but provider returned JSON, convert to SSE
+    if (isStream && !isProviderStreaming) {
+      const bodyText = await res.clone().text().catch(() => null);
+      if (bodyText) {
+        try {
+          const json = JSON.parse(bodyText);
+          if (json.choices?.[0]?.message?.content) {
+            const sseContent = json.choices[0].message.content;
+            const sseBody = `data: {"choices":[{"delta":{"content":${JSON.stringify(sseContent)},"finish_reason":"stop"}}]}\n\ndata: [DONE]\n\n`;
+            return new Response(sseBody, {
+              status: 200,
+              headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+            });
+          }
+        } catch {}
+      }
+      // Fall through: pipe original body (res is still readable because we cloned)
+    }
+
+    // Pipe the provider response body through — do NOT buffer streaming responses.
     // Buffering with await res.text() keeps the Edge function wall clock
     // ticking until the entire response arrives. On Hobby (30s wall limit),
     // a slow provider response causes FUNCTION_INVOCATION_TIMEOUT.
     // Piping returns the function as soon as the first byte arrives (~1-3s).
-    if (!res.body) {
-      return NextResponse.json({ error: "empty_response" }, { status: 502 });
-    }
-    const contentType = isStream ? "text/event-stream" : "application/json";
     return new Response(res.body, {
       status: res.status,
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": isStream ? "text/event-stream" : "application/json",
         "Cache-Control": isStream ? "no-cache" : "private",
       },
     });

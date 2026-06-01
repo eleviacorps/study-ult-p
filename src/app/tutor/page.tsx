@@ -146,7 +146,17 @@ export default function TutorPage() {
           return updated;
         });
       }
-    } catch {
+      if (!fullContent) {
+        fullContent = "I'm sorry, I wasn't able to generate a response. Please try rephrasing your question.";
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          updated[updated.length - 1] = { ...last, content: fullContent };
+          return updated;
+        });
+      }
+    } catch (e) {
+      console.error("Tutor stream error:", e);
       setMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];

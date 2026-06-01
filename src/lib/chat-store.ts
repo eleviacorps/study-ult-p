@@ -183,7 +183,13 @@ export async function syncChatToDB(key: string, messages: ChatMessage[], options
   if (syncedCount >= messages.length) return false;
 
   const sessionId = getChatSessionId(key);
-  const pending = messages.slice(syncedCount, syncedCount + CHAT_SYNC_BATCH_SIZE);
+  const allPending = messages.slice(syncedCount, syncedCount + CHAT_SYNC_BATCH_SIZE);
+  // Skip empty assistant placeholders (pre-stream fill) to avoid 400 from /api/chat
+  const pending = allPending.filter((m) => m.role !== "assistant" || m.content.trim().length > 0);
+  if (pending.length === 0) {
+    localStorage.setItem(storageKey(key, "synced-count"), String(syncedCount + allPending.length));
+    return false;
+  }
 
   try {
     const res = await fetch("/api/chat", {
