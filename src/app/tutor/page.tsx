@@ -47,6 +47,7 @@ export default function TutorPage() {
   const [pending, setPending] = useState<PendingClarification>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
   const chatRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
 
   useEffect(() => {
     setMounted(true);
@@ -115,9 +116,21 @@ export default function TutorPage() {
     if (mounted) refreshSessions();
   }, [mounted, refreshSessions]);
 
+  const scrollToBottom = useCallback((smooth = true) => {
+    if (isNearBottomRef.current) {
+      chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    }
+  }, []);
+
   useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    scrollToBottom(false);
+  }, [messages, scrollToBottom]);
+
+  const handleScroll = useCallback(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  }, []);
 
   const buildContext = async (question: string, chatSummary = ""): Promise<string> => {
     return buildStructuredTutorContext(vault, question, {
@@ -133,36 +146,31 @@ export default function TutorPage() {
     const chatSummary = await getChatSessionSummary(chatKey);
     const context = await buildContext(userMsg, chatSummary);
 
-    setMessages((prev) => [...prev, { role: "assistant", content: "", reasoning: "" }]);
-
     let fullContent = "";
+    let msgAdded = false;
+    const addOrUpdate = (content: string) => {
+      setMessages((prev) => {
+        if (!msgAdded) {
+          msgAdded = true;
+          return [...prev, { role: "assistant", content, reasoning: "" }];
+        }
+        const updated = [...prev];
+        updated[updated.length - 1] = { ...updated[updated.length - 1], content };
+        return updated;
+      });
+    };
     try {
       for await (const token of askStream(context, userMsg)) {
         fullContent += token;
-        setMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          updated[updated.length - 1] = { ...last, content: fullContent };
-          return updated;
-        });
+        addOrUpdate(fullContent);
       }
       if (!fullContent) {
         fullContent = "I'm sorry, I wasn't able to generate a response. Please try rephrasing your question.";
-        setMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          updated[updated.length - 1] = { ...last, content: fullContent };
-          return updated;
-        });
+        addOrUpdate(fullContent);
       }
     } catch (e) {
       console.error("Tutor stream error:", e);
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        updated[updated.length - 1] = { ...last, content: fullContent || "AI service error" };
-        return updated;
-      });
+      addOrUpdate(fullContent || "AI service error");
     }
 
     updateStudyState((state) => {
@@ -298,7 +306,7 @@ export default function TutorPage() {
           </motion.div>
         )}
 
-        <div ref={chatRef} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y py-4 sm:py-6 space-y-5 scroll-region">
+        <div ref={chatRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain touch-pan-y py-4 sm:py-6 space-y-5 scroll-region">
           {messages.map((msg, i) =>
             msg.role === "assistant" ? (
               <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-1.5">
@@ -337,24 +345,6 @@ export default function TutorPage() {
                 </div>
               </motion.div>
             )
-          )}
-          {isAsking && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 pl-0.5">
-                <div className="w-5 h-5 rounded-lg bg-[#1856FF]/15 flex items-center justify-center border border-[#1856FF]/20">
-                  <Bot className="w-2.5 h-2.5 text-[#1856FF]" />
-                </div>
-                <span className="text-[10px] font-medium tracking-wide text-white/25">AI Tutor</span>
-              </div>
-              <div className="ml-7 flex items-center gap-2.5">
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((j) => (
-                    <div key={j} className="w-1.5 h-1.5 rounded-full bg-[#1856FF]/30 animate-bounce" style={{ animationDelay: `${j * 0.15}s` }} />
-                  ))}
-                </div>
-                <span className="text-[10px] opacity-20">Thinking...</span>
-              </div>
-            </motion.div>
           )}
           {messages.length <= 1 && !pending && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">

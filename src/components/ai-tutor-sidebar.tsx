@@ -35,7 +35,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   }, []);
 
   useEffect(() => {
-    messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "smooth" });
+    messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: "auto" });
   }, [messages]);
 
   // Persist chat to localStorage + DB on every change
@@ -66,33 +66,30 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
         chatSummary,
       });
 
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
       let fullContent = "";
+      let msgAdded = false;
+      const addOrUpdate = (content: string) => {
+        setMessages((prev) => {
+          if (!msgAdded) {
+            msgAdded = true;
+            return [...prev, { role: "assistant", content, reasoning: "" }];
+          }
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content };
+          return updated;
+        });
+      };
       try {
         for await (const token of askStream(sysContext, q)) {
           fullContent += token;
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-            return updated;
-          });
+          addOrUpdate(fullContent);
         }
         if (!fullContent) {
           fullContent = "Sorry, I couldn't generate a response. Try rephrasing your question.";
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-            return updated;
-          });
+          addOrUpdate(fullContent);
         }
       } catch {
-        fullContent = fullContent || "No response";
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { ...updated[updated.length - 1], content: fullContent };
-          return updated;
-        });
+        addOrUpdate(fullContent || "No response");
       }
 
       addPoints(2, "Tutor Query", q.substring(0, 50));
