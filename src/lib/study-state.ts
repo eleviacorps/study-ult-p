@@ -125,6 +125,19 @@ export function updateStudyState(updater: (state: StudyState) => void) {
 
   saveStudyState(state);
 
+  const nonEmpty = Object.entries({
+    studyMinutes: state.studyMinutes && Object.keys(state.studyMinutes).length,
+    quizScores: state.quizScores?.length,
+    testScores: state.testScores?.length,
+    activitySnapshots: state.activitySnapshots?.length,
+    topicAccuracy: state.topicAccuracy && Object.keys(state.topicAccuracy).length,
+    weakAreas: state.weakAreas?.length,
+    points: state.points,
+    streak: state.streak,
+    chapterProgress: state.chapterProgress?.length,
+  }).filter(([, v]) => v);
+  console.log("[DEBUG SYNC] updateStudyState: non-empty fields:", nonEmpty, "| scheduleSync queued");
+
   if (typeof window !== "undefined") {
     import("./sync").then(({ scheduleSync }) => {
       scheduleSync(state);
@@ -266,13 +279,14 @@ export function computeAnalytics(state: StudyState) {
 
 // Fetch remote state from Supabase and merge into local
 async function pullRemoteState() {
+  console.log("[DEBUG SYNC] pullRemoteState");
   try {
     const { loadRemoteState, mergeStates, syncState } = await import("./sync");
     const raw = localStorage.getItem("studyult-state");
     const local = raw ? JSON.parse(raw) : getDefaultState();
 
-    // Retry any pending (failed) sync first
     if (localStorage.getItem("studyult-sync-pending") === "1") {
+      console.log("[DEBUG SYNC] pullRemoteState: retrying pending sync");
       await syncState(local);
     }
 
