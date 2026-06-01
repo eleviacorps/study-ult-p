@@ -112,6 +112,31 @@ export default function TestTakePage() {
     return null;
   }
 
+  function mapVaultToTestQuestion(q: any): TestQuestion {
+    const opts = q.options || [];
+    const findCorrectIndex = (): number => {
+      if (opts.length === 0) return 0;
+      const answerRaw = (q.answer || "").trim();
+      const answerChar = answerRaw.replace(/option\s*/i, "").replace(/is\s+correct/i, "").trim().charAt(0);
+      for (let i = 0; i < opts.length; i++) {
+        const label = opts[i].label.trim().replace(/[).\s]+$/, "").toLowerCase();
+        if (label === answerChar.toLowerCase()) return i;
+      }
+      const answerClean = answerChar.toLowerCase();
+      for (let i = 0; i < opts.length; i++) {
+        const labelClean = opts[i].label.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        if (labelClean === answerClean) return i;
+      }
+      return 0;
+    };
+    return {
+      text: q.given || q.title || "",
+      options: opts.map((o: any) => `${o.label}) ${o.text}`),
+      correctIndex: findCorrectIndex(),
+      type: "mcq" as const,
+    };
+  }
+
   const generateQuestions = useCallback(async () => {
     const actualCount = customQuestionCount ? parseInt(customQuestionCount) || questionCount : questionCount;
     setPhase("loading");
@@ -125,7 +150,7 @@ export default function TestTakePage() {
       return;
     }
 
-    const questionsContent = shuffled.map((q, i) =>
+    const questionsContent = shuffled.slice(0, actualCount * 3).map((q, i) =>
       `Q${i+1}. ${q.given || q.title}\nOptions: ${q.options?.map(o => `${o.label}) ${o.text}`).join(" | ") || "N/A"}\nAnswer: ${q.answer}\nDifficulty: ${q.difficulty}`
     ).join("\n\n").substring(0, 8000);
 
@@ -146,8 +171,18 @@ export default function TestTakePage() {
       }
     } catch {}
 
-    setErrorMessage("AI failed to generate questions. Check that the vault has properly formatted questions.");
-    setPhase("config");
+    // Fallback: use vault questions directly with robust answer mapping
+    const selected = shuffled.slice(0, actualCount);
+    const mapped = selected.map(mapVaultToTestQuestion);
+
+    setQuestions(mapped);
+    setTimeLeft(timeMinutes * 60);
+    setTimeSpent(0);
+    setCurrentQ(0);
+    setAnswers(new Map());
+    setMarked(new Set());
+    setPhase("started");
+    clearTestProgress();
   }, [vault, chapterName, questionCount, timeMinutes, customQuestionCount, ask]);
 
   useEffect(() => {

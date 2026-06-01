@@ -62,7 +62,7 @@ async function writeCachedResponse(messages: { role: string; content: string }[]
   }
 }
 
-async function proxyCompletion(messages: { role: string; content: string }[], reasoning?: boolean): Promise<LlmResponse> {
+async function proxyCompletion(messages: { role: string; content: string }[], reasoning?: boolean, attempt = 1): Promise<LlmResponse> {
   try {
     const cached = await readCachedResponse(messages);
     if (cached) return cached;
@@ -70,18 +70,43 @@ async function proxyCompletion(messages: { role: string; content: string }[], re
     const res = await fetch("/api/llm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, max_tokens: 4096, reasoning }),
+      body: JSON.stringify({ messages, max_tokens: 4096, reasoning, stream: true }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      const error = data?.error?.message || data?.error || `API error (${res.status})`;
-      return { content: `AI service error: ${error}`, reasoning: "" };
+    if (res.status === 504 && attempt < 3) {
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+      return proxyCompletion(messages, reasoning, attempt + 1);
     }
-    const message = data.choices?.[0]?.message;
-    const response = {
-      content: message?.content || message?.reasoning_content || data.content?.[0]?.text || "",
-      reasoning: message?.reasoning_content || "",
-    };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      return { content: `AI service error (${res.status}): ${errText.slice(0, 200)}`, reasoning: "" };
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) return { content: "AI service error: no response body", reasoning: "" };
+
+    const decoder = new TextDecoder();
+    let buffer = "", content = "", reasoningContent = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6).trim();
+        if (payload === "[DONE]" || !payload) continue;
+        try {
+          const chunk = JSON.parse(payload);
+          const delta = chunk.choices?.[0]?.delta;
+          if (delta?.content) content += delta.content;
+          if (delta?.reasoning_content) reasoningContent += delta.reasoning_content;
+        } catch {}
+      }
+    }
+
+    const response = { content, reasoning: reasoningContent };
     if (response.content) await writeCachedResponse(messages, response);
     return response;
   } catch (error: any) {
