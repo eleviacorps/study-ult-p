@@ -94,6 +94,7 @@ export async function syncState(state: StudyState): Promise<boolean> {
       lastStudyDate: state.lastStudyDate,
       chapterProgress: state.chapterProgress,
       studentLearningState,
+      stateSnapshot: state,
     };
 
     log("syncState: POST /api/sync, body keys:", Object.keys(payload).filter(k => (payload as any)[k] && ((typeof (payload as any)[k] === 'object' && Object.keys((payload as any)[k]).length) || typeof (payload as any)[k] === 'number')));
@@ -176,18 +177,35 @@ export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
 
     const data = await res.json();
     log("loadRemoteState: got data keys:", Object.keys(data));
+    log("loadRemoteState: has stateSnapshot:", !!data.stateSnapshot);
+
+    const snapshot = data.stateSnapshot || {};
+
     return {
-      studyMinutes: data.studyMinutes || {},
-      quizScores: data.quizScores || [],
-      testScores: data.testScores || [],
-      activitySnapshots: data.activitySnapshots || [],
-      topicAccuracy: data.topicAccuracy || {},
-      weakAreas: data.weakAreas || [],
-      points: data.points ?? 0,
-      streak: data.streak ?? 0,
-      longestStreak: data.longestStreak ?? 0,
-      lastStudyDate: data.lastStudyDate ?? "",
-      chapterProgress: data.chapterProgress || [],
+      studyMinutes: data.studyMinutes || snapshot.studyMinutes || {},
+      quizScores: data.quizScores || snapshot.quizScores || [],
+      testScores: data.testScores || snapshot.testScores || [],
+      activitySnapshots: data.activitySnapshots || snapshot.activitySnapshots || [],
+      topicAccuracy: data.topicAccuracy || snapshot.topicAccuracy || {},
+      weakAreas: data.weakAreas || snapshot.weakAreas || [],
+      chapterProgress: data.chapterProgress || snapshot.chapterProgress || [],
+      points: data.points ?? snapshot.points ?? 0,
+      streak: data.streak ?? snapshot.streak ?? 0,
+      longestStreak: data.longestStreak ?? snapshot.longestStreak ?? 0,
+      lastStudyDate: data.lastStudyDate ?? snapshot.lastStudyDate ?? "",
+
+      reviewedFlashcards: snapshot.reviewedFlashcards || {},
+      masteredFlashcards: snapshot.masteredFlashcards || {},
+      questionAttempts: snapshot.questionAttempts || {},
+      achievements: snapshot.achievements || [],
+      strongAreas: snapshot.strongAreas || [],
+      aiTodos: snapshot.aiTodos || [],
+      userTodos: snapshot.userTodos || [],
+      activityLog: snapshot.activityLog || [],
+      predictedWeakness: snapshot.predictedWeakness || [],
+      lastAiAnalysis: snapshot.lastAiAnalysis || "",
+      aiConversations: snapshot.aiConversations || [],
+      subjectAccuracy: snapshot.subjectAccuracy || {},
     };
   } catch (e) {
     console.error("[DEBUG SYNC] loadRemoteState exception:", e);
@@ -195,8 +213,55 @@ export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
   }
 }
 
+function mergeRecordMax(
+  local: Record<string, number> | undefined,
+  remote: Record<string, number> | undefined
+): Record<string, number> {
+  const result = { ...(remote || {}) };
+  for (const [key, val] of Object.entries(local || {})) {
+    result[key] = Math.max(result[key] ?? 0, val);
+  }
+  return result;
+}
+
+function mergeRecordSum(
+  local: Record<string, { correct: number; total: number }> | undefined,
+  remote: Record<string, { correct: number; total: number }> | undefined
+): Record<string, { correct: number; total: number }> {
+  const result: Record<string, { correct: number; total: number }> = {};
+  const allKeys = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})]);
+  for (const key of allKeys) {
+    const l = local?.[key];
+    const r = remote?.[key];
+    result[key] = {
+      correct: Math.max(l?.correct ?? 0, r?.correct ?? 0),
+      total: Math.max(l?.total ?? 0, r?.total ?? 0),
+    };
+  }
+  return result;
+}
+
+function mergeArrayDedup<T>(
+  local: T[] | undefined,
+  remote: T[] | undefined,
+  keyFn: (item: T) => string
+): T[] {
+  const seen = new Set((local || []).map(keyFn));
+  const merged = [...(local || [])];
+  for (const item of remote || []) {
+    const k = keyFn(item);
+    if (!seen.has(k)) {
+      seen.add(k);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
 export function mergeStates(local: StudyState, remote: Partial<StudyState>): StudyState {
-  log("mergeStates: local points:", local.points, "remote points:", remote.points);
+  log("mergeStates: local points:", local.points, "remote points:", remote.points,
+    "local weakAreas:", local.weakAreas?.length, "remote weakAreas:", remote.weakAreas?.length);
+
   const mergedMinutes = { ...remote.studyMinutes, ...local.studyMinutes };
 
   const quizDates = new Set(local.quizScores.map((q) => q.date));
@@ -225,6 +290,49 @@ export function mergeStates(local: StudyState, remote: Partial<StudyState>): Stu
     ...(remote.chapterProgress || []).filter((c: any) => !cpKeys.has(`${c.chapter}-${c.subject}`)),
   ];
 
+  const weakAreaTopics = new Map<string, { topic: string; accuracy: number; chapter: string; lastSeen: string }>();
+  for (const w of [...(local.weakAreas || []), ...(remote.weakAreas || [])]) {
+    const existing = weakAreaTopics.get(w.topic);
+    if (!existing || new Date(w.lastSeen || 0).getTime() > new Date(existing.lastSeen || 0).getTime()) {
+      weakAreaTopics.set(w.topic, w);
+    }
+  }
+  const mergedWeakAreas = [...weakAreaTopics.values()].slice(0, 10);
+
+  const mergedReviewedFC = mergeRecordMax(local.reviewedFlashcards, remote.reviewedFlashcards);
+  const mergedMasteredFC = mergeRecordMax(local.masteredFlashcards, remote.masteredFlashcards);
+  const mergedQuestionAttempts = mergeRecordSum(local.questionAttempts, remote.questionAttempts);
+  const mergedSubjectAcc = mergeRecordSum(local.subjectAccuracy, remote.subjectAccuracy);
+
+  const activityTimestamps = new Set((local.activityLog || []).map((a) => a.timestamp));
+  const mergedActivityLog = [
+    ...(local.activityLog || []),
+    ...(remote.activityLog || []).filter((a) => !activityTimestamps.has(a.timestamp)),
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const mergedAiTodos = mergeArrayDedup(local.aiTodos, remote.aiTodos, (t) => t.id);
+  const mergedUserTodos = mergeArrayDedup(local.userTodos, remote.userTodos, (t) => t.id);
+  const mergedAchievements = [...new Set([...(local.achievements || []), ...(remote.achievements || [])])];
+
+  const strongTopics = new Map<string, { topic: string; accuracy: number; chapter: string }>();
+  for (const s of [...(local.strongAreas || []), ...(remote.strongAreas || [])]) {
+    const existing = strongTopics.get(s.topic);
+    if (!existing || s.accuracy > existing.accuracy) strongTopics.set(s.topic, s);
+  }
+  const mergedStrongAreas = [...strongTopics.values()].slice(0, 10);
+
+  const mergedPredictedWeakness = mergeArrayDedup(
+    local.predictedWeakness,
+    remote.predictedWeakness,
+    (p) => p.topic
+  );
+
+  const mergedConversations = mergeArrayDedup(
+    local.aiConversations,
+    remote.aiConversations,
+    (c) => c.id
+  ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
   return {
     ...local,
     studyMinutes: mergedMinutes,
@@ -232,11 +340,24 @@ export function mergeStates(local: StudyState, remote: Partial<StudyState>): Stu
     testScores: mergedTests,
     activitySnapshots: mergedActivities,
     topicAccuracy: mergedTopics,
-    weakAreas: local.weakAreas.length > 0 ? local.weakAreas : remote.weakAreas || [],
+    weakAreas: mergedWeakAreas,
     chapterProgress: mergedCP,
     points: Math.max(local.points, remote.points ?? 0),
     streak: Math.max(local.streak, remote.streak ?? 0),
     longestStreak: Math.max(local.longestStreak, remote.longestStreak ?? 0),
     lastStudyDate: remote.lastStudyDate ?? local.lastStudyDate,
+
+    questionAttempts: mergedQuestionAttempts,
+    reviewedFlashcards: mergedReviewedFC,
+    masteredFlashcards: mergedMasteredFC,
+    activityLog: mergedActivityLog,
+    aiTodos: mergedAiTodos,
+    userTodos: mergedUserTodos,
+    achievements: mergedAchievements,
+    strongAreas: mergedStrongAreas,
+    predictedWeakness: mergedPredictedWeakness,
+    aiConversations: mergedConversations,
+    subjectAccuracy: mergedSubjectAcc,
+    lastAiAnalysis: remote.lastAiAnalysis || local.lastAiAnalysis || "",
   };
 }

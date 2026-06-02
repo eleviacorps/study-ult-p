@@ -525,9 +525,22 @@ create index if not exists idx_md_bank_author on md_bank(author);
 create index if not exists idx_md_bank_chapter on md_bank(chapter);
 create index if not exists idx_md_bank_tags on md_bank using gin(tags);
 
+-- 17. STUDY STATE SNAPSHOTS (full state JSON blob for cross-device sync)
+-- Stores the complete StudyState so ALL non-synced fields (questionAttempts,
+-- activityLog, aiTodos, reviewedFlashcards, masteredFlashcards, strongAreas,
+-- achievements, subjectAccuracy, predictedWeakness, aiConversations) are
+-- preserved between devices. The snapshot supplements the per-table data.
+create table if not exists study_state_snapshots (
+  user_id uuid references auth.users on delete cascade primary key,
+  data jsonb not null default '{}',
+  updated_at timestamptz default now()
+);
+
 -- ============================================================
 -- RLS POLICIES
 -- ============================================================
+alter table study_state_snapshots enable row level security;
+
 alter table profiles enable row level security;
 alter table study_sessions enable row level security;
 alter table quiz_scores enable row level security;
@@ -567,6 +580,9 @@ alter table performance_trends enable row level security;
 alter table attention_patterns enable row level security;
 
 -- All tables: users can only access their own data
+drop policy if exists "Own data only" on study_state_snapshots;
+create policy "Own data only" on study_state_snapshots for all using (auth.uid() = user_id);
+
 drop policy if exists "Own data only" on profiles;
 create policy "Own data only" on profiles for all using (auth.uid() = id);
 drop policy if exists "Own data only" on study_sessions;

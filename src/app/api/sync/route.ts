@@ -210,6 +210,31 @@ export async function POST(request: Request) {
     console.log("[DEBUG SYNC] student_learning_state: skipped (no data)");
   }
 
+  if (body.stateSnapshot) {
+    console.log("[DEBUG SYNC] processing study_state_snapshots upsert (keys:", Object.keys(body.stateSnapshot).length, ")");
+    const snapshotData = {
+      user_id: userId,
+      data: body.stateSnapshot,
+      updated_at: new Date().toISOString(),
+    };
+    tasks.push(
+      (async () => {
+        try {
+          const { error } = await supabase.from("study_state_snapshots").upsert(
+            snapshotData,
+            { onConflict: "user_id" }
+          );
+          if (error) { console.error("[DEBUG SYNC] study_state_snapshots error:", error.message); errors.push(`study_state_snapshots: ${error.message}`); }
+          else console.log("[DEBUG SYNC] study_state_snapshots OK");
+        } catch (e) {
+          console.error("[DEBUG SYNC] study_state_snapshots exception (table may not exist):", e);
+        }
+      })()
+    );
+  } else {
+    console.log("[DEBUG SYNC] study_state_snapshots: skipped (no data)");
+  }
+
   if (body.chapterProgress && body.chapterProgress.length > 0) {
     console.log("[DEBUG SYNC] processing chapter_progress upserts:", body.chapterProgress.length);
     for (const cp of body.chapterProgress) {
@@ -267,6 +292,12 @@ export async function GET(request: Request) {
   const userId = user.id;
   console.log("[DEBUG SYNC] GET user:", userId);
 
+  let snapshotData: any = null;
+  try {
+    const snapRes = await supabase.from("study_state_snapshots").select("data").eq("user_id", userId).maybeSingle();
+    snapshotData = snapRes.data;
+  } catch { /* table may not exist yet */ }
+
   const [sessions, quizzes, tests, activities, topics, weak, points, streak, chapters, cognitiveState] = await Promise.all([
     supabase.from("study_sessions").select("date,minutes").eq("user_id", userId),
     supabase.from("quiz_scores").select("*").eq("user_id", userId).order("date", { ascending: false }),
@@ -291,11 +322,14 @@ export async function GET(request: Request) {
     study_streaks: (streak.data as any)?.current_streak ?? 0,
     chapter_progress: chapters.data?.length ?? 0,
     student_learning_state: cognitiveState.data ? "present" : "absent",
+    study_state_snapshot: snapshotData ? "present" : "absent",
   };
   console.log("[DEBUG SYNC] GET results:", results);
 
   const studyMinutes: Record<string, number> = {};
   if (sessions.data) for (const s of sessions.data) studyMinutes[s.date] = s.minutes;
+
+  const snapshot = (snapshotData as any)?.data || null;
 
   return NextResponse.json({
     studyMinutes,
@@ -312,5 +346,6 @@ export async function GET(request: Request) {
     lastStudyDate: (streak.data as any)?.last_study_date ?? null,
     chapterProgress: chapters.data || [],
     studentLearningState: cognitiveState.data || null,
+    stateSnapshot: snapshot,
   });
 }
