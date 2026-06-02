@@ -196,6 +196,9 @@ export async function POST(request: Request) {
   if (body.studentLearningState) {
     console.log("[DEBUG SYNC] processing student_learning_state upsert, keys:", Object.keys(body.studentLearningState));
     const s = body.studentLearningState;
+    if (body.stateSnapshot) {
+      s.study_patterns = { ...(s.study_patterns || {}), _snapshot: body.stateSnapshot };
+    }
     tasks.push(
       (async () => {
         const { error } = await supabase.from("student_learning_state").upsert(
@@ -329,7 +332,7 @@ export async function GET(request: Request) {
   const studyMinutes: Record<string, number> = {};
   if (sessions.data) for (const s of sessions.data) studyMinutes[s.date] = s.minutes;
 
-  const snapshot = (snapshotData as any)?.data || null;
+  const snapshot = (snapshotData as any)?.data || (cognitiveState.data as any)?.study_patterns?._snapshot || null;
 
   return NextResponse.json({
     studyMinutes,

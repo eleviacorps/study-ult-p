@@ -277,7 +277,8 @@ export function computeAnalytics(state: StudyState) {
   };
 }
 
-// Fetch remote state from Supabase and merge into local
+let _initialSnapshotSync = false;
+
 async function pullRemoteState() {
   console.log("[DEBUG SYNC] pullRemoteState");
   try {
@@ -294,6 +295,20 @@ async function pullRemoteState() {
     if (remote) {
       const merged = mergeStates(local, remote);
       saveStudyState(merged);
+
+      // On first pull per session, upload local state so the full snapshot
+      // (questionAttempts, activityLog, aiTodos, etc.) propagates to other
+      // devices without waiting for user action.  Only push when this device
+      // actually has work data (questions answered / flashcards reviewed) so
+      // we never overwrite another device's snapshot with empty defaults.
+      const localHasData = Object.keys(merged.questionAttempts || {}).length > 0
+        || Object.keys(merged.reviewedFlashcards || {}).length > 0
+        || (merged.activityLog || []).length > 0;
+      if (!_initialSnapshotSync && localHasData) {
+        _initialSnapshotSync = true;
+        console.log("[DEBUG SYNC] pullRemoteState: uploading snapshot for cross-device sync");
+        await syncState(merged);
+      }
     }
   } catch {}
   window.dispatchEvent(new CustomEvent("study-state-refreshed"));

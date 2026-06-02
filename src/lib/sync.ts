@@ -179,7 +179,7 @@ export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
     log("loadRemoteState: got data keys:", Object.keys(data));
     log("loadRemoteState: has stateSnapshot:", !!data.stateSnapshot);
 
-    const snapshot = data.stateSnapshot || {};
+    const snapshot = data.stateSnapshot || data.studentLearningState?.study_patterns?._snapshot || {};
 
     return {
       studyMinutes: data.studyMinutes || snapshot.studyMinutes || {},
