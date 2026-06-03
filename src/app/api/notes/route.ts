@@ -60,51 +60,81 @@ export async function POST(request: Request) {
   const skippedDuplicates: string[] = [];
   let upserted = 0;
 
+  // Validate all notes first
+  const validNotes = notes.filter((n) => isValidNote(n));
   for (const note of notes) {
     if (!isValidNote(note)) {
       errors.push(`${getUnknownPath(note)}: invalid_note_payload`);
-      continue;
     }
+  }
+  if (validNotes.length === 0) {
+    return NextResponse.json({ synced: false, upserted: 0, skippedDuplicates, errors }, { status: 400 });
+  }
 
-    const contentHash = await sha256Hex(note.content);
-    const { data: duplicate, error: duplicateError } = await supabase
+  // Batch: fetch all existing content hashes for dedup
+  const contentHashes: string[] = await Promise.all(
+    validNotes.map((n) => sha256Hex(n.content))
+  );
+  const notesWithHashes = validNotes.map((n, i) => ({ ...n, contentHash: contentHashes[i] }));
+
+  // Batch `in` queries in groups of 200 to avoid Supabase IN clause limits
+  const BATCH_SIZE = 200;
+  const allExistingHashes: Array<{ path: string; content_hash: string }> = [];
+  for (let i = 0; i < contentHashes.length; i += BATCH_SIZE) {
+    const batch = contentHashes.slice(i, i + BATCH_SIZE);
+    const { data: batchResult } = await supabase
       .from("user_notes")
-      .select("path")
+      .select("path,content_hash")
       .eq("user_id", user.id)
-      .eq("content_hash", contentHash)
-      .maybeSingle();
+      .in("content_hash", batch);
+    if (batchResult) allExistingHashes.push(...(batchResult as Array<{ path: string; content_hash: string }>));
+  }
 
-    if (duplicateError) {
-      errors.push(`${note.path}: ${duplicateError.message}`);
+  const existingMap = new Map(
+    allExistingHashes.map((r) => [r.content_hash, r.path])
+  );
+
+  // Filter duplicates and collect notes to upsert
+  const toUpsert: Array<ReturnType<typeof normalizeNoteForDb>> = [];
+  for (const note of notesWithHashes) {
+    const existingPath = existingMap.get(note.contentHash);
+    if (existingPath && existingPath !== note.path) {
+      skippedDuplicates.push(`${note.path} duplicates ${existingPath}`);
       continue;
     }
+    toUpsert.push(normalizeNoteForDb(user.id, note));
+  }
 
-    if (duplicate && duplicate.path !== note.path) {
-      skippedDuplicates.push(`${note.path} duplicates ${duplicate.path}`);
-      continue;
-    }
-
-    const { error } = await supabase.from("user_notes").upsert(
-      {
-        user_id: user.id,
-        chapter: note.chapter,
-        subject: note.subject || "",
-        author: note.author || "",
-        path: note.path,
-        title: note.title,
-        content: note.content,
-        content_hash: contentHash,
-        canonical_slug: canonicalSlug(note.path || note.title),
-        tags: note.tags || [],
-      },
-      { onConflict: "user_id,path" }
+  if (toUpsert.length > 0) {
+    const { error: upsetErr } = await supabase.from("user_notes").upsert(
+      toUpsert,
+      { onConflict: "user_id,path", ignoreDuplicates: false }
     );
-    if (error) {
-      errors.push(`${note.path}: ${error.message}`);
+    if (upsetErr) {
+      errors.push(`batch_upsert: ${upsetErr.message}`);
     } else {
-      const ingestionError = await ingestVaultDocument(supabase, user.id, note, contentHash);
-      if (ingestionError) errors.push(`${note.path}: ${ingestionError}`);
-      upserted++;
+      upserted = toUpsert.length;
+      // Batch ingest: process all ingestion in parallel
+      const ingestionResults = await Promise.allSettled(
+        toUpsert.map((normalized) =>
+          ingestVaultDocument(supabase, user.id, {
+            chapter: normalized.chapter,
+            subject: normalized.subject,
+            path: normalized.path,
+            title: normalized.title,
+            content: normalized.content,
+            tags: normalized.tags as string[] | undefined,
+          } as IncomingNote, normalized.content_hash || "")
+        )
+      );
+      for (let i = 0; i < ingestionResults.length; i++) {
+        const result = ingestionResults[i];
+        if (result.status === "rejected") {
+          errors.push(`${toUpsert[i].path}: ingestion_failed`);
+        } else if (result.value) {
+          errors.push(`${toUpsert[i].path}: ${result.value}`);
+        }
+      }
     }
   }
 
@@ -143,6 +173,21 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ deleted: true });
 }
 
+function normalizeNoteForDb(userId: string, note: IncomingNote & { contentHash: string }) {
+  return {
+    user_id: userId,
+    chapter: note.chapter,
+    subject: note.subject || "",
+    author: note.author || "",
+    path: note.path,
+    title: note.title,
+    content: note.content,
+    content_hash: note.contentHash,
+    canonical_slug: canonicalSlug(note.path || note.title),
+    tags: note.tags || [],
+  };
+}
+
 function isValidNote(note: unknown): note is IncomingNote {
   if (!note || typeof note !== "object") return false;
   const candidate = note as Partial<IncomingNote>;
@@ -164,7 +209,7 @@ function getUnknownPath(note: unknown): string {
   return typeof path === "string" && path.trim() ? path : "unknown";
 }
 
-async function ingestVaultDocument(supabase: any, userId: string, note: IncomingNote, contentHash: string): Promise<string | null> {
+async function ingestVaultDocument(supabase: ReturnType<typeof createClient>, userId: string, note: IncomingNote, contentHash: string): Promise<string | null> {
   const slug = canonicalSlug(note.path || note.title);
   const now = new Date().toISOString();
   const { data: document, error: documentError } = await supabase

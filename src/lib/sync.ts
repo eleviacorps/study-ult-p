@@ -10,23 +10,7 @@ let _firstCall = 0;
 const PENDING_SYNC_KEY = "studyult-sync-pending";
 const LAST_SYNC_KEY = "studyult-last-synced";
 
-function log(...args: unknown[]) {
-  console.log("[DEBUG SYNC]", ...args);
-}
-
 export function scheduleSync(state: StudyState) {
-  const nonEmpty = Object.entries({
-    studyMinutes: state.studyMinutes && Object.keys(state.studyMinutes).length,
-    quizScores: state.quizScores?.length,
-    testScores: state.testScores?.length,
-    activitySnapshots: state.activitySnapshots?.length,
-    topicAccuracy: state.topicAccuracy && Object.keys(state.topicAccuracy).length,
-    weakAreas: state.weakAreas?.length,
-    points: state.points,
-    streak: state.streak,
-    chapterProgress: state.chapterProgress?.length,
-  }).filter(([, v]) => v);
-  log("scheduleSync called, non-empty fields:", nonEmpty, "total:", state.points);
   _pendingState = state;
   if (!_firstCall) _firstCall = Date.now();
 
@@ -37,7 +21,6 @@ export function scheduleSync(state: StudyState) {
 
   _syncTimer = setTimeout(async () => {
     if (_pendingState) {
-      log("firing syncState after debounce");
       await syncState(_pendingState);
       _pendingState = null;
       _firstCall = 0;
@@ -46,40 +29,25 @@ export function scheduleSync(state: StudyState) {
 }
 
 export function cancelPendingSync() {
-  log("cancelPendingSync");
   if (_syncTimer) clearTimeout(_syncTimer);
   _pendingState = null;
   _firstCall = 0;
 }
 
 export async function syncState(state: StudyState): Promise<boolean> {
-  log("syncState START");
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { log("syncState: no user, abort"); return false; }
-    log("syncState: user", user.id);
+    if (!user) return false;
 
     const studentLearningState = await (async () => {
       try {
         const mod = await import("./ai-retrieval");
         return mod.buildStudentStateSnapshot(state);
-      } catch (e) {
-        log("syncState: buildStudentStateSnapshot failed", e);
+      } catch {
         return undefined;
       }
     })();
-
-    log("syncState: studentLearningState keys:", studentLearningState ? Object.keys(studentLearningState) : "undefined");
-    log("syncState: studyMinutes entries:", Object.keys(state.studyMinutes).length);
-    log("syncState: quizScores:", state.quizScores?.length);
-    log("syncState: testScores:", state.testScores?.length);
-    log("syncState: activitySnapshots:", state.activitySnapshots?.length);
-    log("syncState: topicAccuracy keys:", Object.keys(state.topicAccuracy || {}).length);
-    log("syncState: weakAreas:", state.weakAreas?.length);
-    log("syncState: points:", state.points);
-    log("syncState: streak:", state.streak);
-    log("syncState: chapterProgress:", state.chapterProgress?.length);
 
     const payload = {
       studyMinutes: state.studyMinutes,
@@ -97,51 +65,40 @@ export async function syncState(state: StudyState): Promise<boolean> {
       stateSnapshot: state,
     };
 
-    log("syncState: POST /api/sync, body keys:", Object.keys(payload).filter(k => (payload as any)[k] && ((typeof (payload as any)[k] === 'object' && Object.keys((payload as any)[k]).length) || typeof (payload as any)[k] === 'number')));
     const res = await fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    log("syncState: response status:", res.status, res.statusText);
     const body = await res.json().catch(() => null);
-    log("syncState: response body:", JSON.stringify(body).slice(0, 500));
 
     if (!res.ok) {
-      console.warn("[DEBUG SYNC] server rejected:", body);
       markPendingSync();
       return false;
     }
-    log("syncState: SUCCESS");
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()));
     clearPendingSync();
     return true;
   } catch (e) {
-    console.error("[DEBUG SYNC] syncState exception:", e);
     markPendingSync();
     return false;
   }
 }
 
 function markPendingSync() {
-  log("markPendingSync");
   try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
 }
 
 function clearPendingSync() {
-  log("clearPendingSync");
   try { localStorage.removeItem(PENDING_SYNC_KEY); } catch {}
 }
 
 export function hasPendingSync(): boolean {
-  const val = localStorage.getItem(PENDING_SYNC_KEY) === "1";
-  log("hasPendingSync:", val);
-  return val;
+  return localStorage.getItem(PENDING_SYNC_KEY) === "1";
 }
 
 export function syncOnUnload(state: StudyState) {
-  log("syncOnUnload called, points:", state.points, "streak:", state.streak);
   const body = JSON.stringify({
     points: state.points,
     streak: state.streak,
@@ -157,27 +114,21 @@ export function syncOnUnload(state: StudyState) {
   });
   try {
     navigator.sendBeacon("/api/sync", new Blob([body], { type: "application/json" }));
-    log("syncOnUnload: beacon sent");
   } catch {
-    log("syncOnUnload: beacon failed");
     markPendingSync();
   }
 }
 
 export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
-  log("loadRemoteState: fetching GET /api/sync");
   try {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { log("loadRemoteState: no user"); return null; }
+    if (!user) return null;
 
     const res = await fetch("/api/sync");
-    log("loadRemoteState: status:", res.status);
-    if (!res.ok) { log("loadRemoteState: not ok"); return null; }
+    if (!res.ok) return null;
 
     const data = await res.json();
-    log("loadRemoteState: got data keys:", Object.keys(data));
-    log("loadRemoteState: has stateSnapshot:", !!data.stateSnapshot);
 
     const snapshot = data.stateSnapshot || data.studentLearningState?.study_patterns?._snapshot || {};
 
@@ -208,7 +159,6 @@ export async function loadRemoteState(): Promise<Partial<StudyState> | null> {
       subjectAccuracy: snapshot.subjectAccuracy || {},
     };
   } catch (e) {
-    console.error("[DEBUG SYNC] loadRemoteState exception:", e);
     return null;
   }
 }
@@ -259,27 +209,25 @@ function mergeArrayDedup<T>(
 }
 
 export function mergeStates(local: StudyState, remote: Partial<StudyState>): StudyState {
-  log("mergeStates: local points:", local.points, "remote points:", remote.points,
-    "local weakAreas:", local.weakAreas?.length, "remote weakAreas:", remote.weakAreas?.length);
-
+  // Remote (DB) is authoritative for numeric/scalar fields
   const mergedMinutes = { ...remote.studyMinutes, ...local.studyMinutes };
 
   const quizDates = new Set(local.quizScores.map((q) => q.date));
   const mergedQuizzes = [
     ...local.quizScores,
-    ...(remote.quizScores || []).filter((q: any) => !quizDates.has(q.date)),
+    ...(remote.quizScores || []).filter((q: { date: string }) => !quizDates.has(q.date)),
   ];
 
   const testKeys = new Set(local.testScores.map((t) => `${t.date}-${t.chapter}`));
   const mergedTests = [
     ...local.testScores,
-    ...(remote.testScores || []).filter((t: any) => !testKeys.has(`${t.date}-${t.chapter}`)),
+    ...(remote.testScores || []).filter((t: { date: string; chapter: string }) => !testKeys.has(`${t.date}-${t.chapter}`)),
   ];
 
-  const activityKeys = new Set(local.activitySnapshots.map((a: any) => a.timestamp));
+  const activityKeys = new Set(local.activitySnapshots.map((a) => a.timestamp));
   const mergedActivities = [
     ...local.activitySnapshots,
-    ...(remote.activitySnapshots || []).filter((a: any) => !activityKeys.has(a.timestamp)),
+    ...(remote.activitySnapshots || []).filter((a: { timestamp: string }) => !activityKeys.has(a.timestamp)),
   ];
 
   const mergedTopics = { ...remote.topicAccuracy, ...local.topicAccuracy };
@@ -287,7 +235,7 @@ export function mergeStates(local: StudyState, remote: Partial<StudyState>): Stu
   const cpKeys = new Set(local.chapterProgress.map((c) => `${c.chapter}-${c.subject}`));
   const mergedCP = [
     ...local.chapterProgress,
-    ...(remote.chapterProgress || []).filter((c: any) => !cpKeys.has(`${c.chapter}-${c.subject}`)),
+    ...(remote.chapterProgress || []).filter((c: { chapter: string; subject: string }) => !cpKeys.has(`${c.chapter}-${c.subject}`)),
   ];
 
   const weakAreaTopics = new Map<string, { topic: string; accuracy: number; chapter: string; lastSeen: string }>();
@@ -307,7 +255,7 @@ export function mergeStates(local: StudyState, remote: Partial<StudyState>): Stu
   const activityTimestamps = new Set((local.activityLog || []).map((a) => a.timestamp));
   const mergedActivityLog = [
     ...(local.activityLog || []),
-    ...(remote.activityLog || []).filter((a) => !activityTimestamps.has(a.timestamp)),
+    ...(remote.activityLog || []).filter((a: { timestamp: string }) => !activityTimestamps.has(a.timestamp)),
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const mergedAiTodos = mergeArrayDedup(local.aiTodos, remote.aiTodos, (t) => t.id);

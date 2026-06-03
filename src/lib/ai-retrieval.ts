@@ -247,8 +247,8 @@ async function fetchStudentProfile(): Promise<TutorContextOptions["studentProfil
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return undefined;
     const [goalsRes, aiRes] = await Promise.all([
-      supabase.from("student_goal_profiles").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("student_ai_profiles").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("student_goal_profiles").select("exam_goals,preferred_difficulty,survey").eq("user_id", user.id).maybeSingle(),
+      supabase.from("student_ai_profiles").select("tutor_personality_prompt,generated_learning_profile").eq("user_id", user.id).maybeSingle(),
     ]);
     if (!goalsRes.data && !aiRes.data) return undefined;
     return { ...goalsRes.data, ...aiRes.data } as TutorContextOptions["studentProfile"];

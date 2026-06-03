@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 export const runtime = "edge";
 
@@ -15,14 +16,20 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
-  const reqId = crypto.randomUUID().slice(0, 8);
-  console.log(`[LLM ${reqId}] POST /api/llm`);
-
   try {
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+      // Best-effort rate limit: 20 requests per 60s per user
+      const rateCheck = checkRateLimit(`llm:${user.id}`, { maxRequests: 20, windowMs: 60_000 });
+      if (!rateCheck.allowed) {
+        return NextResponse.json(
+          { error: "rate_limited", retryAfterMs: rateCheck.resetMs },
+          { status: 429, headers: { "Retry-After": String(Math.ceil(rateCheck.resetMs / 1000)) } }
+        );
+      }
     }
 
     const body = await request.json().catch(() => ({}));
@@ -58,15 +65,11 @@ export async function POST(request: Request) {
     if (body.reasoning_effort !== undefined) requestBody.reasoning_effort = body.reasoning_effort;
     if (body.thinking !== undefined) requestBody.thinking = body.thinking;
 
-    console.log(`[LLM ${reqId}] → ${baseUrl}/v1/chat/completions model=${model} msgs=${messages.length} max_tokens=${requestBody.max_tokens}`);
-
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: hdrs,
       body: JSON.stringify(requestBody),
     });
-
-    console.log(`[LLM ${reqId}] ← ${res.status}`);
 
     if (!res.body) {
       return NextResponse.json({ error: "empty_response" }, { status: 502 });
@@ -107,7 +110,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (err: unknown) {
-    console.log(`[LLM ${reqId}] × exception:`, err instanceof Error ? err.message : err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "unknown_error" }, { status: 500 });
   }
 }

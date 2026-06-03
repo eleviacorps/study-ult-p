@@ -125,19 +125,6 @@ export function updateStudyState(updater: (state: StudyState) => void) {
 
   saveStudyState(state);
 
-  const nonEmpty = Object.entries({
-    studyMinutes: state.studyMinutes && Object.keys(state.studyMinutes).length,
-    quizScores: state.quizScores?.length,
-    testScores: state.testScores?.length,
-    activitySnapshots: state.activitySnapshots?.length,
-    topicAccuracy: state.topicAccuracy && Object.keys(state.topicAccuracy).length,
-    weakAreas: state.weakAreas?.length,
-    points: state.points,
-    streak: state.streak,
-    chapterProgress: state.chapterProgress?.length,
-  }).filter(([, v]) => v);
-  console.log("[DEBUG SYNC] updateStudyState: non-empty fields:", nonEmpty, "| scheduleSync queued");
-
   if (typeof window !== "undefined") {
     import("./sync").then(({ scheduleSync }) => {
       scheduleSync(state);
@@ -237,8 +224,9 @@ export function saveActivitySnapshot(type: string, score: number, total: number,
 }
 
 export function computeAnalytics(state: StudyState) {
-  const totalAttempts = Object.values(state.questionAttempts || {}).reduce((s: number, a: any) => s + (a.total || 0), 0);
-  const totalCorrect = Object.values(state.questionAttempts || {}).reduce((s: number, a: any) => s + (a.correct || 0), 0);
+  const attemptsArr = Object.values(state.questionAttempts || {});
+  const totalAttempts = attemptsArr.reduce((s: number, a) => s + (a.total || 0), 0);
+  const totalCorrect = attemptsArr.reduce((s: number, a) => s + (a.correct || 0), 0);
   const reviewedCards = Object.keys(state.reviewedFlashcards || {}).length;
   const masteredCards = Object.keys(state.masteredFlashcards || {}).length;
   const today = new Date().toISOString().split("T")[0];
@@ -279,45 +267,60 @@ export function computeAnalytics(state: StudyState) {
 
 let _initialSnapshotSync = false;
 
+/**
+ * Pull remote state from DB and overwrite localStorage cache.
+ * DB is the primary store; localStorage is only a performance cache.
+ * After pull, the local cache is replaced with DB state plus any
+ * pending local changes that haven't been flushed yet.
+ */
 async function pullRemoteState() {
-  console.log("[DEBUG SYNC] pullRemoteState");
   try {
-    const { loadRemoteState, mergeStates, syncState } = await import("./sync");
+    const { loadRemoteState, syncState } = await import("./sync");
     const raw = localStorage.getItem("studyult-state");
     const local = raw ? JSON.parse(raw) : getDefaultState();
 
+    // Flush any pending local changes to DB first
     if (localStorage.getItem("studyult-sync-pending") === "1") {
-      console.log("[DEBUG SYNC] pullRemoteState: retrying pending sync");
       await syncState(local);
     }
 
     const remote = await loadRemoteState();
     if (remote) {
-      const merged = mergeStates(local, remote);
+      // DB is authoritative — overwrite localStorage with remote state,
+      // keeping only fields local has written since last sync attempt.
+      // This ensures cross-device consistency: DB state always wins.
+      const merged = {
+        ...getDefaultState(),
+        ...remote,
+        // Preserve local-only fields not stored in DB tables
+        aiConversations: local.aiConversations || remote.aiConversations || [],
+        activityLog: local.activityLog || remote.activityLog || [],
+        userTodos: local.userTodos || remote.userTodos || [],
+        lastAiAnalysis: remote.lastAiAnalysis || local.lastAiAnalysis || "",
+      };
       saveStudyState(merged);
 
-      // On first pull per session, upload local state so the full snapshot
-      // (questionAttempts, activityLog, aiTodos, etc.) propagates to other
-      // devices without waiting for user action.  Only push when this device
-      // actually has work data (questions answered / flashcards reviewed) so
-      // we never overwrite another device's snapshot with empty defaults.
-      const localHasData = Object.keys(merged.questionAttempts || {}).length > 0
-        || Object.keys(merged.reviewedFlashcards || {}).length > 0
-        || (merged.activityLog || []).length > 0;
-      if (!_initialSnapshotSync && localHasData) {
+      // Push local-only data to DB so it propagates across devices
+      const hasLocalOnlyData = (local.aiConversations?.length ?? 0) > 0
+        || (local.activityLog?.length ?? 0) > 0
+        || (local.userTodos?.length ?? 0) > 0;
+      if (!_initialSnapshotSync && hasLocalOnlyData) {
         _initialSnapshotSync = true;
-        console.log("[DEBUG SYNC] pullRemoteState: uploading snapshot for cross-device sync");
         await syncState(merged);
       }
+    } else if (raw) {
+      // No remote data yet, but local exists — push it to seed the DB
+      _initialSnapshotSync = true;
+      await syncState(local);
     }
   } catch {}
   window.dispatchEvent(new CustomEvent("study-state-refreshed"));
 }
 
 if (typeof window !== "undefined") {
-  // Pull once on page load (after auth restores)
+  // Pull on page load (after auth restores) with short delay for auth init
   setTimeout(pullRemoteState, 1500);
-  // Then poll every 30s so phone changes appear on PC without refresh
+  // Poll every 30s for cross-device sync
   setInterval(pullRemoteState, 30_000);
 }
 

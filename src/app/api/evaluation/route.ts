@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { canonicalSlug } from "@/lib/content-identity";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 type EvaluationPayload = {
   surface?: string;
@@ -34,6 +35,15 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  // Best-effort rate limit: 60 evaluations per 60s per user
+  const rateCheck = checkRateLimit(`eval:${user.id}`, { maxRequests: 60, windowMs: 60_000 });
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: rateCheck.resetMs },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(rateCheck.resetMs / 1000)) } }
+    );
+  }
 
   const body = (await request.json()) as EvaluationPayload;
   const topic = String(body.topic || body.chapter || "general").slice(0, 200);
@@ -117,19 +127,26 @@ export async function POST(request: Request) {
   }
 
   // Phase 2: derived upserts
-  const previousMastery = toNumber((masteryResult.data as any)?.mastery, 0);
-  const previousConfidence = toNumber((masteryResult.data as any)?.confidence, 0);
+  type MasteryRow = { mastery?: number; confidence?: number; evidence?: Record<string, unknown>[] };
+  type DailyRow = { attempts?: number; correct?: number };
+  type VelocityRow = { attempts?: number; correct?: number; last_accuracy?: number };
+
+  const masteryData = masteryResult.data as MasteryRow | null;
+  const previousMastery = toNumber(masteryData?.mastery, 0);
+  const previousConfidence = toNumber(masteryData?.confidence, 0);
   const nextMastery = clamp(previousMastery * 0.72 + accuracy * 0.28);
   const nextConfidence = clamp(previousConfidence + (correct ? 6 : 3));
-  const evidence = Array.isArray((masteryResult.data as any)?.evidence) ? (masteryResult.data as any).evidence.slice(-9) : [];
+  const evidence = Array.isArray(masteryData?.evidence) ? (masteryData!.evidence as Record<string, unknown>[]).slice(-9) : [];
   evidence.push({ at: now, surface: body.surface || "practice", correct, score, maxScore, questionId: body.questionId || null });
 
-  const dailyAttempts = toNumber((dailyResult.data as any)?.attempts, 0) + 1;
-  const dailyCorrect = toNumber((dailyResult.data as any)?.correct, 0) + (correct ? 1 : 0);
+  const dailyData = dailyResult.data as DailyRow | null;
+  const dailyAttempts = toNumber(dailyData?.attempts, 0) + 1;
+  const dailyCorrect = toNumber(dailyData?.correct, 0) + (correct ? 1 : 0);
 
-  const topicAttempts = toNumber((velocityResult.data as any)?.attempts, 0) + 1;
-  const topicCorrect = toNumber((velocityResult.data as any)?.correct, 0) + (correct ? 1 : 0);
-  const previousAccuracy = toNumber((velocityResult.data as any)?.last_accuracy, 0);
+  const velocityData = velocityResult.data as VelocityRow | null;
+  const topicAttempts = toNumber(velocityData?.attempts, 0) + 1;
+  const topicCorrect = toNumber(velocityData?.correct, 0) + (correct ? 1 : 0);
+  const previousAccuracy = toNumber(velocityData?.last_accuracy, 0);
   const lastAccuracy = clamp((topicCorrect / Math.max(1, topicAttempts)) * 100);
 
   const p2 = await Promise.all([

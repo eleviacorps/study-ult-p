@@ -65,17 +65,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ sessions: data || [] });
   }
 
+  const limit = Math.min(Number(searchParams.get("limit") || 100), 500);
+  const offset = Math.max(Number(searchParams.get("offset") || 0), 0);
+
   let query = supabase
     .from("chat_messages")
-    .select("role,content,created_at,session_id,client_id")
+    .select("role,content,created_at,session_id,client_id", { count: "exact" })
     .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .range(offset, offset + limit - 1);
 
   if (sessionId) {
     query = query.eq("session_id", sessionId);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) {
     console.error("Failed to fetch chat messages:", error);
     return NextResponse.json({ messages: [] });
@@ -88,10 +92,10 @@ export async function GET(request: Request) {
       .eq("user_id", user.id)
       .eq("id", sessionId)
       .single();
-    return NextResponse.json({ messages: data || [], session: session || null });
+    return NextResponse.json({ messages: data || [], session: session || null, total: count, limit, offset });
   }
 
-  return NextResponse.json({ messages: data || [] });
+  return NextResponse.json({ messages: data || [], total: count, limit, offset });
 }
 
 // POST /api/chat saves one or more messages under a first-class chat session.

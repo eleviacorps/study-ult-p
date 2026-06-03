@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   if (id) {
     const { data, error } = await supabase
       .from("md_bank")
-      .select("*")
+      .select("id,title,author,subject,chapter,tags,content,filename,description,created_by,created_at,updated_at")
       .eq("id", id)
       .single();
 

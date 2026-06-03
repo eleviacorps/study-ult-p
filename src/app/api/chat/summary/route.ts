@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limiter";
 
 const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
 const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
@@ -50,6 +51,15 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ summarized: false, error: "unauthorized" }, { status: 401 });
 
+  // Best-effort rate limit: 10 summary requests per 60s per user
+  const rateCheck = checkRateLimit(`summary:${user.id}`, { maxRequests: 10, windowMs: 60_000 });
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterMs: rateCheck.resetMs },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(rateCheck.resetMs / 1000)) } }
+    );
+  }
+
   const body = await request.json().catch(() => ({}));
   const sessionId = typeof body.session_id === "string" ? body.session_id : "";
   if (!sessionId) return NextResponse.json({ summarized: false, error: "session_id_required" }, { status: 400 });
@@ -73,7 +83,8 @@ export async function POST(request: Request) {
   const rows = messages || [];
   if (rows.length < 6) return NextResponse.json({ summarized: false, reason: "not_enough_messages" });
 
-  const transcript = rows.map((message: any) => `${message.role}: ${message.content}`).join("\n\n");
+  type ChatMessageRow = { id: string; role: string; content: string; created_at: string };
+  const transcript = (rows as ChatMessageRow[]).map((message) => `${message.role}: ${message.content}`).join("\n\n");
   let summary = fallbackSummary(transcript);
   try {
     summary = await summarizeWithAi(transcript);
@@ -81,7 +92,7 @@ export async function POST(request: Request) {
     // Fall back to deterministic compression so memory still advances.
   }
 
-  const coveredMessageIds = rows.map((message: any) => message.id);
+  const coveredMessageIds = (rows as ChatMessageRow[]).map((message) => message.id);
   const tokenEstimate = Math.ceil(summary.length / 4);
   const now = new Date().toISOString();
 

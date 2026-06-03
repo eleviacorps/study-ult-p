@@ -10,7 +10,19 @@ function tokens(value: string): string[] {
     .slice(0, 24);
 }
 
-function scoreChunk(chunk: any, queryTokens: string[], chapter: string | null): number {
+type VaultChunk = {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  content: string;
+  token_estimate: number;
+  metadata: Record<string, string> | null;
+  created_at: string;
+};
+
+type ScoredChunk = VaultChunk & { score: number };
+
+function scoreChunk(chunk: { content?: string; metadata?: Record<string, string> }, queryTokens: string[], chapter: string | null): number {
   const metadata = chunk.metadata || {};
   const haystack = `${chunk.content || ""} ${metadata.title || ""} ${metadata.chapter || ""}`.toLowerCase();
   let score = 0;
@@ -57,12 +69,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ retrievals: [], error: error.message }, { status: 500 });
   }
 
-  const retrievals = (data || [])
-    .map((chunk: any) => ({ ...chunk, score: scoreChunk(chunk, queryTokens, chapter) }))
-    .filter((chunk: any) => chunk.score > 0 || chapter)
-    .sort((a: any, b: any) => b.score - a.score)
+  const chunks = (data || []) as VaultChunk[];
+  const retrievals = chunks
+    .map((chunk) => ({ ...chunk, score: scoreChunk(chunk, queryTokens, chapter) }))
+    .filter((chunk: ScoredChunk) => chunk.score > 0 || chapter)
+    .sort((a: ScoredChunk, b: ScoredChunk) => b.score - a.score)
     .slice(0, limit)
-    .map((chunk: any) => ({
+    .map((chunk: ScoredChunk) => ({
       id: chunk.id,
       document_id: chunk.document_id,
       chunk_index: chunk.chunk_index,
