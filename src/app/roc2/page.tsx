@@ -7,7 +7,7 @@ import {
   Activity, AlertTriangle, CheckCircle2, Clock, Route, Server, 
   ShieldAlert, BarChart3, Filter, RefreshCw, ChevronDown, Download,
   Mail, Bell, BellRing, ArrowUpRight, XCircle, Info, Database,
-  Loader2, Eye, EyeOff, Trash2, Search,
+  Loader2, Eye, EyeOff, Trash2, Search,  Save, HardDrive,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -53,7 +53,10 @@ export default function Roc2Page() {
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [alertConfig, setAlertConfig] = useState<{ configured: boolean; alertEmail: string } | null>(null);
+  const [alertConfig, setAlertConfig] = useState<{ configured: boolean } | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState<{ migrated: boolean; results: { name: string; success: boolean; error?: string }[] } | null>(null);
+  const [backupStatus, setBackupStatus] = useState<{ latestBackup: { type: string; status: string; createdAt: string } | null } | null>(null);
 
   // ── Fetch dashboard data ────────────────────────────────────
 
@@ -96,10 +99,21 @@ export default function Roc2Page() {
     }
   }, []);
 
+  const fetchBackupStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/roc2/backup");
+      if (res.ok) {
+        const data = await res.json();
+        setBackupStatus(data);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchDashboard();
     fetchAlertConfig();
-  }, [fetchDashboard, fetchAlertConfig]);
+    fetchBackupStatus();
+  }, [fetchDashboard, fetchAlertConfig, fetchBackupStatus]);
 
   // Auto-refresh every 15s
   useEffect(() => {
@@ -510,7 +524,7 @@ export default function Roc2Page() {
                 )}
               </div>
               <p className="text-[11px] text-[var(--text-primary)]/30">
-                Alerts sent to: <span className="font-mono text-[var(--text-primary)]/50">{alertConfig?.alertEmail || "Not set"}</span>
+                Configured via: <span className="font-mono text-[var(--text-primary)]/50">ROC2_ALERT_EMAIL</span>
               </p>
               {!alertConfig?.configured && (
                 <p className="text-[11px] text-[var(--text-primary)]/30 mt-2">
@@ -553,6 +567,140 @@ export default function Roc2Page() {
                 )}
               >
                 Send Test Alert
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Database Migrations ───────────────────────────── */}
+        <div className="glass p-4 sm:p-5 border-[#10B981]/10">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2 mb-3">
+            <HardDrive className="w-4 h-4 text-[#10B981]" />
+            Database Migrations
+          </h2>
+          <p className="text-[11px] text-[var(--text-primary)]/40 mb-3">
+            Run pending ROC2 migrations to create the required tables (server_logs, backup_logs).
+            Migrations are idempotent — safe to run multiple times.
+          </p>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={async () => {
+                setMigrating(true);
+                setMigrateResult(null);
+                try {
+                  const res = await fetch("/api/roc2/migrate", { method: "POST" });
+                  const data = await res.json();
+                  setMigrateResult(data);
+                  if (data.migrated) await fetchDashboard();
+                } catch {
+                  setMigrateResult({ migrated: false, results: [{ name: "error", success: false, error: "Request failed" }] });
+                } finally {
+                  setMigrating(false);
+                }
+              }}
+              disabled={migrating}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2",
+                migrating
+                  ? "bg-[var(--glass-light)] text-[var(--text-primary)]/20 cursor-not-allowed"
+                  : "bg-[#10B981]/15 text-[#10B981] hover:bg-[#10B981]/25"
+              )}
+            >
+              {migrating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <HardDrive className="w-3.5 h-3.5" />}
+              {migrating ? "Running..." : "Run Migrations"}
+            </button>
+
+            {migrateResult && (
+              <div className="flex items-center gap-2 text-xs">
+                {migrateResult.migrated ? (
+                  <span className="flex items-center gap-1 text-[#10B981]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    All migrations completed
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[#EF4444]">
+                    <XCircle className="w-3.5 h-3.5" />
+                    Some migrations failed
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {migrateResult?.results && migrateResult.results.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {migrateResult.results.map((r) => (
+                <div key={r.name} className="flex items-center gap-2 text-[11px]">
+                  {r.success ? (
+                    <CheckCircle2 className="w-3 h-3 text-[#10B981] shrink-0" />
+                  ) : (
+                    <XCircle className="w-3 h-3 text-[#EF4444] shrink-0" />
+                  )}
+                  <span className="text-[var(--text-primary)]/60">{r.name}</span>
+                  {r.error && <span className="text-[#EF4444]/60">— {r.error}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Backup Status ──────────────────────────────────── */}
+        <div className="glass p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2 mb-3">
+            <Save className="w-4 h-4 text-[#06B6D4]" />
+            Backup & Recovery
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-[var(--glass-light)] rounded-xl p-4">
+              <p className="text-[10px] font-medium text-[var(--text-primary)]/30 uppercase tracking-wider mb-2">Latest Backup</p>
+              {backupStatus?.latestBackup ? (
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    {new Date(backupStatus.latestBackup.createdAt).toLocaleString("en-IN")}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-primary)]/40 mt-1">
+                    Type: {backupStatus.latestBackup.type} · Status: {backupStatus.latestBackup.status}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-[var(--text-primary)]/30">No backups recorded</p>
+                  <p className="text-[11px] text-[var(--text-primary)]/30 mt-1">
+                    Backups appear here after a cron job or manual backup script calls POST /api/roc2/backup
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-[var(--glass-light)] rounded-xl p-4">
+              <p className="text-[10px] font-medium text-[var(--text-primary)]/30 uppercase tracking-wider mb-2">Record Backup</p>
+              <p className="text-[11px] text-[var(--text-primary)]/40 mb-3">
+                Manually record a backup event. Use this after running a manual database backup.
+              </p>
+              <button
+                onClick={async () => {
+                  const res = await fetch("/api/roc2/backup", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      type: "manual",
+                      status: "completed",
+                      message: "Manual backup from ROC2 dashboard",
+                    }),
+                  });
+                  if (res.ok) {
+                    setBackupStatus({ latestBackup: { type: "manual", status: "completed", createdAt: new Date().toISOString() } });
+                    fetchDashboard();
+                    alert("Backup recorded!");
+                  } else {
+                    const err = await res.json();
+                    alert(`Failed: ${err.error || "Unknown error"}`);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-[#06B6D4]/15 text-[#06B6D4] hover:bg-[#06B6D4]/25 transition-all"
+              >
+                Record Backup Now
               </button>
             </div>
           </div>

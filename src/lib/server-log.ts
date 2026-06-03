@@ -407,13 +407,27 @@ export async function getRoc2Dashboard(userId?: string): Promise<Roc2Dashboard> 
       activeAlerts.push("No requests logged in last 24h — service may be down");
     }
 
+    // Read latest backup timestamp from backup_logs table
+    let lastBackupAt: string | null = null;
+    try {
+      const { data: latestBackup } = await supabase
+        .from("backup_logs")
+        .select("created_at")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastBackupAt = latestBackup?.created_at || null;
+    } catch {
+      // backup_logs table may not exist yet
+    }
+
     return {
       recentLogs: entries.slice(0, 50),
       errorCount24h: errors.length,
       warnCount24h: warnings.length,
       avgDurationMs24h: avgDuration,
       routesHit24h: routes.size,
-      lastBackupAt: null, // Set externally via backup checker cron
+      lastBackupAt,
       activeAlerts,
       totalRequests24h: entries.length,
     };
