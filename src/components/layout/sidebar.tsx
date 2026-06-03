@@ -8,7 +8,7 @@ import {
   LayoutDashboard, BookOpen, HelpCircle, Layers, ClipboardList,
   BarChart3, Share2, Bot, Settings, ChevronLeft, ChevronRight,
   Menu, X, FileCheck, Play, Wand2, UserRound,
-  User, LogOut, ChevronDown,
+  User, LogOut, ChevronDown, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +26,7 @@ const navItems = [
   { href: "/simulations", label: "Simulations", icon: Play },
   { href: "/tutor", label: "AI Tutor", icon: Bot },
   { href: "/note-agent", label: "Note Agent", icon: Wand2 },
+  { href: "/roc2", label: "ROC2", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -41,8 +42,9 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [profile, setProfile] = useState<{ name?: string; avatar_url?: string; username?: string } | null>(null);
+  const [profile, setProfile] = useState<{ name?: string; avatar_url?: string; username?: string; role?: string } | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { vault } = useVaultStore();
@@ -67,7 +69,12 @@ export function Sidebar() {
       if (!user) return;
       fetch("/api/profile")
         .then((r) => r.ok ? r.json() : null)
-        .then((d) => { if (d?.id) setProfile(d); })
+        .then((d) => {
+          if (d?.id) {
+            setProfile(d);
+            setIsAdmin(d.role === "admin");
+          }
+        })
         .catch(() => {});
     });
   }, []);
@@ -109,7 +116,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 bg-[#09090B]">
-        {navItems.map((item) => {
+        {navItems.filter((item) => item.href !== "/roc2" || isAdmin).map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
           return (
             <Link key={item.href} href={item.href}
