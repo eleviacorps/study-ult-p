@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { canonicalSlug } from "@/lib/content-identity";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { logRequest } from "@/lib/server-log";
 
 type EvaluationPayload = {
   surface?: string;
@@ -26,7 +27,9 @@ function toNumber(value: unknown, fallback: number): number {
 }
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/evaluation", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
@@ -34,11 +37,16 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   // Best-effort rate limit: 60 evaluations per 60s per user
   const rateCheck = checkRateLimit(`eval:${user.id}`, { maxRequests: 60, windowMs: 60_000 });
   if (!rateCheck.allowed) {
+    await log.warn(429, "rate_limited");
     return NextResponse.json(
       { error: "rate_limited", retryAfterMs: rateCheck.resetMs },
       { status: 429, headers: { "Retry-After": String(Math.ceil(rateCheck.resetMs / 1000)) } }
@@ -191,6 +199,10 @@ export async function POST(request: Request) {
     if (error) errors.push(error.message);
   }
 
-  if (errors.length > 0) return NextResponse.json({ recorded: false, errors }, { status: 207 });
+  if (errors.length > 0) {
+    await log.warn(207, `evaluation partial: ${errors.join("; ")}`);
+    return NextResponse.json({ recorded: false, errors }, { status: 207 });
+  }
+  await log.success(200, `evaluation recorded: ${conceptSlug}`);
   return NextResponse.json({ recorded: true, conceptSlug, mastery: nextMastery, confidence: nextConfidence });
 }

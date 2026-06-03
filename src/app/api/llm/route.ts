@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { logRequest } from "@/lib/server-log";
 
 export const runtime = "edge";
 
@@ -16,14 +17,19 @@ type ChatMessage = {
 };
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/llm", null);
   try {
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      if (!user) {
+        await log.warn(401, "unauthorized");
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
+      log.setMeta("userId", user.id);
 
-      // Best-effort rate limit: 20 requests per 60s per user
-      const rateCheck = checkRateLimit(`llm:${user.id}`, { maxRequests: 20, windowMs: 60_000 });
+      // Best-effort rate limit: 120 requests per 60s per user (generous for note agent + tutor)
+      const rateCheck = checkRateLimit(`llm:${user.id}`, { maxRequests: 120, windowMs: 60_000 });
       if (!rateCheck.allowed) {
         return NextResponse.json(
           { error: "rate_limited", retryAfterMs: rateCheck.resetMs },
@@ -102,6 +108,9 @@ export async function POST(request: Request) {
     // ticking until the entire response arrives. On Hobby (30s wall limit),
     // a slow provider response causes FUNCTION_INVOCATION_TIMEOUT.
     // Piping returns the function as soon as the first byte arrives (~1-3s).
+    log.setMeta("providerStatus", res.status);
+    log.setMeta("model", model);
+    await log.success(200, `LLM ${model} ${isStream ? "stream" : "response"} piped`);
     return new Response(res.body, {
       status: res.status,
       headers: {
@@ -110,6 +119,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (err: unknown) {
+    await log.error("llm_request_failed", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "unknown_error" }, { status: 500 });
   }
 }

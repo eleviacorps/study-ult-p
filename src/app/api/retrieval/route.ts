@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logRequest } from "@/lib/server-log";
 
 function tokens(value: string): string[] {
   return value
@@ -34,7 +35,9 @@ function scoreChunk(chunk: { content?: string; metadata?: Record<string, string>
 }
 
 export async function GET(request: Request) {
+  const log = logRequest("GET /api/retrieval", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(200, "supabase_not_configured");
     return NextResponse.json({ retrievals: [] });
   }
 
@@ -42,7 +45,11 @@ export async function GET(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ retrievals: [] }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ retrievals: [] }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") || "";
@@ -88,5 +95,6 @@ export async function GET(request: Request) {
       token_estimate: chunk.token_estimate,
     }));
 
+  await log.success(200, `retrieved ${retrievals.length} chunks`);
   return NextResponse.json({ retrievals });
 }

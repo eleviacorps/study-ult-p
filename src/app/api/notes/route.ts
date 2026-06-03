@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { canonicalSlug, sha256Hex } from "@/lib/content-identity";
 import { createClient } from "@/lib/supabase/server";
+import { logRequest } from "@/lib/server-log";
 
 type IncomingNote = {
   chapter: string;
@@ -14,7 +15,9 @@ type IncomingNote = {
 
 // GET /api/notes — fetch all notes for the authenticated user
 export async function GET() {
+  const log = logRequest("GET /api/notes", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(200, "supabase_not_configured, returning empty");
     return NextResponse.json({ notes: [] });
   }
 
@@ -22,7 +25,11 @@ export async function GET() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ notes: [] });
+  if (!user) {
+    await log.warn(200, "no user, returning empty");
+    return NextResponse.json({ notes: [] });
+  }
+  log.setMeta("userId", user.id);
 
   const { data, error } = await supabase
     .from("user_notes")
@@ -31,16 +38,19 @@ export async function GET() {
     .order("chapter", { ascending: true });
 
   if (error) {
-    console.error("Failed to fetch user notes:", error);
+    await log.error("notes_fetch_failed", error);
     return NextResponse.json({ notes: [] });
   }
 
+  await log.success(200, `fetched ${(data||[]).length} notes`);
   return NextResponse.json({ notes: data || [] });
 }
 
 // POST /api/notes — upsert notes (array). Deduped by (user_id, path).
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/notes", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
@@ -48,7 +58,11 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const body = await request.json().catch(() => ({}));
   const notes: IncomingNote[] = body.notes;
@@ -139,15 +153,19 @@ export async function POST(request: Request) {
   }
 
   if (errors.length > 0) {
+    await log.warn(200, `notes upsert with errors: ${errors.join("; ")}`);
     return NextResponse.json({ synced: false, upserted, skippedDuplicates, errors });
   }
 
+  await log.success(200, `upserted ${upserted} notes, skipped ${skippedDuplicates.length}`);
   return NextResponse.json({ synced: true, upserted, skippedDuplicates });
 }
 
 // DELETE /api/notes?chapter=xxx — delete all notes for a chapter (or all if no chapter)
 export async function DELETE(request: Request) {
+  const log = logRequest("DELETE /api/notes", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ deleted: false, error: "supabase_not_configured" }, { status: 501 });
   }
 
@@ -155,10 +173,15 @@ export async function DELETE(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const { searchParams } = new URL(request.url);
   const chapter = searchParams.get("chapter");
+  log.setMeta("chapter", chapter);
 
   let query = supabase.from("user_notes").delete().eq("user_id", user.id);
   if (chapter) {
@@ -167,9 +190,11 @@ export async function DELETE(request: Request) {
   const { error } = await query;
 
   if (error) {
+    await log.error("notes_delete_failed", error);
     return NextResponse.json({ deleted: false, error: error.message });
   }
 
+  await log.success(200, `deleted notes for chapter=${chapter || "all"}`);
   return NextResponse.json({ deleted: true });
 }
 

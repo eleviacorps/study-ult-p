@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logRequest } from "@/lib/server-log";
 
 type ChatSessionType =
   | "physics_tutor"
@@ -37,7 +38,9 @@ const CHAT_TYPES = new Set<string>([
 // GET /api/chat?sessions=1 returns scoped chat sessions.
 // GET /api/chat?session_id=xxx returns messages for a session.
 export async function GET(request: Request) {
+  const log = logRequest("GET /api/chat", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(200, "supabase_not_configured");
     return NextResponse.json({ messages: [], sessions: [] });
   }
 
@@ -45,7 +48,11 @@ export async function GET(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ messages: [], sessions: [] });
+  if (!user) {
+    await log.warn(200, "no user");
+    return NextResponse.json({ messages: [], sessions: [] });
+  }
+  log.setMeta("userId", user.id);
 
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get("session_id");
@@ -95,12 +102,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ messages: data || [], session: session || null, total: count, limit, offset });
   }
 
+  await log.success(200, `fetched ${(data||[]).length} messages`);
   return NextResponse.json({ messages: data || [], total: count, limit, offset });
 }
 
 // POST /api/chat saves one or more messages under a first-class chat session.
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/chat", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
@@ -108,16 +118,22 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const body = await request.json().catch(() => ({}));
   const messages: IncomingMessage[] = body.messages;
   if (!Array.isArray(messages) || messages.length === 0) {
+    await log.warn(400, "no_messages");
     return NextResponse.json({ synced: false, error: "no_messages" });
   }
 
   const firstValidMessage = messages.find(isValidMessage);
   if (!firstValidMessage) {
+    await log.warn(400, "invalid_messages");
     return NextResponse.json({ synced: false, error: "invalid_messages" }, { status: 400 });
   }
 
@@ -157,9 +173,12 @@ export async function POST(request: Request) {
     .upsert(rows, { onConflict: "user_id,session_id,client_id", ignoreDuplicates: true });
 
   if (error) {
+    log.setMeta("sessionError", error.message);
+    await log.error("chat_message_insert_failed", error);
     return NextResponse.json({ synced: false, error: error.message });
   }
 
+  await log.success(200, `saved ${rows.length} messages to session ${session.id}`);
   return NextResponse.json({ synced: true, session_id: session.id, inserted: rows.length });
 }
 

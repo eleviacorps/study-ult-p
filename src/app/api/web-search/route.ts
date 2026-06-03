@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logRequest } from "@/lib/server-log";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -96,12 +97,15 @@ async function fetchDdg(url: string): Promise<{ html: string; status: number }> 
 }
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/web-search", null);
   try {
     const body = await request.json().catch(() => ({}));
     const query = (body.query as string) || "";
     if (!query) {
+      await log.warn(400, "missing_query");
       return NextResponse.json({ error: "Missing query" }, { status: 400 });
     }
+    log.setMeta("query", query.slice(0, 80));
 
     const encoded = encodeURIComponent(query);
     let results: SearchResult[] = [];
@@ -155,6 +159,7 @@ export async function POST(request: Request) {
     // Filter any garbage that snuck through
     results = results.filter((r) => !isGarbage(r.title) && !isGarbage(r.snippet));
 
+    await log.success(200, `${results.length} results via ${backend}`);
     return NextResponse.json({
       query,
       results,
@@ -163,6 +168,7 @@ export async function POST(request: Request) {
       count: results.length,
     });
   } catch (err) {
+    await log.error("web_search_failed", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err), query: "", results: [] }, { status: 500 });
   }
 }

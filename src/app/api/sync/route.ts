@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logRequest } from "@/lib/server-log";
 
 // ── Types ──
 
@@ -148,17 +149,24 @@ interface SnapshotData {
 // ── POST — upsert sync data as batched writes ──
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/sync", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const body: SyncRequestBody = await request.json();
   const userId = user.id;
   const errors: string[] = [];
+  log.setMeta("bodyKeys", Object.keys(body));
 
   // Batch study sessions
   if (body.studyMinutes && Object.keys(body.studyMinutes).length > 0) {
@@ -285,22 +293,30 @@ export async function POST(request: Request) {
   }
 
   if (errors.length > 0) {
+    await log.warn(500, `sync partial failure: ${errors.join("; ")}`);
     return NextResponse.json({ synced: false, errors }, { status: 500 });
   }
 
+  await log.success(200, `synced ${Object.keys(body).length} data types`);
   return NextResponse.json({ synced: true });
 }
 
 // ── GET — fetch sync data with explicit columns ──
 
 export async function GET(request: Request) {
+  const log = logRequest("GET /api/sync", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const userId = user.id;
 
@@ -345,6 +361,7 @@ export async function GET(request: Request) {
   const streakRow = streak as StudyStreakRow | null;
   const snap = snapshotData?.data || ((cognitiveState?.data as Record<string, unknown>)?.study_patterns as Record<string, unknown>)?._snapshot || null;
 
+  await log.success(200, "sync data fetched");
   return NextResponse.json({
     studyMinutes,
     quizScores: (quizzes || []) as QuizScoreRow[],

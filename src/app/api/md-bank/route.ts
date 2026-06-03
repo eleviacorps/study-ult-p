@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logRequest } from "@/lib/server-log";
 
 export async function GET(request: Request) {
+  const log = logRequest("GET /api/md-bank", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
@@ -20,7 +27,11 @@ export async function GET(request: Request) {
       .eq("id", id)
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+    if (error) {
+      await log.warn(404, `md_bank entry ${id} not found`);
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    await log.success(200, `md_bank entry ${id} fetched`);
     return NextResponse.json(data);
   }
 
@@ -40,19 +51,29 @@ export async function GET(request: Request) {
   if (q) query = query.or(`title.ilike.%${q}%,subject.ilike.%${q}%,author.ilike.%${q}%,chapter.ilike.%${q}%,description.ilike.%${q}%`);
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    await log.error("md_bank_fetch_failed", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
+  await log.success(200, `fetched ${(data||[]).length} md bank entries`);
   return NextResponse.json(data || []);
 }
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/md-bank", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -61,6 +82,7 @@ export async function POST(request: Request) {
     .single();
 
   if (profile?.role !== "admin") {
+    await log.warn(403, "forbidden_admin_only");
     return NextResponse.json({ error: "forbidden_admin_only" }, { status: 403 });
   }
 
@@ -90,18 +112,28 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    await log.error("md_bank_upsert_failed", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  await log.success(201, `md_bank entry created/updated: ${filename}`);
   return NextResponse.json(data, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
+  const log = logRequest("DELETE /api/md-bank", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ error: "supabase_not_configured" }, { status: 501 });
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -110,16 +142,24 @@ export async function DELETE(request: Request) {
     .single();
 
   if (profile?.role !== "admin") {
+    await log.warn(403, "forbidden_admin_only");
     return NextResponse.json({ error: "forbidden_admin_only" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
 
-  if (!id) return NextResponse.json({ error: "id parameter required" }, { status: 400 });
+  if (!id) {
+    await log.warn(400, "id parameter required");
+    return NextResponse.json({ error: "id parameter required" }, { status: 400 });
+  }
 
   const { error } = await supabase.from("md_bank").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    await log.error("md_bank_delete_failed", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
+  await log.success(200, `md_bank entry ${id} deleted`);
   return NextResponse.json({ success: true });
 }

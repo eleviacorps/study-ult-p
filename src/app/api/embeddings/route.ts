@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logRequest } from "@/lib/server-log";
 
 const DEFAULT_EMBEDDING_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_EMBEDDING_MODEL = "nvidia/llama-nemotron-embed-1b-v2";
@@ -9,19 +10,26 @@ function isGeminiProvider(baseUrl: string): boolean {
 }
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/embeddings", null);
   try {
     if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      if (!user) {
+        await log.warn(401, "unauthorized");
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
+      log.setMeta("userId", user.id);
     }
 
     const body = await request.json().catch(() => ({}));
     const input = body.input;
     const inputType = body.input_type || "passage";
     if (!input || (Array.isArray(input) && input.length === 0)) {
+      await log.warn(400, "missing_input");
       return NextResponse.json({ error: "missing_input" }, { status: 400 });
     }
+    log.setMeta("inputCount", Array.isArray(input) ? input.length : 1);
 
     const baseUrl = (process.env.EMBEDDING_BASE_URL || DEFAULT_EMBEDDING_BASE_URL).replace(/\/+$/, "");
     const model = process.env.EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
@@ -99,13 +107,17 @@ export async function POST(request: Request) {
     }
 
     const data = JSON.parse(text);
+    await log.success(200, `embedding generated for ${texts.length} texts`);
     return NextResponse.json(data, { status: 200 });
   } catch (err: unknown) {
+    await log.error("embedding_failed", err);
     const msg = err instanceof Error ? err.message : "unknown_error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 export async function GET() {
+  const log = logRequest("GET /api/embeddings", null);
+  await log.warn(405, "embeddings only accepts POST");
   return NextResponse.json({ error: "use POST" }, { status: 405 });
 }

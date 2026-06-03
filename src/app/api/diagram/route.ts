@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deflateSync } from "node:zlib";
 import { isMermaidSource, sanitizeSvg } from "@/lib/mermaid-security";
+import { logRequest } from "@/lib/server-log";
 
 const KROKI_BASE = "https://kroki.io";
 
@@ -10,11 +11,13 @@ function encodeDeflateBase64(source: string): string {
 }
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/diagram", null);
   try {
     const body = await request.json().catch(() => ({}));
     const source = typeof body.source === "string" ? body.source.trim() : "";
 
     if (!isMermaidSource(source)) {
+      await log.warn(400, "invalid_mermaid_source");
       return NextResponse.json({ error: "invalid_mermaid_source" }, { status: 400 });
     }
 
@@ -37,6 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "kroki_render_failed", detail: svg.slice(0, 500) }, { status: res.status });
     }
 
+    await log.success(200, "diagram rendered via kroki");
     return new Response(sanitizeSvg(svg), {
       status: 200,
       headers: {
@@ -45,6 +49,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    await log.error("diagram_render_failed", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "unknown_error" }, { status: 500 });
   }
 }

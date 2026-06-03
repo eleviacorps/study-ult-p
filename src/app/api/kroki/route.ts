@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { deflateRawSync } from "zlib";
 import { isMermaidSource, sanitizeSvg } from "@/lib/mermaid-security";
+import { logRequest } from "@/lib/server-log";
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/kroki", null);
   const body = await request.json().catch(() => ({}));
   const code = typeof body.code === "string" ? body.code.trim() : "";
   if (!isMermaidSource(code)) {
+    await log.warn(400, "invalid_mermaid_source");
     return NextResponse.json({ error: "invalid_mermaid_source" }, { status: 400 });
   }
 
@@ -22,6 +25,7 @@ export async function POST(request: Request) {
     }
 
     const svg = sanitizeSvg(await res.text());
+    await log.success(200, "kroki svg rendered");
     return new NextResponse(svg, {
       headers: {
         "Content-Type": "image/svg+xml",
@@ -29,6 +33,7 @@ export async function POST(request: Request) {
       },
     });
   } catch (e) {
+    await log.error("kroki_failed", e);
     return NextResponse.json({ error: "kroki_failed", detail: String(e) }, { status: 502 });
   }
 }

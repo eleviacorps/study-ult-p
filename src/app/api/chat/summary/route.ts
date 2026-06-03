@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { logRequest } from "@/lib/server-log";
 
 const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
 const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
@@ -41,7 +42,9 @@ function fallbackSummary(transcript: string): string {
 }
 
 export async function POST(request: Request) {
+  const log = logRequest("POST /api/chat/summary", null);
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    await log.warn(501, "supabase_not_configured");
     return NextResponse.json({ summarized: false, error: "supabase_not_configured" }, { status: 501 });
   }
 
@@ -49,11 +52,16 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ summarized: false, error: "unauthorized" }, { status: 401 });
+  if (!user) {
+    await log.warn(401, "unauthorized");
+    return NextResponse.json({ summarized: false, error: "unauthorized" }, { status: 401 });
+  }
+  log.setMeta("userId", user.id);
 
   // Best-effort rate limit: 10 summary requests per 60s per user
   const rateCheck = checkRateLimit(`summary:${user.id}`, { maxRequests: 10, windowMs: 60_000 });
   if (!rateCheck.allowed) {
+    await log.warn(429, "rate_limited");
     return NextResponse.json(
       { error: "rate_limited", retryAfterMs: rateCheck.resetMs },
       { status: 429, headers: { "Retry-After": String(Math.ceil(rateCheck.resetMs / 1000)) } }
@@ -111,5 +119,6 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .eq("id", sessionId);
 
+  await log.success(200, `summary created for session ${sessionId}`);
   return NextResponse.json({ summarized: true, summary, tokenEstimate });
 }
