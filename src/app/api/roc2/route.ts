@@ -27,10 +27,22 @@ export async function GET(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  // Gate by admin role — only admins can see all users' logs
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isAdmin = profile?.role === "admin";
+  if (!isAdmin) {
+    return NextResponse.json({ error: "forbidden", message: "Admin access required" }, { status: 403 });
+  }
+
   const log = logRequest("GET /api/roc2", user.id);
 
   try {
     const { searchParams } = new URL(request.url);
+    // When scope is omitted, admin sees all logs. Regular users get filtered via RLS.
     const scope = searchParams.get("user") === "me" ? user.id : undefined;
     const levelFilter = searchParams.get("level");
     const since = searchParams.get("since"); // ISO date for custom range
@@ -43,13 +55,14 @@ export async function GET(request: Request) {
     }
 
     // Fetch backup status from study_state_snapshots freshness
+    // Use maybeSingle() — new users may not have snapshots yet
     const { data: latestSnapshot } = await supabase
       .from("study_state_snapshots")
       .select("updated_at")
       .eq("user_id", user.id)
       .order("updated_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     dashboard.lastBackupAt = latestSnapshot?.updated_at || null;
 

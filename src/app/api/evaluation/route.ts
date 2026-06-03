@@ -200,8 +200,8 @@ export async function POST(request: Request) {
   }
 
   if (errors.length > 0) {
-    await log.warn(207, `evaluation partial: ${errors.join("; ")}`);
-    return NextResponse.json({ recorded: false, errors }, { status: 207 });
+    await log.warn(500, `evaluation partial failure: ${errors.join("; ")}`);
+    return NextResponse.json({ recorded: false, errors }, { status: 500 });
   }
   await log.success(200, `evaluation recorded: ${conceptSlug}`);
   return NextResponse.json({ recorded: true, conceptSlug, mastery: nextMastery, confidence: nextConfidence });

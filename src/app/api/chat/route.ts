@@ -65,7 +65,8 @@ export async function GET(request: Request) {
       .order("updated_at", { ascending: false });
 
     if (error) {
-      console.error("Failed to fetch chat sessions:", error);
+      log.setMeta("fetchError", error.message);
+      await log.warn(500, "chat_sessions_fetch_failed");
       return NextResponse.json({ sessions: [] });
     }
 
@@ -88,7 +89,8 @@ export async function GET(request: Request) {
 
   const { data, error, count } = await query;
   if (error) {
-    console.error("Failed to fetch chat messages:", error);
+    log.setMeta("fetchError", error.message);
+    await log.warn(500, "chat_messages_fetch_failed");
     return NextResponse.json({ messages: [] });
   }
 

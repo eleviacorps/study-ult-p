@@ -351,7 +351,7 @@ export async function GET(request: Request) {
     supabase.from("user_points").select("points").eq("user_id", userId).single(),
     supabase.from("study_streaks").select("current_streak,longest_streak,last_study_date").eq("user_id", userId).single(),
     supabase.from("chapter_progress").select("chapter,subject,completed_topics,total_topics,questions_attempted,questions_correct,flashcards_reviewed,flashcards_mastered,last_studied_at").eq("user_id", userId),
-    supabase.from("student_learning_state").select("updated_at").eq("user_id", userId).single(),
+    supabase.from("student_learning_state").select("updated_at,data").eq("user_id", userId).maybeSingle(),
   ]);
 
   const studyMinutes: Record<string, number> = {};
@@ -359,7 +359,13 @@ export async function GET(request: Request) {
 
   const pointsRow = points as UserPointsRow | null;
   const streakRow = streak as StudyStreakRow | null;
-  const snap = snapshotData?.data || ((cognitiveState?.data as Record<string, unknown>)?.study_patterns as Record<string, unknown>)?._snapshot || null;
+
+  // Cognitive state may be null for new users — extract snapshot safely
+  const cognitiveData = cognitiveState && typeof cognitiveState === "object" && !Array.isArray(cognitiveState)
+    ? (cognitiveState as { data?: Record<string, unknown>; updated_at?: string }).data ?? null
+    : null;
+  const studyPatterns = cognitiveData?.study_patterns as Record<string, unknown> | undefined;
+  const snap = snapshotData?.data || (studyPatterns?._snapshot as Record<string, unknown> | undefined) || null;
 
   await log.success(200, "sync data fetched");
   return NextResponse.json({

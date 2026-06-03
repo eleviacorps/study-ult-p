@@ -51,11 +51,14 @@ create policy "Admins read all logs"
     exists (select 1 from profiles where id = auth.uid() and role = 'admin')
   );
 
--- Service role can insert (from Edge Functions)
-drop policy if exists "Service role insert" on server_logs;
-create policy "Service role insert"
+-- Authenticated users can insert their own logs (Edge Functions use service_role which bypasses RLS)
+drop policy if exists "Users insert own logs" on server_logs;
+create policy "Users insert own logs"
   on server_logs for insert
-  with check (true);
+  with check (auth.uid() = user_id);
+
+-- Allow service_role (used by createClient()) to insert for any user
+alter table server_logs force row level security;
 
 -- Analyze
 analyze server_logs;

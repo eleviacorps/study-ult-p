@@ -23,7 +23,9 @@ export async function GET() {
     .eq("id", user.id)
     .single();
 
+  // PGRST116 = no rows found (profile not created yet) — not an error
   if (error && error.code !== "PGRST116") {
+    log.setMeta("pgCode", error.code);
     await log.error("profile_fetch_failed", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

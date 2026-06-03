@@ -378,7 +378,13 @@ export async function getRoc2Dashboard(userId?: string): Promise<Roc2Dashboard> 
     const { data: logs } = await logQuery;
     if (!logs || !Array.isArray(logs)) return empty;
 
-    const entries = logs as LogEntry[];
+    // Validate shape of returned rows to catch schema drift early
+    const entries: LogEntry[] = [];
+    for (const row of logs) {
+      if (row && typeof row === "object" && typeof (row as Record<string, unknown>).route === "string") {
+        entries.push(row as LogEntry);
+      }
+    }
     const errors = entries.filter((e) => e.level === "error");
     const warnings = entries.filter((e) => e.level === "warn");
     const routes = new Set(entries.map((e) => e.route));
