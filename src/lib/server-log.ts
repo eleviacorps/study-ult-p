@@ -58,6 +58,10 @@ export class RequestLogger {
   /** Add arbitrary metadata to the log entry */
   setMeta(key: string, value: unknown): this {
     this.metadata[key] = value;
+    // Sync userId to entry.user_id so RLS insert policies pass (auth.uid() = user_id)
+    if (key === "userId" && typeof value === "string") {
+      this.userId = value;
+    }
     return this;
   }
 
@@ -136,8 +140,10 @@ export class RequestLogger {
           durationMs: duration,
           metadata: this.metadata,
         }).catch(() => {});
-      } else if (level === "error" || (level === "warn" && statusCode >= 429)) {
-        // Non-critical errors / rate limits — alert with warning level
+      } else if (statusCode >= 429 || level === "error") {
+        // Non-critical errors or rate-limited warnings — alert with warning level
+        // Note: level==="error" is always true in this branch (outer if already filtered),
+        // kept for clarity / future refactoring safety
         triggerAlert({
           level: "warning",
           title: `${this.route} — ${message}`,
@@ -158,10 +164,18 @@ export function logRequest(route: string, userId: string | null, method?: string
 }
 
 // ─── Alert throttle (prevent alert storms) ──────────────────────────
+//
+// NOTE: These counters are in-memory and process-local. On Vercel's
+// serverless architecture with multiple concurrent instances, each
+// instance has independent counters. In the worst case (N instances),
+// up to N × MAX_ALERTS_PER_MINUTE alerts could fire per minute.
+// This is acceptable for a dev/ops tool — the absolute ceiling is
+// still low enough to not cause issues. If you need strict global
+// throttling, move this to a shared store (KV/Redis).
 
 const _alertThrottle = new Map<string, number>();
 const ALERT_COOLDOWN_MS = 60_000; // 1 min between same-route alerts
-const MAX_ALERTS_PER_MINUTE = 5;   // global cap
+const MAX_ALERTS_PER_MINUTE = 5;   // global cap per-instance
 let _alertCountThisMinute = 0;
 let _alertMinuteStart = Date.now();
 
