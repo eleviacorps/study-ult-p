@@ -374,7 +374,7 @@ export async function GET(request: Request) {
     testScores: (tests || []) as TestScoreRow[],
     activitySnapshots: (activities || []) as ActivitySnapshotRow[],
     topicAccuracy: ((topics || []) as TopicAccuracyRow[]).reduce<Record<string, TopicAccuracyEntry>>((acc, t) => {
-      acc[t.topic] = { correct: t.correct, total: t.total }; return acc;
+      acc[t.topic] = { topic: t.topic, correct: t.correct, total: t.total }; return acc;
     }, {}),
     weakAreas: (weak || []) as WeakAreaRow[],
     points: pointsRow?.points ?? 0,

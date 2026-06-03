@@ -234,7 +234,7 @@ function getUnknownPath(note: unknown): string {
   return typeof path === "string" && path.trim() ? path : "unknown";
 }
 
-async function ingestVaultDocument(supabase: ReturnType<typeof createClient>, userId: string, note: IncomingNote, contentHash: string): Promise<string | null> {
+async function ingestVaultDocument(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, note: IncomingNote, contentHash: string): Promise<string | null> {
   const slug = canonicalSlug(note.path || note.title);
   const now = new Date().toISOString();
   const { data: document, error: documentError } = await supabase

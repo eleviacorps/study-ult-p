@@ -23,7 +23,7 @@ type VaultChunk = {
 
 type ScoredChunk = VaultChunk & { score: number };
 
-function scoreChunk(chunk: { content?: string; metadata?: Record<string, string> }, queryTokens: string[], chapter: string | null): number {
+function scoreChunk(chunk: { content?: string; metadata?: Record<string, string> | null }, queryTokens: string[], chapter: string | null): number {
   const metadata = chunk.metadata || {};
   const haystack = `${chunk.content || ""} ${metadata.title || ""} ${metadata.chapter || ""}`.toLowerCase();
   let score = 0;

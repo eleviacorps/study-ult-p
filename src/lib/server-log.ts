@@ -332,7 +332,7 @@ function escHtml(text: string): string {
 async function insertLogEntry(entry: LogEntry): Promise<void> {
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return;
-    const supabase = createClient();
+    const supabase = await createClient();
     await supabase.from("server_logs").insert({
       route: entry.route,
       user_id: entry.user_id,
@@ -376,7 +376,7 @@ export async function getRoc2Dashboard(userId?: string): Promise<Roc2Dashboard> 
 
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return empty;
-    const supabase = createClient();
+    const supabase = await createClient();
     const since = new Date(Date.now() - 86_400_000).toISOString();
 
     // Fetch recent logs — specify exact columns (avoid JSONB metadata bloat)
