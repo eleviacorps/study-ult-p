@@ -150,6 +150,14 @@ export default function NoteAgentPage() {
         if (res.ok) {
           const profile = await res.json();
           setIsAdmin(profile?.role === "admin");
+          // Auto-select exam preset from onboarding goals
+          const goals: string[] = profile?.exam_goals;
+          if (goals && goals.length > 0) {
+            const matched = EXAM_PRESETS.find((p) =>
+              goals.some((g) => p.name.toLowerCase().includes(g.toLowerCase()) || g.toLowerCase().includes(p.name.toLowerCase()))
+            );
+            if (matched) setExamPreset(matched);
+          }
         }
       } catch { /* ignore */ }
       setProfileLoaded(true);

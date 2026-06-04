@@ -18,7 +18,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync, appendFileSync, rea
 import { join, dirname } from "path";
 
 // Reuse the SvelteKit decoder
-import { extractChapterQuestions, ScrapedQuestion } from "./decode-sveltekit.ts";
+import { extractChapterQuestions, ScrapedQuestion } from "./decode-sveltekit";
 
 // ─── NEET Chapter Configuration ─────────────────────────────────────
 

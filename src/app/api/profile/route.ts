@@ -17,21 +17,31 @@ export async function GET() {
   }
   log.setMeta("userId", user.id);
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id,name,username,bio,avatar_url,instagram,twitter,github,website,onboarding_completed,role,created_at")
-    .eq("id", user.id)
-    .single();
+  const [profileRes, goalsRes] = await Promise.all([
+    supabase.from("profiles")
+      .select("id,name,username,bio,avatar_url,instagram,twitter,github,website,onboarding_completed,role,created_at")
+      .eq("id", user.id)
+      .single(),
+    supabase.from("student_goal_profiles")
+      .select("exam_goals")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   // PGRST116 = no rows found (profile not created yet) — not an error
-  if (error && error.code !== "PGRST116") {
-    log.setMeta("pgCode", error.code);
-    await log.error("profile_fetch_failed", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (profileRes.error && profileRes.error.code !== "PGRST116") {
+    log.setMeta("pgCode", profileRes.error.code);
+    await log.error("profile_fetch_failed", profileRes.error);
+    return NextResponse.json({ error: profileRes.error.message }, { status: 500 });
+  }
+
+  const profile = profileRes.data || { id: user.id };
+  if (goalsRes.data?.exam_goals) {
+    (profile as Record<string, unknown>).exam_goals = goalsRes.data.exam_goals;
   }
 
   await log.success(200, "profile fetched");
-  return NextResponse.json(data || { id: user.id });
+  return NextResponse.json(profile);
 }
 
 export async function PUT(request: Request) {
