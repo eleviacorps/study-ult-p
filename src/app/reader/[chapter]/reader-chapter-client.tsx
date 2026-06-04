@@ -31,57 +31,8 @@ export default function ReaderChapterPage() {
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-32 skeleton rounded-[20px]" />
             ))}
+          </div>
         </div>
-
-        {/* Delete confirmation */}
-        <AnimatePresence>
-          {showDelete && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-              onClick={() => setShowDelete(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="glass p-6 max-w-sm mx-4"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <AlertTriangle className="w-6 h-6 text-[#EF4444]" />
-                  <h3 className="text-sm font-semibold">Delete "{chapterName}"?</h3>
-                </div>
-                <p className="text-xs text-white/40 mb-6 leading-relaxed">
-                  This will permanently remove all {chapterNotes.length} notes from this device and the database.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowDelete(false)}
-                    className="flex-1 py-2 text-xs bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setDeleting(true);
-                      await removeChapter(chapterName);
-                      setDeleting(false);
-                      setShowDelete(false);
-                    }}
-                    disabled={deleting}
-                    className="flex-1 py-2 text-xs bg-[#EF4444]/15 text-[#EF4444] hover:bg-[#EF4444]/25 border border-[#EF4444]/20 transition-all disabled:opacity-40"
-                  >
-                    {deleting ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
       </div>
     );
   }

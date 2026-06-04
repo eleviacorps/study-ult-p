@@ -6,11 +6,31 @@ import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import Link from "next/link";
 import { Trash2, AlertTriangle, BookOpen, GraduationCap } from "lucide-react";
+import { loadStudyState } from "@/lib/study-state";
 
 export default function ReaderRootPage() {
   const { vault, isLoaded, removeChapter } = useVaultStore();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  function getChapterProgress(chapterName: string): number {
+    try {
+      const state = loadStudyState();
+      // Check test scores and quiz scores for this chapter
+      const testEntries = (state.testScores || []).filter(s => s.chapter === chapterName);
+      if (testEntries.length > 0) {
+        const last = testEntries[testEntries.length - 1];
+        return Math.round((last.score / Math.max(1, last.total)) * 100);
+      }
+      // Fallback to quiz scores if no test taken yet
+      const quizMatches = (state.quizScores || []).filter(s => s.total > 0);
+      if (quizMatches.length > 0) {
+        const last = quizMatches[quizMatches.length - 1];
+        return Math.round((last.score / Math.max(1, last.total)) * 100);
+      }
+      return 0;
+    } catch { return 0; }
+  }
 
   const subjectAuthorChapters = useMemo(() => {
     if (!vault) return [];
@@ -104,11 +124,11 @@ export default function ReaderRootPage() {
                                 <div className="flex-1 h-1 rounded-full bg-white/[0.05] overflow-hidden">
                                   <div
                                     className="h-full rounded-full bg-[#1856FF]/50"
-                                    style={{ width: `${Math.floor(Math.random() * 50 + 20)}%` }}
+                                    style={{ width: `${getChapterProgress(ch.chapter)}%` }}
                                   />
                                 </div>
                                 <span className="text-[10px] text-white/20">
-                                  {Math.floor(Math.random() * 50 + 20)}%
+                                  {getChapterProgress(ch.chapter)}%
                                 </span>
                               </div>
                             </Link>

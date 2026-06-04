@@ -237,6 +237,64 @@ export default function QuizPage() {
           const { content } = await ask(ctx, analysis);
           setScore((prev) => prev ? { ...prev, feedback: content } : prev);
         }
+
+        // ── AI-driven dashboard analysis ──
+        // After every quiz, generate structured weak areas, todos, and priority tasks
+        const dashboardPrompt = PROMPTS.DASHBOARD_ANALYSIS
+          .replace("{CHAPTER}", "General (Quiz)")
+          .replace("{SCORE}", String(correct))
+          .replace("{TOTAL}", String(qs.length))
+          .replace("{PERCENT}", String(Math.round((correct / qs.length) * 100)))
+          .replace("{WRONG_DETAILS}", wrongSummary || "All correct — review focused on speed and accuracy");
+
+        const { content: dashboardContent } = await ask("Generate structured dashboard analysis. Return ONLY valid JSON.", dashboardPrompt);
+
+        const jsonMatch = dashboardContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const analysis = JSON.parse(jsonMatch[0]);
+            if (analysis.weakAreas || analysis.todos || analysis.topicAccuracy) {
+              updateStudyState((state) => {
+                // Update weak areas with AI-generated analysis
+                if (Array.isArray(analysis.weakAreas)) {
+                  const aiTopics = new Set(analysis.weakAreas.map((w: any) => w.topic));
+                  const existingOthers = (state.weakAreas || []).filter((w) => !aiTopics.has(w.topic));
+                  state.weakAreas = [...analysis.weakAreas, ...existingOthers].slice(0, 10);
+                }
+                // Add AI-generated todos
+                if (Array.isArray(analysis.todos)) {
+                  for (const t of analysis.todos) {
+                    if (t.task && t.priority) {
+                      const exists = state.aiTodos.find((todo) => todo.task === t.task && !todo.completed);
+                      if (!exists) {
+                        state.aiTodos.unshift({
+                          id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                          task: t.task,
+                          priority: t.priority,
+                          createdAt: new Date().toISOString(),
+                          completed: false,
+                          source: "AI Analysis",
+                        });
+                      }
+                    }
+                  }
+                }
+                // Merge AI topic accuracy data
+                if (analysis.topicAccuracy && typeof analysis.topicAccuracy === "object") {
+                  for (const [topic, acc] of Object.entries(analysis.topicAccuracy) as [string, any][]) {
+                    if (acc && typeof acc.correct === "number" && typeof acc.total === "number") {
+                      const existing = state.topicAccuracy[topic] || { correct: 0, total: 0 };
+                      state.topicAccuracy[topic] = {
+                        correct: existing.correct + acc.correct,
+                        total: existing.total + acc.total,
+                      };
+                    }
+                  }
+                }
+              });
+            }
+          } catch {}
+        }
       } catch {}
       setAiLoading(false);
     }
