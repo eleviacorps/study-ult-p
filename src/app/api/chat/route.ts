@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { logRequest } from "@/lib/server-log";
 
 type ChatSessionType =
+  | "tutor"
   | "physics_tutor"
   | "revision_planner"
   | "mock_test_review"
@@ -27,6 +28,7 @@ type IncomingSession = {
 };
 
 const CHAT_TYPES = new Set<string>([
+  "tutor",
   "physics_tutor",
   "revision_planner",
   "mock_test_review",

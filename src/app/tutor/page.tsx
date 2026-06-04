@@ -85,7 +85,7 @@ export default function TutorPage() {
     if (!mounted) return;
     saveChat(chatKey, messages);
     queueChatSyncToDB(chatKey, messages, {
-      type: "concept_discussion",
+      type: "tutor",
       title: "AI Tutor",
       subject: vault?.chapters?.[0]?.subject || "General",
     });
@@ -99,7 +99,7 @@ export default function TutorPage() {
       const remote = Array.isArray(data.sessions)
         ? data.sessions      .filter((s: TutorSession) => s.type === "tutor")
         : [];
-      const local = listLocalChatSessions(chatKey).filter((s) => s.type === "tutor");
+      const local = (listLocalChatSessions(chatKey) as { type: string }[]).filter((s) => s.type === "tutor");
       const seen = new Set<string>();
       const merged = [...local, ...remote].filter((session) => {
         if (seen.has(session.id)) return false;

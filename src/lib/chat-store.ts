@@ -7,6 +7,7 @@ export interface ChatMessage {
 }
 
 export type ChatSessionType =
+  | "tutor"
   | "physics_tutor"
   | "revision_planner"
   | "mock_test_review"
@@ -119,7 +120,7 @@ export function saveChat(key: string, messages: ChatMessage[]) {
       const nextSession: LocalChatSession = {
         id: sessionId,
         title: inferTitle(messages),
-        type: key === CHAT_KEY ? "physics_tutor" : "concept_discussion",
+        type: key === CHAT_KEY ? "tutor" : "concept_discussion",
         updated_at: now,
         message_count: messages.length,
       };
