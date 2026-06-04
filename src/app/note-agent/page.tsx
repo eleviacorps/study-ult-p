@@ -33,6 +33,7 @@ import {
   BookOpen,
   Library,
   Shield,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import * as bridge from "@/lib/note-agent/agent-bridge";
@@ -84,6 +85,7 @@ export default function NoteAgentPage() {
   const [allToolCalls, setAllToolCalls] = useState<{ name: string; status: "running" | "done" | "error"; desc: string }[]>([]);
   const [resumeData, setResumeData] = useState<AgentUIState | null>(null);
   const [examPreset, setExamPreset] = useState<ExamPreset>(getDefaultPreset);
+  const [examDropdownOpen, setExamDropdownOpen] = useState(false);
   const [subjectName, setSubjectName] = useState("");
   const [noteAuthor, setNoteAuthor] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -537,31 +539,72 @@ export default function NoteAgentPage() {
                 )}
               </div>
 
-              {/* Exam Preset */}
+              {/* Exam Preset — Custom Dropdown */}
               <div>
                 <label className="text-[10px] uppercase tracking-wider opacity-30 mb-2 block">
                   Exam Target
                 </label>
-                <select
-                  value={examPreset.id}
-                  onChange={(e) => {
-                    const p = EXAM_PRESETS.find((x) => x.id === e.target.value);
-                    if (p) setExamPreset(p);
-                  }}
-                  className="w-full px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30 appearance-none cursor-pointer"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  <optgroup label="Indian Exams">
-                    {EXAM_PRESETS.filter((p) => p.group === "indian").map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="International Exams">
-                    {EXAM_PRESETS.filter((p) => p.group === "international").map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setExamDropdownOpen(!examDropdownOpen)}
+                    onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node))
+                        setExamDropdownOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] text-sm outline-none focus:border-[#1856FF]/30 cursor-pointer transition-colors"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    <span>{examPreset.name}</span>
+                    <ChevronDown
+                      className={cn(
+                        "w-3.5 h-3.5 opacity-30 transition-transform",
+                        examDropdownOpen && "rotate-180"
+                      )}
+                    />
+                  </button>
+                  <AnimatePresence>
+                    {examDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                        transition={{ duration: 0.12, ease: "easeOut" }}
+                        className="absolute top-full left-0 right-0 z-50 mt-1 border border-white/[0.08] bg-[#0D0D12] shadow-xl shadow-black/40 overflow-hidden"
+                        onMouseDown={(e) => e.preventDefault()}
+                      >
+                        {(["indian", "international"] as const).map((group) => (
+                          <div key={group}>
+                            <div className="px-4 py-1.5 text-[9px] uppercase tracking-widest text-white/20 bg-white/[0.02] border-b border-white/[0.04]">
+                              {group === "indian" ? "Indian Exams" : "International Exams"}
+                            </div>
+                            {EXAM_PRESETS.filter((p) => p.group === group).map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setExamPreset(p);
+                                  setExamDropdownOpen(false);
+                                }}
+                                className={cn(
+                                  "w-full text-left px-4 py-2 text-sm transition-colors flex items-center justify-between",
+                                  examPreset.id === p.id
+                                    ? "text-[#1856FF] bg-[#1856FF]/8"
+                                    : "text-white/70 hover:bg-white/[0.04]"
+                                )}
+                              >
+                                {p.name}
+                                {examPreset.id === p.id && (
+                                  <Check className="w-3 h-3 text-[#1856FF]" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Chapter Name */}

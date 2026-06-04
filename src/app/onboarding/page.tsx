@@ -148,7 +148,7 @@ export default function OnboardingPage() {
         return;
       }
       if (!res.ok) throw new Error("onboarding_failed");
-      router.replace("/dashboard");
+      router.replace("/dashboard?onboarded=true");
     } catch {
       setError("Could not save onboarding. Check your connection and try again.");
     } finally {

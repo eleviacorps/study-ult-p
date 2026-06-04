@@ -27,6 +27,8 @@ import {
   Loader2,
   Trash2,
   RefreshCw,
+  Wand2,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -63,10 +65,17 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
   const [newTodoPriority, setNewTodoPriority] = useState<"high" | "medium" | "low">("medium");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showWelcomeDismissed, setShowWelcomeDismissed] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     setStudyState(loadStudyState());
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("onboarded") === "true") {
+      setShowWelcome(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
@@ -294,7 +303,62 @@ export function DashboardWidgets({ vault }: DashboardWidgetsProps) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-        <div className="flex items-start justify-between flex-wrap gap-3">
+      {/* Onboarding Welcome Prompt */}
+      <AnimatePresence>
+        {showWelcome && !showWelcomeDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            className="p-5 rounded-2xl border border-[#1856FF]/20 bg-gradient-to-r from-[#1856FF]/10 via-[#8B5CF6]/5 to-transparent"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#1856FF]/15 flex items-center justify-center flex-shrink-0 border border-[#1856FF]/20">
+                  <Sparkles className="w-5 h-5 text-[#1856FF]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold">Welcome to StudyUlt!</h2>
+                  <p className="text-xs text-white/40 mt-1 max-w-lg leading-relaxed">
+                    Your profile is set up and ready. Start by exploring your vault, generating notes with the{" "}
+                    <Link href="/note-agent" className="text-[#1856FF] hover:underline">Note Agent</Link>,
+                    or chatting with your{" "}
+                    <Link href="/tutor" className="text-[#1856FF] hover:underline">AI Tutor</Link>.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Link
+                      href="/vault"
+                      className="flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded-lg bg-[#1856FF]/15 text-[#1856FF] border border-[#1856FF]/20 hover:bg-[#1856FF]/25 transition-all no-underline"
+                    >
+                      <BookOpen className="w-3 h-3" /> Browse Vault
+                    </Link>
+                    <Link
+                      href="/note-agent"
+                      className="flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded-lg bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/20 hover:bg-[#8B5CF6]/25 transition-all no-underline"
+                    >
+                      <Wand2 className="w-3 h-3" /> Generate Notes
+                    </Link>
+                    <Link
+                      href="/tutor"
+                      className="flex items-center gap-1.5 text-[10px] px-3 py-1.5 rounded-lg bg-[#06B6D4]/15 text-[#06B6D4] border border-[#06B6D4]/20 hover:bg-[#06B6D4]/25 transition-all no-underline"
+                    >
+                      <Brain className="w-3 h-3" /> AI Tutor
+                    </Link>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWelcomeDismissed(true)}
+                className="flex-shrink-0 p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
+              >
+                <XCircle className="w-4 h-4 opacity-30 hover:opacity-60" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="min-w-0">
             <div className="flex items-start sm:items-center gap-3 flex-col sm:flex-row">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight">
