@@ -327,30 +327,6 @@ function QuestionCard({ question, index }: { question: Question; index: number }
         </div>
       )}
 
-      {/* ── Solution (from stored solution field) ── */}
-      {question.solution && (
-        <div className="mt-3">
-          <button
-            onClick={() => toggle("solution_local")}
-            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors"
-          >
-            <ListOrdered className="w-3.5 h-3.5" />
-            {revealed.has("solution_local") ? "Hide Solution" : "Show Solution"}
-          </button>
-          <AnimatePresence>
-            {revealed.has("solution_local") && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                className="p-3 mt-2 rounded-xl bg-[#06B6D4]/5 border border-[#06B6D4]/20">
-                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Solution</p>
-                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
-                  <MarkdownRenderer content={question.solution} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
-
       {/* ── Explanation (from stored explanation field) ── */}
       {question.explanation && (
         <div className="mt-3">

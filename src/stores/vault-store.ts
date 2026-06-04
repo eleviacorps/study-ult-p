@@ -157,6 +157,12 @@ function splitNumberedBlocks(content: string, prefix: "Q" | "FC"): MarkdownBlock
   });
 }
 
+const KNOWN_PLAIN_HEADERS = new Set([
+  "detailed explanation", "why other options are wrong", "why other options is wrong",
+  "neet insight", "jee insight", "exam insight",
+  "common trap", "common mistake",
+]);
+
 function parseSections(block: string): ParsedSections {
   const sections: ParsedSections = new Map();
   let currentKey = "";
@@ -171,9 +177,18 @@ function parseSections(block: string): ParsedSections {
     const headingMatch = line.match(/^#{1,4}\s+(.+?)(?::\s*(.*))?$/);
     const boldMatch = line.match(/^\*\*([^*:]+):\*\*\s*(.*)$/);
     const shortBoldMatch = line.match(/^\*\*([QA]):\*\*?\s*(.*)$/i);
-    // Plain text headers: word(s) followed by colon (4+ chars before colon to avoid A/B/C labels)
     const plainHeaderMatch = !headingMatch && !boldMatch && !shortBoldMatch
-      ? line.match(/^([A-Za-z][A-Za-z0-9\s-]{3,}):\s*(.*)$/)
+      ? (() => {
+          const colonIdx = line.indexOf(":");
+          if (colonIdx < 5) return null; // require at least 5 chars before colon
+          const beforeColon = line.slice(0, colonIdx).toLowerCase().trim();
+          const afterColon = line.slice(colonIdx + 1).trim();
+          // Only match known educational section headers, not "Match List-I..." type content
+          if (KNOWN_PLAIN_HEADERS.has(beforeColon)) {
+            return [line, beforeColon, afterColon] as unknown as RegExpMatchArray;
+          }
+          return null;
+        })()
       : null;
     const match = headingMatch || boldMatch || shortBoldMatch || plainHeaderMatch;
 
@@ -343,15 +358,15 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
       const sections = parseSections(body);
       const marksVal = getSection(sections, ["Marks"]).match(/\d+/)?.[0];
       const answer = getSection(sections, ["Answer", "A"]);
-      // Build rich explanation: combine Detailed Explanation, Why Other Options Are Wrong, NEET Insight, Common Trap
+      // Solution is just the "Detailed Explanation" (if present), not combined with other sections
+      const solution = getSection(sections, ["Solution", "Detailed Explanation", "Approach", "Step-by-step solution"]);
+      // Explanation combines the additional educational sections (not including Detailed Explanation)
       const explanationParts = [
-        getSection(sections, ["Explanation", "Detailed Explanation"]),
         getSection(sections, ["Why Other Options Are Wrong", "Why Other Options are Wrong"]),
         getSection(sections, ["NEET Insight", "Exam Insight", "JEE Insight"]),
         getSection(sections, ["Common Trap", "Common Mistake", "Trap"]),
       ].filter(Boolean);
-      const explanation = explanationParts.join("\n\n");
-      const solution = getSection(sections, ["Solution", "Detailed Explanation", "Approach", "Step-by-step solution"]) || explanation;
+      const explanation = explanationParts.join("\n\n") || getSection(sections, ["Explanation"]);
       const parsedOptions = applyAnswerToOptions(parseOptions(body), answer);
       const options = parsedOptions.length >= 2
         ? parsedOptions.map((option) => ({ label: option.label, text: option.text }))
@@ -366,7 +381,16 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         subtopic: stripMdNoise(getSection(sections, ["Subtopic"])) || undefined,
         difficulty: normalizeDifficulty(getSection(sections, ["Difficulty"])),
         marks: marksVal ? parseInt(marksVal) : 4,
-        given: cleanGivenText(formatGiven(sections)),
+        given: (() => {
+          const g = formatGiven(sections);
+          // For matching questions (Match List-I with List-II), extract the matching table from raw body
+          const matchMatch = body.match(/^Match\s+List[\s-][IVXL]+\s+with\s+List[\s-][IVXL]+:[\s\S]*?(?=\n{2,}|\n\||$)/im);
+          if (matchMatch) {
+            // Return the matching table content (before options)
+            return cleanGivenText(matchMatch[0].trim());
+          }
+          return cleanGivenText(g);
+        })(),
         find: getSection(sections, ["Find"]),
         options,
         solution,
