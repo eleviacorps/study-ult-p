@@ -34,6 +34,10 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { path: { type: "string" }, content: { type: "string" } },
     required: ["path", "content"],
   },
+  overwrite_file: {
+    properties: { path: { type: "string" }, content: { type: "string" } },
+    required: ["path", "content"],
+  },
   read_file: {
     properties: { path: { type: "string" }, full: { type: "boolean" } },
     required: ["path"],
@@ -351,7 +355,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
 }> {
   const res = await fetch("/api/llm", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 32768, stream: true }),
+    body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 65536, stream: true }),
     signal,
   });
   if (res.status === 504 && attempt < 3) {
@@ -386,7 +390,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
         newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
         continue;
       }
-      if (tc.function.name === "write_file") {
+      if (tc.function.name === "write_file" || tc.function.name === "overwrite_file") {
         const hadPath = !!args.path;
         const hadContent = !!args.content;
         if (!hadPath || !hadContent) {
@@ -419,7 +423,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
     for (const tc2 of toolCalls) {
-      if (tc2.function.name !== "write_file") continue;
+      if (tc2.function.name !== "write_file" && tc2.function.name !== "overwrite_file") continue;
       try { const a = JSON.parse(tc2.function.arguments); if (typeof a.content === "string" && a.content.length > 200) { a.content = a.content.substring(0, 200) + "\n... [content truncated in history, but full content was written successfully]"; tc2.function.arguments = JSON.stringify(a); } } catch {}
     }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response, usage };
@@ -456,6 +460,16 @@ function makeToolHandler(workspace: Map<string, string>) {
           _readCache.delete(path);
           _fullReadCache.delete(path);
           return JSON.stringify({ success: true, path, bytes: content.length });
+        }
+        case "overwrite_file": {
+          const path = args.path as string;
+          const content = args.content as string | undefined;
+          if (!content) return JSON.stringify({ error: "Missing content", path });
+          const existed = workspace.has(path);
+          workspace.set(path, content);
+          _readCache.delete(path);
+          _fullReadCache.delete(path);
+          return JSON.stringify({ success: true, path, bytes: content.length, overwritten: existed });
         }
         case "read_file": {
           const path = args.path as string;
@@ -747,7 +761,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
 
       // Loop detection
       for (const tc of thisTurnCalls) {
-        if (tc.name === "read_file" || tc.name === "write_file") {
+        if (tc.name === "read_file" || tc.name === "write_file" || tc.name === "overwrite_file") {
           const path = (tc.args.path as string) || "";
           if (path && path === lastFilePath && tc.name === lastToolName) {
             consecutiveSameFile++;
