@@ -171,7 +171,11 @@ function parseSections(block: string): ParsedSections {
     const headingMatch = line.match(/^#{1,4}\s+(.+?)(?::\s*(.*))?$/);
     const boldMatch = line.match(/^\*\*([^*:]+):\*\*\s*(.*)$/);
     const shortBoldMatch = line.match(/^\*\*([QA]):\*\*?\s*(.*)$/i);
-    const match = headingMatch || boldMatch || shortBoldMatch;
+    // Plain text headers: word(s) followed by colon (4+ chars before colon to avoid A/B/C labels)
+    const plainHeaderMatch = !headingMatch && !boldMatch && !shortBoldMatch
+      ? line.match(/^([A-Za-z][A-Za-z0-9\s-]{3,}):\s*(.*)$/)
+      : null;
+    const match = headingMatch || boldMatch || shortBoldMatch || plainHeaderMatch;
 
     if (match) {
       commit();
@@ -339,7 +343,14 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
       const sections = parseSections(body);
       const marksVal = getSection(sections, ["Marks"]).match(/\d+/)?.[0];
       const answer = getSection(sections, ["Answer", "A"]);
-      const explanation = getSection(sections, ["Explanation", "Detailed Explanation", "Why Other Options Are Wrong"]);
+      // Build rich explanation: combine Detailed Explanation, Why Other Options Are Wrong, NEET Insight, Common Trap
+      const explanationParts = [
+        getSection(sections, ["Explanation", "Detailed Explanation"]),
+        getSection(sections, ["Why Other Options Are Wrong", "Why Other Options are Wrong"]),
+        getSection(sections, ["NEET Insight", "Exam Insight", "JEE Insight"]),
+        getSection(sections, ["Common Trap", "Common Mistake", "Trap"]),
+      ].filter(Boolean);
+      const explanation = explanationParts.join("\n\n");
       const solution = getSection(sections, ["Solution", "Detailed Explanation", "Approach", "Step-by-step solution"]) || explanation;
       const parsedOptions = applyAnswerToOptions(parseOptions(body), answer);
       const options = parsedOptions.length >= 2

@@ -10,7 +10,7 @@ import { updateStudyState, saveActivitySnapshot } from "@/lib/study-state";
 import { PROMPTS } from "@/lib/ai-config";
 import { recordEvaluationAttempt } from "@/lib/evaluation-sync";
 import { Header } from "@/components/layout/header";
-import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
+import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, XCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const TEST_KEY = "studyult-test-inprogress";
