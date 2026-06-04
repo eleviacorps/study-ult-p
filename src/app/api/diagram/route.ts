@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { deflateSync } from "node:zlib";
-import { isMermaidSource, sanitizeSvg } from "@/lib/mermaid-security";
+import { isMermaidSource, sanitizeSvg, MERMAID_STARTERS } from "@/lib/mermaid-security";
 import { logRequest } from "@/lib/server-log";
 
 const KROKI_BASE = "https://kroki.io";
@@ -16,9 +16,35 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const source = typeof body.source === "string" ? body.source.trim() : "";
 
+    if (!source) {
+      await log.warn(400, "empty_mermaid_source");
+      return NextResponse.json({ error: "empty_mermaid_source", detail: "No diagram source provided." }, { status: 400 });
+    }
+
     if (!isMermaidSource(source)) {
       await log.warn(400, "invalid_mermaid_source");
-      return NextResponse.json({ error: "invalid_mermaid_source" }, { status: 400 });
+      // Detect whether the source starts with a known diagram keyword but isn't formatted correctly
+      const firstLine = source.split(/\r?\n/).find((l: string) => l.trim())?.trim() || "";
+      // Check if content exists inside ```mermaid fences
+      const fenceMatch = source.match(/```mermaid\s*\n([\s\S]*?)\n```/);
+      if (fenceMatch) {
+        return NextResponse.json({
+          error: "invalid_mermaid_source",
+          detail: "Remove the ```mermaid wrapper — send only the raw diagram source.",
+          _hint: "strip_fence",
+        }, { status: 400 });
+      }
+      // If first line is empty or not a recognized keyword, give helpful message
+      if (firstLine && !MERMAID_STARTERS.some((s: string) => firstLine.startsWith(s))) {
+        return NextResponse.json({
+          error: "unsupported_diagram_type",
+          detail: `"${firstLine}" is not a supported Mermaid diagram type. Try: graph, sequenceDiagram, classDiagram, mindmap, gitGraph, or pie.`,
+        }, { status: 400 });
+      }
+      return NextResponse.json({
+        error: "invalid_mermaid_source",
+        detail: "The diagram source could not be recognized as valid Mermaid syntax.",
+      }, { status: 400 });
     }
 
     const encoded = encodeDeflateBase64(source);

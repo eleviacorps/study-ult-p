@@ -15,6 +15,27 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
   const cleanedSource = useMemo(() => source.trim(), [source]);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Detect the diagram type from the first line of source
+  const diagramType = useMemo(() => {
+    const firstLine = cleanedSource.split(/\r?\n/).find(l => l.trim())?.trim() || "";
+    if (firstLine.startsWith("graph ") || firstLine.startsWith("flowchart ")) return "Flowchart";
+    if (firstLine.startsWith("mindmap")) return "Mind Map";
+    if (firstLine.startsWith("sequenceDiagram")) return "Sequence Diagram";
+    if (firstLine.startsWith("classDiagram")) return "Class Diagram";
+    if (firstLine.startsWith("stateDiagram")) return "State Diagram";
+    if (firstLine.startsWith("erDiagram")) return "ER Diagram";
+    if (firstLine.startsWith("gantt")) return "Gantt Chart";
+    if (firstLine.startsWith("pie")) return "Pie Chart";
+    if (firstLine.startsWith("timeline")) return "Timeline";
+    if (firstLine.startsWith("journey")) return "Journey";
+    if (firstLine.startsWith("gitGraph")) return "Git Graph";
+    if (firstLine.startsWith("quadrantChart")) return "Quadrant Chart";
+    if (firstLine.startsWith("xychart-beta")) return "XY Chart";
+    if (firstLine.startsWith("requirementDiagram")) return "Requirements Diagram";
+    if (firstLine.startsWith("C4Context") || firstLine.startsWith("C4Container") || firstLine.startsWith("C4Component") || firstLine.startsWith("C4Deployment") || firstLine.startsWith("C4Dynamic")) return "C4 Diagram";
+    return "Diagram";
+  }, [cleanedSource]);
+
   useEffect(() => {
     let cancelled = false;
     setSvg("");
@@ -85,7 +106,7 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
   const card = (
     <div className="my-3 overflow-hidden rounded-xl border border-white/[0.06] bg-[#05060A]/50">
       <div className="flex items-center justify-between px-2.5 py-1.5">
-        <span className="text-[9px] font-medium uppercase tracking-[0.15em] text-white/25">map</span>
+        <span className="text-[9px] font-medium uppercase tracking-[0.15em] text-white/25">{diagramType}</span>
         <button onClick={() => setExpanded(true)} className="p-1 rounded-md text-white/20 hover:text-white/60 hover:bg-white/[0.04] transition-all">
           <Maximize2 className="w-3 h-3" />
         </button>

@@ -135,8 +135,20 @@ import { isMermaidSource, MERMAID_STARTERS } from "@/lib/mermaid-security";
 
 function findMermaidBlock(content: string): string | null {
   const lines = content.split(/\r?\n/);
+  // First, track which lines are inside existing fenced code blocks
+  const insideFence = new Set<number>();
+  let fenceActive = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith("```")) {
+      fenceActive = !fenceActive;
+    } else if (fenceActive) {
+      insideFence.add(i);
+    }
+  }
+
   let start = -1;
   for (let i = 0; i < lines.length; i++) {
+    if (insideFence.has(i)) continue; // Skip lines inside existing fenced code blocks
     const trimmed = lines[i].trim();
     if (MERMAID_STARTERS.some((k) => trimmed.startsWith(k))) {
       start = i;
@@ -147,6 +159,7 @@ function findMermaidBlock(content: string): string | null {
   // Collect until blank line OR another keyword start OR end
   let end = start + 1;
   while (end < lines.length) {
+    if (insideFence.has(end)) { end++; continue; } // Skip if somehow inside a fence
     const trimmed = lines[end].trim();
     // Stop at code-fence markers, next keyword start, or content divider (---)
     if (trimmed.startsWith("```") || trimmed.startsWith("---") || (trimmed.startsWith("graph ") && end > start + 1)) break;
