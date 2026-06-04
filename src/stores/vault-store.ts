@@ -384,7 +384,12 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         given: (() => {
           const g = formatGiven(sections);
           // For matching questions (Match List-I with List-II), extract the matching table from raw body
-          const matchMatch = body.match(/^Match\s+List[\s-][IVXL]+\s+with\s+List[\s-][IVXL]+:[\s\S]*?(?=\n{2,}|\n\||$)/im);
+          const matchMatch = body.match(/(?:^|###\s+)Match\s+(?:the\s+following|List[\s-][IVXL]+\s+with\s+List[\s-][IVXL]+):[\s\S]*?(?=\n{2,}|\n\||$)/im);
+          // Also try full-line "### Match the following:" pattern
+          if (!matchMatch) {
+            const matchH3 = body.match(/^###\s+Match\s+(?:the\s+following|List[\s-][IVXL]+\s+with\s+List[\s-][IVXL]+):\s*\n([\s\S]*?)(?=###|$)/im);
+            if (matchH3) return cleanGivenText(matchH3[1].trim());
+          }
           if (matchMatch) {
             // Return the matching table content (before options)
             return cleanGivenText(matchMatch[0].trim());

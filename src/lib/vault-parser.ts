@@ -243,6 +243,9 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
       const col1Match = block.match(/### Column I[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
       const col2Match = block.match(/### Column II[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
 
+      // ── Match the following format (common in 100_mcqs.md) ──
+      const matchFollowingMatch = block.match(/### Match the following:\s*\n([\s\S]*?)(?=###|$)/i);
+
       // ── Comprehension/Passage format ──
       const passageMatch = block.match(/### Passage:\s*\n([\s\S]*?)(?=###|$)/i);
 
@@ -259,6 +262,8 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
         const c1 = col1Match?.[1]?.trim() || "";
         const c2 = col2Match?.[1]?.trim() || "";
         given = `**Column I:**\n${c1}\n\n**Column II:**\n${c2}`;
+      } else if (matchFollowingMatch) {
+        given = matchFollowingMatch[1].trim();
       } else if (passageMatch) {
         given = passageMatch[1].trim();
       } else if (statementsMatch) {
@@ -363,7 +368,7 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
 
       // ── Determine question type (mcq or solved) ──
       const isMcq = !!(options && options.length >= 2) ||
-        !!assertionMatch || !!col1Match || !!passageMatch;
+        !!assertionMatch || !!col1Match || !!matchFollowingMatch || !!passageMatch;
 
       questions.push({
         id: slugify(`${chapter}-q${i + 1}`),
