@@ -245,12 +245,34 @@ function hasCorrectMarker(value: string): boolean {
 function cleanGivenText(text: string): string {
   // Strip table rows that leak answers (e.g. "| A | Option text | Wrong/CORRECT — ...|")
   // since options are displayed separately as clickable buttons
-  return text
+  let cleaned = text
     .split(/\r?\n/)
     .filter((line) => !/^\s*\|\s*[A-D]\s*\|/.test(line))
-    .join("\n")
+    .join("\n");
+
+  // Ensure each lettered statement `(a)`, `(b)`, etc. renders on a separate line
+  // Insert blank line before each `(letter)` pattern that follows another statement
+  cleaned = cleaned.replace(/\)\s*\n(?=\s*\([a-z]\))/g, ")\n\n");
+
+  // Ensure numbered items like `(i)`, `(ii)` etc. also get line breaks
+  cleaned = cleaned.replace(/\)\s*\n(?=\s*\([ivx]+\))/g, ")\n\n");
+
+  cleaned = cleaned
     .replace(/\n{3,}/g, "\n\n")  // collapse excessive blank lines
     .trim();
+
+  return cleaned;
+}
+
+function formatGiven(sections: ParsedSections): string {
+  // Check for assertion-reason format
+  const assertion = getSection(sections, ["Assertion (A)", "Assertion", "A"]);
+  const reason = getSection(sections, ["Reason (R)", "Reason", "R"]);
+  if (assertion && reason) {
+    return `**Assertion (A):**\n${assertion}\n\n**Reason (R):**\n${reason}`;
+  }
+  // Fall back to standard given/problem/statement/question
+  return getSection(sections, ["Given", "Problem", "Statement", "Statements", "Question"]);
 }
 
 function cleanOptionText(value: string): string {
@@ -333,7 +355,7 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         subtopic: stripMdNoise(getSection(sections, ["Subtopic"])) || undefined,
         difficulty: normalizeDifficulty(getSection(sections, ["Difficulty"])),
         marks: marksVal ? parseInt(marksVal) : 4,
-        given: cleanGivenText(getSection(sections, ["Given", "Problem", "Statement", "Statements", "Question"])),
+        given: cleanGivenText(formatGiven(sections)),
         find: getSection(sections, ["Find"]),
         options,
         solution,

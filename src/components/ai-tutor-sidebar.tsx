@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { useLlm } from "@/lib/llm-context";
 import { addPoints, recordAiConversation } from "@/lib/study-state";
 import { buildStructuredTutorContext } from "@/lib/ai-retrieval";
+import { useVaultStore } from "@/stores/vault-store";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { Bot, Send, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -24,6 +25,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { vault } = useVaultStore();
   const { askStream } = useLlm();
   const messagesRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +61,7 @@ export function AiTutorSidebar({ context, chapterName, onOpenChange }: AiTutorSi
     setLoading(true);
     try {
       const chatSummary = await getChatSessionSummary(sidebarKey);
-      const sysContext = await buildStructuredTutorContext(null, q, {
+      const sysContext = await buildStructuredTutorContext(vault, q, {
         surface: "reader_sidebar",
         chapter: chapterName,
         readerContext: contextRef.current,

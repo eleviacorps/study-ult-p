@@ -15,9 +15,9 @@ import type {
   VaultRoot,
 } from "@/types";
 
-const DEFAULT_VAULT_ROOTS: VaultRoot[] = [
-  { root: path.join(process.cwd(), "PhysicsCh1"), subject: "Physics" },
-];
+const DEFAULT_VAULT_ROOTS: VaultRoot[] = [];
+// Vault roots are now provided dynamically via custom root configuration or agent notes.
+// The hardcoded PhysicsCh1 path has been removed.
 
 function getResolvedRoots(extra?: VaultRoot[]): VaultRoot[] {
   const merged = [...DEFAULT_VAULT_ROOTS];

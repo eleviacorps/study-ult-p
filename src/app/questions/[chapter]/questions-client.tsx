@@ -26,6 +26,8 @@ import {
   Loader2,
   Send,
   RotateCcw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -110,6 +112,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
   const [userAnswer, setUserAnswer] = useState("");
   const [answerJudged, setAnswerJudged] = useState(false);
   const [aiScore, setAiScore] = useState<{ score: number; maxScore: number; feedback: string } | null>(null);
+  const [showAnswerRevealed, setShowAnswerRevealed] = useState(false);
   const [judgeLoading, setJudgeLoading] = useState(false);
   const { vault } = useVaultStore();
   const { ask, config } = useLlm();
@@ -121,7 +124,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
     setRevealed(next);
   };
 
-  const showAnswer = revealed.has("solution");
+  const solutionsRevealed = showAnswerRevealed || revealed.has("solution") || !!selectedOption;
   const isMcq = question.options && question.options.length >= 2;
   const correctLabel = question.answer?.trim().match(/^[A-D]/i)?.[0]?.toUpperCase() || "";
 
@@ -152,28 +155,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
     const topicContent = getTopicContent(vault, question);
     const context = PROMPTS.QUESTION_EXPLAINER.replace("{CONTENT}", topicContent);
 
-    const questionText = `Question: ${question.title}
-Given: ${question.given || "N/A"}
-${question.find ? `Find: ${question.find}` : ""}
-${question.options ? "Options: " + question.options.map((o) => `${o.label}) ${o.text}`).join(" | ") : ""}
-Solution: ${question.solution || "Not provided"}
-Correct Answer: ${question.answer || "Not provided"}
-
-You MUST respond with ONLY a valid JSON object (no markdown, no extra text). The JSON must have these exact keys:
-- "insight": A clear conceptual insight about the underlying physics principle (use LaTeX $$ for formulas).
-- "approach": A systematic step-by-step approach to solve this problem.
-- "hint": A single helpful hint that guides the student without giving away the full solution.
-- "stepByStep": A detailed step-by-step solution with full working (use LaTeX $$ for all formulas and equations).
-- "answer": The final answer clearly stated.
-
-Format the JSON exactly like this:
-{
-  "insight": "...",
-  "approach": "...",
-  "hint": "...",
-  "stepByStep": "...",
-  "answer": "..."
-}`;
+    const questionText = `Question: ${question.title}\nGiven: ${question.given || "N/A"}\n${question.find ? `Find: ${question.find}` : ""}\n${question.options ? "Options: " + question.options.map((o) => `${o.label}) ${o.text}`).join(" | ") : ""}\nSolution: ${question.solution || "Not provided"}\nCorrect Answer: ${question.answer || "Not provided"}\n\nYou MUST respond with ONLY a valid JSON object (no markdown, no extra text). The JSON must have these exact keys:\n- "insight": A clear conceptual insight about the underlying physics principle (use LaTeX $$ for formulas).\n- "approach": A systematic step-by-step approach to solve this problem.\n- "hint": A single helpful hint that guides the student without giving away the full solution.\n- "stepByStep": A detailed step-by-step solution with full working (use LaTeX $$ for all formulas and equations).\n- "answer": The final answer clearly stated.\n\nFormat the JSON exactly like this:\n{\n  "insight": "...",\n  "approach": "...",\n  "hint": "...",\n  "stepByStep": "...",\n  "answer": "..."\n}`;
 
     const { content } = await ask(context, questionText);
     const structured = parseAiJson(content);
@@ -240,12 +222,15 @@ Format the JSON exactly like this:
     setUserAnswer("");
     setAnswerJudged(false);
     setAiScore(null);
+    setShowAnswerRevealed(false);
+    setSelectedOption(null);
     const next = new Set(revealed);
     next.delete("answers");
     next.delete("insight");
     next.delete("approach");
     next.delete("hint");
     next.delete("solution");
+    next.delete("storedAnswer");
     setRevealed(next);
   };
 
@@ -312,6 +297,57 @@ Format the JSON exactly like this:
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Show Answer (from stored answer field) ── */}
+      {question.answer && (
+        <div className="mt-3 pt-3 border-t border-white/[0.04]">
+          <button
+            onClick={() => setShowAnswerRevealed(!showAnswerRevealed)}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors"
+          >
+            {showAnswerRevealed ? (
+              <><EyeOff className="w-3.5 h-3.5" /> Hide Answer</>
+            ) : (
+              <><Eye className="w-3.5 h-3.5" /> Show Answer</>
+            )}
+          </button>
+          <AnimatePresence>
+            {showAnswerRevealed && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="p-3 mt-2 rounded-xl bg-[#10B981]/5 border border-[#10B981]/20">
+                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Answer</p>
+                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={question.answer} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* ── Explanation (from stored explanation field) ── */}
+      {question.explanation && (
+        <div className="mt-3">
+          <button
+            onClick={() => toggle("explanation")}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors"
+          >
+            <Lightbulb className="w-3.5 h-3.5" />
+            {revealed.has("explanation") ? "Hide Explanation" : "Show Explanation"}
+          </button>
+          <AnimatePresence>
+            {revealed.has("explanation") && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="p-3 mt-2 rounded-xl bg-[#F59E0B]/5 border border-[#F59E0B]/20">
+                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Explanation</p>
+                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={question.explanation} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
@@ -402,64 +438,75 @@ Format the JSON exactly like this:
 
                 <AiSection
                   stepKey="answers"
-                  label="Your Answer"
+                  label={solutionsRevealed ? "Your Answer (grading skipped)" : "Your Answer"}
                   icon={Send}
-                  color="primary"
+                  color={solutionsRevealed ? "muted" : "primary"}
                   revealed={revealed}
                   onToggle={toggle}
                 >
-                  <div className="space-y-3">
-                    <textarea
-                      value={userAnswer}
-                      onChange={(e) => setUserAnswer(e.target.value)}
-                      placeholder="Write your answer here (use LaTeX $$ for formulas)..."
-                      disabled={answerJudged}
-                      className="w-full min-h-[80px] p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30 resize-y disabled:opacity-30"
-                      style={{ color: "var(--text-primary)" }}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleJudgeAnswer}
-                        disabled={!userAnswer.trim() || judgeLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1856FF]/15 text-[#1856FF] text-xs border border-[#1856FF]/20 disabled:opacity-20 hover:bg-[#1856FF]/25"
-                      >
-                        {judgeLoading ? (
-                          <><Loader2 className="w-3 h-3 animate-spin" /> Judging...</>
-                        ) : (
-                          <><Send className="w-3 h-3" /> Submit for AI Judging</>
-                        )}
-                      </button>
+                  {solutionsRevealed ? (
+                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                      <p className="text-xs opacity-40">
+                        {showAnswerRevealed && "Answer was revealed"}
+                        {!showAnswerRevealed && revealed.has("solution") && "Step-by-step solution was shown"}
+                        {!showAnswerRevealed && !revealed.has("solution") && selectedOption && "MCQ option was selected"}
+                        — grading is skipped for this question.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <textarea
+                        value={userAnswer}
+                        onChange={(e) => setUserAnswer(e.target.value)}
+                        placeholder="Write your answer here (use LaTeX $$ for formulas)..."
+                        disabled={answerJudged}
+                        className="w-full min-h-[80px] p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30 resize-y disabled:opacity-30"
+                        style={{ color: "var(--text-primary)" }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleJudgeAnswer}
+                          disabled={!userAnswer.trim() || judgeLoading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1856FF]/15 text-[#1856FF] text-xs border border-[#1856FF]/20 disabled:opacity-20 hover:bg-[#1856FF]/25"
+                        >
+                          {judgeLoading ? (
+                            <><Loader2 className="w-3 h-3 animate-spin" /> Judging...</>
+                          ) : (
+                            <><Send className="w-3 h-3" /> Submit for AI Judging</>
+                          )}
+                        </button>
+                      </div>
 
-                    {answerJudged && aiScore && (
-                      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                        className={cn("p-4 rounded-xl border",
-                          aiScore.score >= 8 ? "bg-[#10B981]/5 border-[#10B981]/20" :
-                          aiScore.score >= 6 ? "bg-[#F59E0B]/5 border-[#F59E0B]/20" :
-                          "bg-[#EF4444]/5 border-[#EF4444]/20"
-                        )}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={cn("text-lg font-bold",
-                            aiScore.score >= 8 ? "text-[#10B981]" :
-                            aiScore.score >= 6 ? "text-[#F59E0B]" :
-                            "text-[#EF4444]"
-                          )}>{aiScore.score}/{aiScore.maxScore}</span>
-                          <span className="text-[10px] opacity-30">
-                            {aiScore.score >= 8 ? "Excellent!" : aiScore.score >= 6 ? "Decent" : "Needs Work"}
-                          </span>
-                        </div>
-                        <div className="prose-glass text-xs opacity-60 leading-relaxed max-w-none">
-                          <MarkdownRenderer content={aiScore.feedback} />
-                        </div>
-                        <div className="mt-2 p-2 rounded-lg bg-white/[0.02]">
-                          <p className="text-[10px] uppercase tracking-wider opacity-20 mb-1">Your Answer</p>
-                          <div className="prose-glass text-xs opacity-50 leading-relaxed max-w-none">
-                            <MarkdownRenderer content={userAnswer} />
+                      {answerJudged && aiScore && (
+                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                          className={cn("p-4 rounded-xl border",
+                            aiScore.score >= 8 ? "bg-[#10B981]/5 border-[#10B981]/20" :
+                            aiScore.score >= 6 ? "bg-[#F59E0B]/5 border-[#F59E0B]/20" :
+                            "bg-[#EF4444]/5 border-[#EF4444]/20"
+                          )}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={cn("text-lg font-bold",
+                              aiScore.score >= 8 ? "text-[#10B981]" :
+                              aiScore.score >= 6 ? "text-[#F59E0B]" :
+                              "text-[#EF4444]"
+                            )}>{aiScore.score}/{aiScore.maxScore}</span>
+                            <span className="text-[10px] opacity-30">
+                              {aiScore.score >= 8 ? "Excellent!" : aiScore.score >= 6 ? "Decent" : "Needs Work"}
+                            </span>
                           </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
+                          <div className="prose-glass text-xs opacity-60 leading-relaxed max-w-none">
+                            <MarkdownRenderer content={aiScore.feedback} />
+                          </div>
+                          <div className="mt-2 p-2 rounded-lg bg-white/[0.02]">
+                            <p className="text-[10px] uppercase tracking-wider opacity-20 mb-1">Your Answer</p>
+                            <div className="prose-glass text-xs opacity-50 leading-relaxed max-w-none">
+                              <MarkdownRenderer content={userAnswer} />
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
                 </AiSection>
               </>
             )}
