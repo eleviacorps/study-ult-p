@@ -207,6 +207,24 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "neet_bank_search",
+      description: "Search the NEET question bank for real past-year questions. Call this FIRST when generating questions or MCQs — it returns actual NEET questions with correct answers and solutions so you can match real exam style. Do NOT copy questions verbatim; use them as a style reference for difficulty level and trap design. Returns question_text, options (A/B/C/D), correct_answer, solution_text. Can be filtered by subject, chapter (any name format works, e.g. 'Units and Measurement' or 'Chemical Bonding'), or year.",
+      parameters: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "Subject: Physics, Chemistry, or Biology" },
+          chapter: { type: "string", description: "Chapter name in any format (e.g. 'Units and Measurement', 'chemical-bonding', 'The Living World'). The API does fuzzy matching so just use the natural chapter name." },
+          year: { type: "string", description: "Optional year filter (e.g. '2024')" },
+          limit: { type: "number", description: "Max results to return (default 20, max 50)" },
+          random: { type: "boolean", description: "If true, randomize results (default: most recent first). Use true when you need a variety of questions across years." },
+        },
+        required: ["subject", "chapter"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "final_report",
       description: "Call this when ALL work is complete AND all assessment issues are fixed. Provide a summary of everything generated and fixed.",
       parameters: {

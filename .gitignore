@@ -20,7 +20,7 @@
 # production
 /build
 simulations/
-
+scraped/
 # misc
 .DS_Store
 *.pem

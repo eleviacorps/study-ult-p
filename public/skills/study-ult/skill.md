@@ -49,6 +49,9 @@ Then fix any issues found. Do NOT call assess_quality during the writing phase �
 ### Search_web Limitation
 Call search_web at most ONCE at the start. If it returns no results, proceed immediately using your knowledge — do NOT retry with different queries. Web search is unreliable for exam-specific content.
 
+### NEET Question Bank (neet_bank_search)
+When generating questions or MCQs for a chapter, call `neet_bank_search` FIRST to get real past-year questions. Pass `subject` (Physics/Chemistry/Biology) and `chapter` (the exact folder slug from the scraped data, e.g. `units-and-measurement`, `biomolecules`, `chemical-bonding`). The tool returns real NEET questions with correct answers and solutions. Study their pattern (difficulty, style, trap design), then generate your own questions matching the same standard. Do NOT copy questions verbatim — use them as style reference. Call only once per chapter.
+
 ### No Planning Mode
 Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file with its full content in the write_file content parameter. Do NOT output any reasoning, thinking, or planning text — just immediately output the tool call with both path and content filled. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes. **Zero tokens spent on thinking. Only the tool call with path + content.**
 

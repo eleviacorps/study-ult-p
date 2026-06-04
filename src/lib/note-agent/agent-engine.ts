@@ -55,6 +55,10 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { query: { type: "string" } },
     required: ["query"],
   },
+  neet_bank_search: {
+    properties: { subject: { type: "string" }, chapter: { type: "string" }, year: { type: "string" }, limit: { type: "number" }, random: { type: "boolean" } },
+    required: ["subject", "chapter"],
+  },
 };
 
 const MAX_TOOL_RESULT_BYTES = 50 * 1024;
@@ -623,6 +627,30 @@ function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string)
             return JSON.stringify({ query, results: cleanResults.map((r: { title?: string; snippet?: string }) => `${r.title || ""}${r.title ? ": " : ""}${r.snippet || ""}`.trim()).filter(Boolean), count: cleanResults.length });
           } catch (err) {
             return JSON.stringify({ error: `Web search failed: ${err instanceof Error ? err.message : String(err)}`, query });
+          }
+        }
+        case "neet_bank_search": {
+          const subject = (args.subject as string) || "";
+          const chapter = (args.chapter as string) || "";
+          const year = (args.year as string) || "";
+          const limit = Math.min(Number(args.limit) || 20, 50);
+          const random = args.random === true;
+          try {
+            const params = new URLSearchParams({ subject, chapter });
+            if (year) params.set("year", year);
+            if (random) params.set("random", "true");
+            params.set("limit", String(limit));
+            const res = await fetch(`/api/neet-bank?${params.toString()}`, {
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!res.ok) {
+              const err = await res.text().catch(() => "");
+              return JSON.stringify({ error: `neet_bank_search failed (${res.status})`, detail: err });
+            }
+            const data = await res.json();
+            return JSON.stringify({ questions: data.questions || [], total: data.total || 0, subject, chapter });
+          } catch (err) {
+            return JSON.stringify({ error: `neet_bank_search error: ${err instanceof Error ? err.message : String(err)}` });
           }
         }
         default:
