@@ -34,10 +34,6 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { path: { type: "string" }, content: { type: "string" } },
     required: ["path", "content"],
   },
-  overwrite_file: {
-    properties: { path: { type: "string" }, content: { type: "string" } },
-    required: ["path", "content"],
-  },
   read_file: {
     properties: { path: { type: "string" }, full: { type: "boolean" } },
     required: ["path"],
@@ -262,6 +258,7 @@ async function parseStreamingResponse(res: Response): Promise<{
   message: Record<string, unknown>;
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   truncated?: boolean;
+  truncatedToolInfo?: { name: string; partialArgs: string };
 }> {
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
@@ -330,7 +327,19 @@ async function parseStreamingResponse(res: Response): Promise<{
       message.tool_calls = Object.keys(toolCalls).sort((a, b) => Number(a) - Number(b)).map((k) => toolCalls[Number(k)]);
     }
   }
-  return { message, usage, truncated: truncatedToolCalls };
+  // Capture truncated tool call info for the continuation message
+  let truncatedToolInfo: { name: string; partialArgs: string } | undefined;
+  if (truncatedToolCalls) {
+    for (const tc of Object.values(toolCalls)) {
+      if (tc.function?.name && tc.function?.arguments) {
+        try { JSON.parse(tc.function.arguments); } catch {
+          truncatedToolInfo = { name: tc.function.name, partialArgs: tc.function.arguments };
+          break;
+        }
+      }
+    }
+  }
+  return { message, usage, truncated: truncatedToolCalls, truncatedToolInfo };
 }
 
 // ── Agent turn ──
@@ -367,12 +376,26 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
     const err = await res.text().catch(() => "");
     throw new Error(`API error (${res.status}): ${err}`);
   }
-  const { message: msg, usage, truncated } = await parseStreamingResponse(res);
+  const { message: msg, usage, truncated, truncatedToolInfo } = await parseStreamingResponse(res);
   const msgContent = (msg.content as string) || "";
   const reasoningContent = msg.reasoning_content as string | undefined;
   const toolCalls = (msg.tool_calls as ToolCall[]) || [];
   if (truncated && toolCalls.length === 0) {
-    const continuation: Record<string, unknown> = { role: "user", content: "[Output exceeded token limit. Continue immediately with your next action — do NOT explain, plan, or recap. Just output the next tool call.]" };
+    // Extract file path from the truncated tool call's partial arguments
+    let truncatedPath = "";
+    if (truncatedToolInfo?.partialArgs) {
+      const pathMatch = truncatedToolInfo.partialArgs.match(/"path"\s*:\s*"([^"]+)"/);
+      if (pathMatch) truncatedPath = pathMatch[1];
+    }
+    const pathHint = truncatedPath
+      ? ` The file "${truncatedPath}" was being written when truncation occurred. Use write_file with the COMPLETE content to finish writing it.`
+      : truncatedToolInfo
+        ? ` The ${truncatedToolInfo.name} tool call was truncated. Retry with complete arguments.`
+        : "";
+    const continuation: Record<string, unknown> = {
+      role: "user",
+      content: `[Output exceeded token limit. Continue immediately with your next action — do NOT explain, plan, or recap. Just output the next tool call.]${pathHint}`,
+    };
     return { newMessages: [...messages, continuation], steps: [], finished: false, content: "(truncated)", usage };
   }
   const step: AgentStep = { turn: 0, toolCalls: [], response: msgContent || reasoningContent || "", phase: "processing" };
@@ -390,7 +413,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
         newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
         continue;
       }
-      if (tc.function.name === "write_file" || tc.function.name === "overwrite_file") {
+      if (tc.function.name === "write_file") {
         const hadPath = !!args.path;
         const hadContent = !!args.content;
         if (!hadPath || !hadContent) {
@@ -423,7 +446,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
     for (const tc2 of toolCalls) {
-      if (tc2.function.name !== "write_file" && tc2.function.name !== "overwrite_file") continue;
+      if (tc2.function.name !== "write_file") continue;
       try { const a = JSON.parse(tc2.function.arguments); if (typeof a.content === "string" && a.content.length > 200) { a.content = a.content.substring(0, 200) + "\n... [content truncated in history, but full content was written successfully]"; tc2.function.arguments = JSON.stringify(a); } } catch {}
     }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response, usage };
@@ -448,29 +471,33 @@ function makeToolHandler(workspace: Map<string, string>) {
       switch (name) {
         case "write_file": {
           const path = args.path as string;
-          if (workspace.has(path)) {
-            return JSON.stringify({ error: `File already exists in workspace: "${path}". Use read_file to check it instead of rewriting. Move on to creating files that don't exist yet.`, path });
-          }
           const content = args.content as string | undefined;
-          if (content && content.startsWith("[FILE STORED —")) {
+          if (!content) return JSON.stringify({ error: "Missing content", path });
+          if (content.startsWith("[FILE STORED —")) {
             return JSON.stringify({ error: "Cannot write placeholder as content", path });
           }
-          if (!content) return JSON.stringify({ error: "Missing content", path });
+          // Allow continuation after truncation: if the file exists and the new content
+          // extends the existing content (e.g. the agent was truncated mid-write),
+          // replace it with the full new content. This prevents write_file loops where
+          // the agent keeps trying to overwrite a truncated file.
+          const existing = workspace.get(path);
+          if (existing) {
+            // If new content doesn't start like existing, it's a different file — reject
+            if (!content.startsWith(existing.substring(0, Math.min(100, existing.length)))) {
+              return JSON.stringify({ error: `File already exists in workspace: "${path}". Use read_file to check it instead of rewriting.`, path });
+            }
+            // If new content isn't longer, not making progress — reject
+            if (content.length <= existing.length) {
+              return JSON.stringify({ error: `File already exists and wouldn't be improved: "${path}".`, path });
+            }
+            // New content is longer and starts the same — continuation after truncation, allowed
+          }
           workspace.set(path, content);
           _readCache.delete(path);
           _fullReadCache.delete(path);
-          return JSON.stringify({ success: true, path, bytes: content.length });
+          return JSON.stringify({ success: true, path, bytes: content.length, continuation: !!existing });
         }
-        case "overwrite_file": {
-          const path = args.path as string;
-          const content = args.content as string | undefined;
-          if (!content) return JSON.stringify({ error: "Missing content", path });
-          const existed = workspace.has(path);
-          workspace.set(path, content);
-          _readCache.delete(path);
-          _fullReadCache.delete(path);
-          return JSON.stringify({ success: true, path, bytes: content.length, overwritten: existed });
-        }
+
         case "read_file": {
           const path = args.path as string;
           const needsFull = args.full === true;
@@ -761,7 +788,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
 
       // Loop detection
       for (const tc of thisTurnCalls) {
-        if (tc.name === "read_file" || tc.name === "write_file" || tc.name === "overwrite_file") {
+        if (tc.name === "read_file" || tc.name === "write_file") {
           const path = (tc.args.path as string) || "";
           if (path && path === lastFilePath && tc.name === lastToolName) {
             consecutiveSameFile++;

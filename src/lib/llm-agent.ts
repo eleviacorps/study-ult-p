@@ -138,27 +138,12 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Create a NEW file in the workspace. ONLY use for files that don't exist yet. If the file already exists, this will FAIL. Use overwrite_file instead for updating existing files. BOTH parameters 'path' AND 'content' are ALWAYS required.",
+      description: "Create a NEW file, or CONTINUE writing if the existing content was truncated. If the file already exists and the new content is longer, it will be replaced (continuation after truncation). BOTH parameters 'path' AND 'content' are ALWAYS required.",
       parameters: {
         type: "object",
         properties: {
           path: { type: "string", description: "File path (e.g. 'Electrostatics/notes/gauss_law.md'). MANDATORY — you MUST include this." },
           content: { type: "string", description: "Full file content in markdown. MANDATORY — you MUST include this." },
-        },
-        required: ["path", "content"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "overwrite_file",
-      description: "OVERWRITE an existing file. Use this when a file was truncated (incomplete due to token limits), needs correction, or requires a full replacement. BOTH 'path' AND 'content' are required. This can replace the ENTIRE file content.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string", description: "File path of the existing file to overwrite (e.g. 'Electrostatics/notes/gauss_law.md'). MANDATORY." },
-          content: { type: "string", description: "COMPLETE new file content in markdown. Must be the FULL file — not just the part that was missing. MANDATORY." },
         },
         required: ["path", "content"],
       },
@@ -264,8 +249,8 @@ export function getAgentSystemPrompt(examName?: string): string {
 - Follow the SKILL instructions below as your primary workflow and formatting guide.
 - The SKILL defines the vault structure, note templates, question/MCQ/flashcard types, callout patterns, and quality checks.
 - The content is being generated for "${examName || "exam"}" preparation. Adapt terminology accordingly.
-- Use the available tools (write_file, overwrite_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
-- Use overwrite_file to replace files that were truncated or need full content replacement. write_file only works for NEW files.
+- Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
+- write_file now handles both NEW files and CONTINUATIONS after truncation. If the file exists and your new content is longer, it replaces the truncated version.
 - Use search_web when generating questions, MCQs, or exam material to reference real previous-year question patterns and difficulty levels from the target exam.
 - Use neet_bank_search FIRST when generating questions/MCQs — it returns real past exam questions so you can match the difficulty, style, and trap patterns.
 
