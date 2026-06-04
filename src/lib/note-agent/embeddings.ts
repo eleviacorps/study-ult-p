@@ -22,24 +22,15 @@ export function waitForMode(): Promise<EmbeddingMode> {
 export async function probeEmbeddingProvider(): Promise<EmbeddingMode> {
   if (_mode !== "probing") return _mode;
 
-  try {
-    const res = await fetch("/api/embeddings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: "probe", input_type: "query" }),
-    });
-    if (res.ok) {
-      _mode = "provider";
-      _modeResolve?.("provider");
-      return "provider";
-    }
-  } catch {}
+  // Embeddings are pre-generated locally and pushed to Supabase.
+  // Skip the /api/embeddings probe entirely — use TF-IDF fallback for RAG search.
   _mode = "tfidf";
   _modeResolve?.("tfidf");
   return "tfidf";
 }
 
-probeEmbeddingProvider(); // Auto-probe on module load
+// Note: auto-probe removed — see probeEmbeddingProvider above.
+// The /api/embeddings endpoint is disabled in favor of local TF-IDF.
 
 // ── Provider embeddings ──
 

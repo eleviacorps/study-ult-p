@@ -85,8 +85,6 @@ export async function GET(request: Request) {
       // match and if 0 results, we detect that in the response.
     }
 
-    if (random) query = query.order("random()");
-
     let { data, error } = await query;
 
     // If exact chapter match returned 0 results, try ILIKE fuzzy match
@@ -102,8 +100,6 @@ export async function GET(request: Request) {
       // Try ILIKE on the chapter name
       const slug = slugify(chapter);
       fuzzy = fuzzy.or(`chapter.ilike.%${chapter.replace(/-/g, " ")}%,chapter.ilike.%${slug}%`);
-      if (random) fuzzy = fuzzy.order("random()");
-
       const result = await fuzzy;
       data = result.data;
       if (!error) error = result.error;
@@ -113,7 +109,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ questions: [], total: 0, error: error.message }, { status: 500 });
     }
 
-    const questions = (data || []).map((r: Record<string, unknown>) => ({
+    let questions = (data || []).map((r: Record<string, unknown>) => ({
       id: r.id,
       question_id: r.question_id,
       subject: r.subject,
@@ -127,6 +123,14 @@ export async function GET(request: Request) {
       solution_text: r.solution_text,
       has_diagram: r.has_diagram,
     }));
+
+    // Fisher-Yates shuffle for random mode (postgREST doesn't support order("random()"))
+    if (random) {
+      for (let i = questions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [questions[i], questions[j]] = [questions[j], questions[i]];
+      }
+    }
 
     await log.success(200, `neet_bank: ${subject}/${chapter} → ${questions.length}q`);
     return NextResponse.json({ questions, total: questions.length });
