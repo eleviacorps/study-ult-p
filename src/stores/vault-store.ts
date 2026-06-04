@@ -322,7 +322,7 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         subtopic: stripMdNoise(getSection(sections, ["Subtopic"])) || undefined,
         difficulty: normalizeDifficulty(getSection(sections, ["Difficulty"])),
         marks: marksVal ? parseInt(marksVal) : 4,
-        given: getSection(sections, ["Given", "Problem"]),
+        given: getSection(sections, ["Given", "Problem", "Statement", "Statements", "Question"]),
         find: getSection(sections, ["Find"]),
         options,
         solution,
