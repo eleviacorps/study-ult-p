@@ -242,6 +242,17 @@ function hasCorrectMarker(value: string): boolean {
   return CORRECT_MARKERS.some((marker) => lower.includes(marker));
 }
 
+function cleanGivenText(text: string): string {
+  // Strip table rows that leak answers (e.g. "| A | Option text | Wrong/CORRECT — ...|")
+  // since options are displayed separately as clickable buttons
+  return text
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*\|\s*[A-D]\s*\|/.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")  // collapse excessive blank lines
+    .trim();
+}
+
 function cleanOptionText(value: string): string {
   return stripMdNoise(value)
     .replace(/\*\*\[?\s*(?:✅|✓|✔|âœ…|âœ“)?\s*correct answer\s*\]?\*\*/gi, "")
@@ -322,7 +333,7 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         subtopic: stripMdNoise(getSection(sections, ["Subtopic"])) || undefined,
         difficulty: normalizeDifficulty(getSection(sections, ["Difficulty"])),
         marks: marksVal ? parseInt(marksVal) : 4,
-        given: getSection(sections, ["Given", "Problem", "Statement", "Statements", "Question"]),
+        given: cleanGivenText(getSection(sections, ["Given", "Problem", "Statement", "Statements", "Question"])),
         find: getSection(sections, ["Find"]),
         options,
         solution,
