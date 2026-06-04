@@ -587,6 +587,64 @@ function makeToolHandler(workspace: Map<string, string>) {
           summary.flashcardCountOk = (summary.flashcardCount as number) >= 100;
           summary.quizCount = readCount(`${chapterPath}/quizzes/100_quizzes.md`, /### Q\d+\./g);
           summary.quizCountOk = (summary.quizCount as number) >= 100;
+
+          // ── Question type diversity check ──
+          // Count non-numerical question types in both questions and MCQs files
+          const questionFiles = [
+            `${chapterPath}/questions/100_questions.md`,
+            `${chapterPath}/questions/100_mcqs.md`,
+          ];
+          let assertionReasonCount = 0;    // **Type:** Assertion-Reason
+          let matchingCount = 0;            // **Type:** Matching
+          let comprehensionCount = 0;       // **Type:** Comprehension or Passage
+          let statementBasedCount = 0;      // **Type:** Statement-Based or Statement
+          let totalNonNumerical = 0;
+          let totalQuestions = 0;
+          for (const qf of questionFiles) {
+            const content = workspace.get(qf) || "";
+            // Count total questions via ## Q headings
+            const qs = (content.match(/## Q\d+\./g) || []).length;
+            totalQuestions += qs;
+            // Count specific types via **Type:** metadata field
+            const types = content.match(/\*\*Type:\*\*\s*(.+)/g) || [];
+            for (const t of types) {
+              const typeVal = t.replace(/\*\*Type:\*\*\s*/i, "").trim().toLowerCase();
+              if (typeVal.includes("assertion") || typeVal.includes("assertion-reason")) assertionReasonCount++;
+              else if (typeVal.includes("match") || typeVal.includes("matrix")) matchingCount++;
+              else if (typeVal.includes("comprehension") || typeVal.includes("passage")) comprehensionCount++;
+              else if (typeVal.includes("statement") || typeVal.includes("true/false") || typeVal.includes("t/f")) statementBasedCount++;
+            }
+            // Also check for patterns in the content even without explicit Type field
+            // Look for the assertion-reason options pattern
+            if (/Both A and R are true/.test(content)) assertionReasonCount += 0.5; // partial match bonus
+            // Look for matching/column patterns
+            if (/Column I/.test(content) || /Column II/.test(content) || /Match the following/i.test(content)) matchingCount += 0.5;
+            // Look for passage/comprehension patterns
+            if (/### Passage:/.test(content) || /## Passage/.test(content)) comprehensionCount += 0.5;
+          }
+          summary.questionTypeCheck = {
+            totalQuestions,
+            assertionReason: assertionReasonCount,
+            matching: matchingCount,
+            comprehension: comprehensionCount,
+            statementBased: statementBasedCount,
+            nonNumerical: assertionReasonCount + matchingCount + comprehensionCount + statementBasedCount,
+            nonNumericalPct: totalQuestions > 0 ? Math.round(((assertionReasonCount + matchingCount + comprehensionCount + statementBasedCount) / totalQuestions) * 100) : 0,
+          };
+          if (detailed) {
+            if ((summary.questionTypeCheck as any).nonNumericalPct < 40) {
+              summary.issues = [...(summary.issues as string[] || []), `Only ${(summary.questionTypeCheck as any).nonNumericalPct}% non-numerical questions — need at least 40% (assertion-reason, matching, comprehension, statement-based)`];
+            }
+            if (assertionReasonCount < 5) {
+              summary.issues = [...(summary.issues as string[] || []), `Only ${assertionReasonCount} assertion-reason questions — need at least 5`];
+            }
+            if (comprehensionCount < 3) {
+              summary.issues = [...(summary.issues as string[] || []), `Only ${comprehensionCount} passage/comprehension questions — need at least 3`];
+            }
+            if (matchingCount < 2) {
+              summary.issues = [...(summary.issues as string[] || []), `Only ${matchingCount} matching questions — need at least 2`];
+            }
+          }
           const brokenLinks: string[] = [];
           const existingPaths = new Set(chapterFiles);
           for (const f of chapterFiles) {
@@ -676,7 +734,51 @@ function makeToolHandler(workspace: Map<string, string>) {
               return JSON.stringify({ error: `neet_bank_search failed (${res.status})`, detail: err });
             }
             const data = await res.json();
-            return JSON.stringify({ questions: data.questions || [], total: data.total || 0, subject, chapter });
+            const questions: any[] = data.questions || [];
+            // Compute type & difficulty distribution summary
+            if (questions.length === 0) {
+              return JSON.stringify({
+                questions: [], total: 0, subject, chapter,
+                _distribution: { totalQuestions: 0, typeDistribution: [], difficultyDistribution: [] },
+                _instruction: "No NEET bank questions found for this chapter. Proceed using your knowledge. Remember: at least 40% of questions MUST be non-numerical types (assertion-reason, matching, comprehension, statement-based).",
+              });
+            }
+            const typeCounts: Record<string, number> = {};
+            const difficultyCounts: Record<string, number> = {};
+            let typeExamples: Record<string, string[]> = {};
+            for (const q of questions) {
+              const t = (q.type || "unknown").toLowerCase();
+              typeCounts[t] = (typeCounts[t] || 0) + 1;
+              const d = (q.difficulty || "unknown").toLowerCase();
+              difficultyCounts[d] = (difficultyCounts[d] || 0) + 1;
+              // Collect up to 2 example question_text snippets per type
+              if (!typeExamples[t]) typeExamples[t] = [];
+              if (typeExamples[t].length < 2 && q.question_text) {
+                typeExamples[t].push(q.question_text.substring(0, 150));
+              }
+            }
+            const summary = {
+              totalQuestions: questions.length,
+              typeDistribution: Object.entries(typeCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([type, count]) => ({
+                  type,
+                  count,
+                  pct: Math.round((count / questions.length) * 100) + "%",
+                  examples: typeExamples[type] || [],
+                })),
+              difficultyDistribution: Object.entries(difficultyCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([diff, count]) => ({ difficulty: diff, count, pct: Math.round((count / questions.length) * 100) + "%" })),
+            };
+            return JSON.stringify({
+              questions,
+              total: questions.length,
+              subject,
+              chapter,
+              _distribution: summary,
+              _instruction: "ANALYZE the typeDistribution above before generating your questions. Your generated question set MUST have a similar or greater proportion of non-numerical types (assertion-reason, matching, comprehension, statement-based). Match the difficulty distribution as well.",
+            });
           } catch (err) {
             return JSON.stringify({ error: `neet_bank_search error: ${err instanceof Error ? err.message : String(err)}` });
           }
