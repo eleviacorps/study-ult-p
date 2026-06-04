@@ -310,7 +310,7 @@ export default function TestTakePage() {
         if (userAns === undefined || userAns === null) return `Q${i+1}: Skipped. Correct: ${q.options[q.correctIndex] || "N/A"}`;
         if (typeof userAns === "number" && userAns === q.correctIndex) return "";
         const userTopic = q.topic ? ` (Topic: ${q.topic})` : "";
-        return `Q${i+1}${userTopic}: ${q.text.substring(0, 100)}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${q.options[userAns] || "skipped"}`;
+        return `Q${i+1}${userTopic}: ${q.text.substring(0, 100)}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${typeof userAns === "number" ? (q.options[userAns] || "skipped") : userAns}`;
       })
       .filter(Boolean).join("\n\n");
 
