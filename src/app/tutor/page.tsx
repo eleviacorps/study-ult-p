@@ -36,7 +36,7 @@ export default function TutorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const saved = loadChat(chatKey);
     return saved.length > 0 ? saved : [
-      { role: "assistant" as const, content: "Hi! Ask me anything about physics." },
+      { role: "assistant" as const, content: "Hi! Ask me anything about your studies. I can help with any subject in your vault." },
     ];
   });
   const [mounted, setMounted] = useState(false);
@@ -85,9 +85,9 @@ export default function TutorPage() {
     if (!mounted) return;
     saveChat(chatKey, messages);
     queueChatSyncToDB(chatKey, messages, {
-      type: "physics_tutor",
-      title: "Physics Tutor",
-      subject: "Physics",
+      type: "tutor",
+      title: "AI Tutor",
+      subject: "General",
     });
   }, [messages, mounted]);
 
@@ -97,9 +97,9 @@ export default function TutorPage() {
       if (!res.ok) return;
       const data = await res.json();
       const remote = Array.isArray(data.sessions)
-        ? data.sessions.filter((s: TutorSession) => s.type === "physics_tutor")
+        ? data.sessions      .filter((s: TutorSession) => s.type === "tutor")
         : [];
-      const local = listLocalChatSessions(chatKey).filter((s) => s.type === "physics_tutor");
+      const local = listLocalChatSessions(chatKey).filter((s) => s.type === "tutor");
       const seen = new Set<string>();
       const merged = [...local, ...remote].filter((session) => {
         if (seen.has(session.id)) return false;
@@ -108,7 +108,7 @@ export default function TutorPage() {
       });
       setSessions(merged);
     } catch {
-      setSessions(listLocalChatSessions(chatKey).filter((s) => s.type === "physics_tutor"));
+      setSessions(listLocalChatSessions(chatKey).filter((s) => s.type === "tutor"));
     }
   }, []);
 
@@ -135,7 +135,7 @@ export default function TutorPage() {
   const buildContext = async (question: string, chatSummary = ""): Promise<string> => {
     return buildStructuredTutorContext(vault, question, {
       surface: "main_tutor",
-      subject: "Physics",
+      subject: vault?.chapters?.[0]?.subject || "General",
       chatSummary,
       studentProfile,
     });
@@ -219,7 +219,7 @@ export default function TutorPage() {
   };
 
   const startNewChat = () => {
-    const greeting = { role: "assistant" as const, content: "Hi! Ask me anything about physics." };
+    const greeting = { role: "assistant" as const, content: "Hi! Ask me anything about your studies." };
     clearChat(chatKey);
     setMessages([greeting]);
     setShowHistory(false);
@@ -241,7 +241,7 @@ export default function TutorPage() {
       }
       setChatSession(chatKey, sessionId, nextMessages.length);
       saveChat(chatKey, nextMessages);
-      setMessages(nextMessages.length > 0 ? nextMessages : [{ role: "assistant", content: "Hi! Ask me anything about physics." }]);
+      setMessages(nextMessages.length > 0 ? nextMessages : [{ role: "assistant", content: "Hi! Ask me anything about your studies." }]);
       setShowHistory(false);
       setPending(null);
     } catch {
@@ -261,7 +261,7 @@ export default function TutorPage() {
       <div className="flex-1 min-h-0 max-w-3xl mx-auto w-full px-4 sm:px-6 flex flex-col overflow-hidden">
         <div className="pt-4 flex items-center justify-between gap-3 flex-shrink-0">
           <div>
-            <p className="text-xs opacity-35">Physics tutor</p>
+            <p className="text-xs opacity-35">AI Tutor — {vault?.chapters?.length || 0} chapters available</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -389,7 +389,7 @@ export default function TutorPage() {
           <div className="flex items-center gap-2 bg-[#09090B] border border-white/[0.04] rounded-xl p-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.12)]">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder={
-                pending ? (pending.step === "ask_count" ? "e.g. 5" : "Type your answer...") : "Ask anything about physics..."
+                pending ? (pending.step === "ask_count" ? "e.g. 5" : "Type your answer...") : "Ask anything about any chapter..."
               }
               className="flex-1 bg-transparent text-sm outline-none px-2.5 min-w-0 text-white/70 placeholder:text-white/15 py-1.5" />
             <button onClick={handleSend} disabled={!input.trim() || isAsking}

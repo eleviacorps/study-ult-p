@@ -71,6 +71,7 @@ export default function TestTakePage() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [timeSpent, setTimeSpent] = useState(0);
   const [score, setScore] = useState<{ correct: number; wrong: number; total: number; feedback: string } | null>(null);
+  const [showReview, setShowReview] = useState(false);
   const [aiScoreLoading, setAiScoreLoading] = useState(false);
   const [resumeData, setResumeData] = useState<{ questions: TestQuestion[]; currentQ: number; timeLeft: number; timeSpent: number } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -522,6 +523,58 @@ export default function TestTakePage() {
 
   if (phase === "finished" && score) {
     const pct = Math.round((score.correct / score.total) * 100);
+
+    if (showReview) {
+      return (
+        <div className="min-h-screen">
+          <Header breadcrumbs={[{ label: "Mock Tests", href: "/tests" }, { label: chapterName, href: "#" }]} />
+          <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Answer Review</h2>
+              <button onClick={() => setShowReview(false)} className="text-xs opacity-40 hover:opacity-70">Back to Results</button>
+            </div>
+            <div className="space-y-3">
+              {questions.map((q, i) => {
+                const userAns = answers.get(i);
+                const isCorrect = q.type === "mcq"
+                  ? (typeof userAns === "number" && userAns === q.correctIndex)
+                  : false;
+                const correctText = q.options[q.correctIndex] || "";
+                const userText = userAns !== undefined && userAns !== null
+                  ? (typeof userAns === "number" ? q.options[userAns] || "" : String(userAns))
+                  : "Skipped";
+                return (
+                  <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    className={cn("glass p-4", isCorrect ? "border-l-2 border-[#10B981]/50" : "border-l-2 border-[#EF4444]/50")}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-mono opacity-20">Q{i + 1}</span>
+                      {isCorrect ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-[#10B981]" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-[#EF4444]" />
+                      )}
+                    </div>
+                    <p className="text-xs font-medium mb-2">{q.text}</p>
+                    <div className="space-y-1 text-[10px]">
+                      <p className={cn(isCorrect ? "text-[#10B981]" : "text-[#EF4444]")}>
+                        Your answer: {userText}
+                      </p>
+                      {!isCorrect && (
+                        <p className="text-[#10B981]">Correct: {correctText}</p>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+            <button onClick={() => setShowReview(false)} className="mt-4 w-full py-2 bg-white/[0.04] opacity-60 text-xs hover:bg-white/[0.08]">
+              Back to Results
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen">
         <Header breadcrumbs={[{ label: "Mock Tests", href: "/tests" }, { label: chapterName, href: "#" }]} />
@@ -550,8 +603,12 @@ export default function TestTakePage() {
               </div>
             )}
 
+            <button onClick={() => setShowReview(true)}
+              className="w-full py-2 mb-2 rounded-xl bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 text-[#8B5CF6] text-xs hover:bg-[#8B5CF6]/20 transition-colors">
+              Review Answers
+            </button>
             <div className="flex gap-3">
-              <button onClick={() => { setPhase("config"); setScore(null); }}
+              <button onClick={() => { setPhase("config"); setScore(null); setShowReview(false); }}
                 className="flex-1 py-2.5 rounded-xl bg-white/[0.04] opacity-60 text-xs hover:bg-white/[0.08]">
                 New Test
               </button>

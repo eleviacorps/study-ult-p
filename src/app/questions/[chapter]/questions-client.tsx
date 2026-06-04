@@ -327,6 +327,30 @@ function QuestionCard({ question, index }: { question: Question; index: number }
         </div>
       )}
 
+      {/* ── Solution (from stored solution field) ── */}
+      {question.solution && (
+        <div className="mt-3">
+          <button
+            onClick={() => toggle("solution_local")}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            {revealed.has("solution_local") ? "Hide Solution" : "Show Solution"}
+          </button>
+          <AnimatePresence>
+            {revealed.has("solution_local") && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="p-3 mt-2 rounded-xl bg-[#06B6D4]/5 border border-[#06B6D4]/20">
+                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Solution</p>
+                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={question.solution} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
       {/* ── Explanation (from stored explanation field) ── */}
       {question.explanation && (
         <div className="mt-3">
@@ -351,7 +375,58 @@ function QuestionCard({ question, index }: { question: Question; index: number }
         </div>
       )}
 
+      {/* ── Your Answer Input (always visible) ── */}
       <div className="mt-4 pt-3 border-t border-white/[0.04]">
+        {solutionsRevealed ? (
+          <div className="mb-3 p-2.5 rounded-xl bg-[#F59E0B]/5 border border-[#F59E0B]/20 text-[10px] text-[#F59E0B]/70">
+            Grading skipped — solution was revealed
+          </div>
+        ) : !isMcq && (
+          <div className="mb-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] uppercase tracking-wider opacity-25">Your Answer</p>
+              {answerJudged && aiScore && (
+                <span className={cn("text-[10px] px-1.5 py-0.5 rounded",
+                  aiScore.score >= 6 ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]")}>
+                  {aiScore.score}/{aiScore.maxScore}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                placeholder="Type your answer..."
+                disabled={answerJudged}
+                className="flex-1 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.08] text-xs outline-none focus:border-[#1856FF]/30 disabled:opacity-30"
+                style={{ color: "var(--text-primary)" }}
+              />
+              <button
+                onClick={handleJudgeAnswer}
+                disabled={!userAnswer.trim() || judgeLoading || answerJudged}
+                className="px-3 py-2 rounded-xl bg-[#1856FF]/15 text-[#1856FF] text-xs border border-[#1856FF]/20 hover:bg-[#1856FF]/25 disabled:opacity-20 flex items-center gap-1.5"
+              >
+                {judgeLoading ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Judging</>
+                ) : answerJudged ? (
+                  <><CheckCircle2 className="w-3 h-3" /> Done</>
+                ) : (
+                  <><Send className="w-3 h-3" /> Submit</>
+                )}
+              </button>
+            </div>
+            {aiScore && aiScore.feedback && (
+              <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                className="p-3 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10">
+                <div className="prose-glass text-[11px] opacity-70 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={aiScore.feedback} />
+                </div>
+              </motion.div>
+            )}
+          </div>
+        )}
+
         <button
           onClick={handleAiHelp}
           disabled={aiLoading || !!aiStructured}
@@ -436,78 +511,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                   </div>
                 </AiSection>
 
-                <AiSection
-                  stepKey="answers"
-                  label={solutionsRevealed ? "Your Answer (grading skipped)" : "Your Answer"}
-                  icon={Send}
-                  color={solutionsRevealed ? "muted" : "primary"}
-                  revealed={revealed}
-                  onToggle={toggle}
-                >
-                  {solutionsRevealed ? (
-                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                      <p className="text-xs opacity-40">
-                        {showAnswerRevealed && "Answer was revealed"}
-                        {!showAnswerRevealed && revealed.has("solution") && "Step-by-step solution was shown"}
-                        {!showAnswerRevealed && !revealed.has("solution") && selectedOption && "MCQ option was selected"}
-                        — grading is skipped for this question.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <textarea
-                        value={userAnswer}
-                        onChange={(e) => setUserAnswer(e.target.value)}
-                        placeholder="Write your answer here (use LaTeX $$ for formulas)..."
-                        disabled={answerJudged}
-                        className="w-full min-h-[80px] p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs outline-none focus:border-[#1856FF]/30 resize-y disabled:opacity-30"
-                        style={{ color: "var(--text-primary)" }}
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleJudgeAnswer}
-                          disabled={!userAnswer.trim() || judgeLoading}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1856FF]/15 text-[#1856FF] text-xs border border-[#1856FF]/20 disabled:opacity-20 hover:bg-[#1856FF]/25"
-                        >
-                          {judgeLoading ? (
-                            <><Loader2 className="w-3 h-3 animate-spin" /> Judging...</>
-                          ) : (
-                            <><Send className="w-3 h-3" /> Submit for AI Judging</>
-                          )}
-                        </button>
-                      </div>
 
-                      {answerJudged && aiScore && (
-                        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                          className={cn("p-4 rounded-xl border",
-                            aiScore.score >= 8 ? "bg-[#10B981]/5 border-[#10B981]/20" :
-                            aiScore.score >= 6 ? "bg-[#F59E0B]/5 border-[#F59E0B]/20" :
-                            "bg-[#EF4444]/5 border-[#EF4444]/20"
-                          )}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className={cn("text-lg font-bold",
-                              aiScore.score >= 8 ? "text-[#10B981]" :
-                              aiScore.score >= 6 ? "text-[#F59E0B]" :
-                              "text-[#EF4444]"
-                            )}>{aiScore.score}/{aiScore.maxScore}</span>
-                            <span className="text-[10px] opacity-30">
-                              {aiScore.score >= 8 ? "Excellent!" : aiScore.score >= 6 ? "Decent" : "Needs Work"}
-                            </span>
-                          </div>
-                          <div className="prose-glass text-xs opacity-60 leading-relaxed max-w-none">
-                            <MarkdownRenderer content={aiScore.feedback} />
-                          </div>
-                          <div className="mt-2 p-2 rounded-lg bg-white/[0.02]">
-                            <p className="text-[10px] uppercase tracking-wider opacity-20 mb-1">Your Answer</p>
-                            <div className="prose-glass text-xs opacity-50 leading-relaxed max-w-none">
-                              <MarkdownRenderer content={userAnswer} />
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </div>
-                  )}
-                </AiSection>
               </>
             )}
           </div>
