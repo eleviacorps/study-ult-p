@@ -85,9 +85,9 @@ export default function TutorPage() {
     if (!mounted) return;
     saveChat(chatKey, messages);
     queueChatSyncToDB(chatKey, messages, {
-      type: "tutor",
+      type: "concept_discussion",
       title: "AI Tutor",
-      subject: "General",
+      subject: vault?.chapters?.[0]?.subject || "General",
     });
   }, [messages, mounted]);
 
