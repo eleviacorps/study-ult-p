@@ -9,7 +9,7 @@ import { addPoints, updateStudyState, saveActivitySnapshot } from "@/lib/study-s
 import { PROMPTS } from "@/lib/ai-config";
 import { recordEvaluationAttempt } from "@/lib/evaluation-sync";
 import { Header } from "@/components/layout/header";
-import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
+import { Clock, ChevronRight, ChevronLeft, Flag, CheckCircle, XCircle, AlertCircle, Timer, Loader2, RefreshCw, Play } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const QUIZ_KEY = "studyult-quiz-inprogress";

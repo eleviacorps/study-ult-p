@@ -257,6 +257,48 @@ async function fetchStudentProfile(): Promise<TutorContextOptions["studentProfil
   }
 }
 
+function buildVaultSummary(vault: VaultContent | null): string {
+  if (!vault || vault.chapters.length === 0) return "No vault content available.";
+  const lines = vault.chapters.map((ch) => {
+    const noteTitles = vault.notes
+      .filter((n) => n.chapter === ch.name)
+      .slice(0, 8)
+      .map((n) => `  - ${n.title}`)
+      .join("\n");
+    return `## ${ch.name} (${ch.subject})\nTopics:\n${noteTitles || "  (no notes)"}`;
+  });
+  return lines.join("\n\n");
+}
+
+function topFallbackNotes(vault: VaultContent | null, maxChunks = 4): RetrievalChunk[] {
+  if (!vault) return [];
+  // Sort by content length (longest first) to pick the most substantive note per chapter
+  const sorted = [...vault.notes].sort((a, b) => b.content.length - a.content.length);
+  const chunks: RetrievalChunk[] = [];
+  const seen = new Set<string>();
+  for (const note of sorted) {
+    const key = note.chapter;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const block = compact(
+      note.content.split(/\n{2,}/).filter((b) => b.length > 100).slice(0, 3).join("\n\n"),
+      600
+    );
+    if (block.length > 50) {
+      chunks.push({
+        id: `fallback-${note.id || note.path}`,
+        source: "note" as const,
+        title: note.title,
+        chapter: note.chapter,
+        subject: note.subject,
+        text: block,
+        score: 0,
+      });
+    }
+  }
+  return chunks.slice(0, maxChunks);
+}
+
 export async function buildStructuredTutorContext(
   vault: VaultContent | null,
   question: string,
@@ -272,7 +314,27 @@ export async function buildStructuredTutorContext(
     .sort((a, b) => b.score - a.score)
     .slice(0, 8);
 
-  const retrievals = rankedRetrievals.map(({ score, ...chunk }) => chunk);
+  let retrievals = rankedRetrievals.map(({ score, ...chunk }) => chunk);
+
+  // When retrievals are empty and no specific chapter is targeted, 
+  // include a vault overview so the AI knows what content is available
+  const hasChapterFilter = !!options.chapter;
+  if (retrievals.length === 0 && !hasChapterFilter && vault) {
+    const fallback = topFallbackNotes(vault);
+    const summary = buildVaultSummary(vault);
+    retrievals = [
+      ...fallback,
+      {
+        id: "vault-summary",
+        source: "note" as const,
+        title: "Available Study Content",
+        chapter: "All Chapters",
+        subject: options.subject || "General",
+        text: summary,
+        score: 0,
+      },
+    ];
+  }
 
   const payload = {
     role: "StudyUlt adaptive tutor",
@@ -280,7 +342,7 @@ export async function buildStructuredTutorContext(
       "Use the structured payload, not hidden assumptions.",
       "Do not ask for or reveal model/provider/API configuration.",
       "Use retrieved chunks and concept relationships when relevant.",
-      "If retrieval is thin, answer from general physics knowledge and say what would need verification.",
+      "If retrieval is thin, use the available vault summary (chapters, topics) to guide your response. If no vault content exists, answer from general knowledge and note what would need verification.",
       "Keep responses concise, use standard markdown (## headings, - lists, **bold**).",
       "CRITICAL: For ALL mathematical formulas, ALWAYS use LaTeX with $inline$ or $$block$$ syntax. NEVER use Unicode symbols (like π, ϵ, θ, →, ∑, ∫, ², ³, vector arrows over letters) or raw characters instead of LaTeX. Every formula MUST be wrapped in $ or $$ delimiters. Do NOT use \( \) syntax — it does not render.",
       "Do NOT use emoji section headers like 🎯 or 🔬. Use standard markdown ## headings instead.",
