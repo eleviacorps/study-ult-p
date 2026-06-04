@@ -230,7 +230,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
           subject: { type: "string", description: "Subject: Physics, Chemistry, or Biology" },
           chapter: { type: "string", description: "Chapter name in any format (e.g. 'Units and Measurement', 'chemical-bonding', 'The Living World'). The API does fuzzy matching so just use the natural chapter name." },
           year: { type: "string", description: "Optional year filter (e.g. '2024')" },
-          limit: { type: "number", description: "Max results to return (default 20, max 50)" },
+          limit: { type: "number", description: "Max results to return (default 50, max 200). Use higher limits (50-200) when you need a comprehensive view of question patterns across many years." },
           random: { type: "boolean", description: "If true, randomize results (default: most recent first). Use true when you need a variety of questions across years." },
         },
         required: ["subject", "chapter"],

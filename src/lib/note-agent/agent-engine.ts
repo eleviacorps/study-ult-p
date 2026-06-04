@@ -634,7 +634,7 @@ function makeToolHandler(workspace: Map<string, string>) {
           const subject = (args.subject as string) || "";
           const chapter = (args.chapter as string) || "";
           const year = (args.year as string) || "";
-          const limit = Math.min(Number(args.limit) || 20, 50);
+          const limit = Math.min(Number(args.limit) || 50, 200);
           const random = args.random === true;
           try {
             const params = new URLSearchParams({ subject, chapter });

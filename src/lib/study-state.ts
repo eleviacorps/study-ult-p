@@ -160,6 +160,17 @@ export function addPoints(amount: number, action: string, details: string) {
 
 export function syncWeakAreas(state: StudyState) {
   const topicAcc = state.topicAccuracy || {};
+
+  // Clean up garbage entries from old bug: keys like "Chapter > Test Q4" that were
+  // recorded with the question index instead of the real topic name.
+  // These provide no meaningful insight and create useless AI todos.
+  const garbagePattern = /Test Q\d+$/;
+  for (const key of Object.keys(topicAcc)) {
+    if (garbagePattern.test(key)) {
+      delete topicAcc[key];
+    }
+  }
+
   const entries = Object.entries(topicAcc)
     .filter(([, v]) => v.total > 0)
     .map(([topic, v]) => ({
@@ -297,6 +308,10 @@ async function pullRemoteState() {
         activityLog: local.activityLog || remote.activityLog || [],
         userTodos: local.userTodos || remote.userTodos || [],
         lastAiAnalysis: remote.lastAiAnalysis || local.lastAiAnalysis || "",
+        // Study minutes: local always wins so time tracking doesn't get wiped by stale remote
+        studyMinutes: { ...(remote.studyMinutes || {}), ...(local.studyMinutes || {}) },
+        // Topic accuracy: same — local in-session data is more current than remote
+        topicAccuracy: { ...(remote.topicAccuracy || {}), ...(local.topicAccuracy || {}) },
       };
       saveStudyState(merged);
 

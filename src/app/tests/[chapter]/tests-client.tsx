@@ -47,6 +47,7 @@ interface TestQuestion {
   options: string[];
   correctIndex: number;
   type: "mcq" | "input";
+  topic?: string;
 }
 
 const QUESTION_COUNTS = [5, 10, 15, 20, 30, 50] as const;
@@ -134,6 +135,7 @@ export default function TestTakePage() {
       options: opts.map((o: any) => `${o.label}) ${o.text}`),
       correctIndex: findCorrectIndex(),
       type: "mcq" as const,
+      topic: q.topic,
     };
   }
 
@@ -266,7 +268,7 @@ export default function TestTakePage() {
         recordEvaluationAttempt({
           surface: "test",
           questionId: `${chapterName}-q${i}`,
-          topic: `${chapterName} > Test Q${i + 1}`,
+          topic: q.topic || `${chapterName} > General`,
           chapter: chapterName,
           correct: isCorrect,
           score: isCorrect ? 1 : 0,
@@ -283,9 +285,10 @@ export default function TestTakePage() {
           correct: current.correct + (isCorrect ? 1 : 0),
           total: current.total + 1,
         };
-        const topicKey = `${chapterName} > Test Q${i}`;
-        const t = state.topicAccuracy[topicKey] || { correct: 0, total: 0 };
-        state.topicAccuracy[topicKey] = {
+        // Use the real topic if available, otherwise use a general chapter-level key
+        const actualTopic = q.topic || `${chapterName}`;
+        const t = state.topicAccuracy[actualTopic] || { correct: 0, total: 0 };
+        state.topicAccuracy[actualTopic] = {
           correct: t.correct + (isCorrect ? 1 : 0),
           total: t.total + 1,
         };
