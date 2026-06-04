@@ -250,7 +250,6 @@ export default function TutorPage() {
       setChatSession(chatKey, sessionId, nextMessages.length);
       saveChat(chatKey, nextMessages);
       setMessages(nextMessages);
-      setExpandedReasoning(new Set());
       setShowHistory(false);
       setPending(null);
     }

@@ -113,6 +113,19 @@ Every question set MUST include these question types mixed throughout all diffic
 
 **Use the `_distribution` field from neet_bank_search as your quality target.** If the real NEET questions for this chapter have 15% assertion-reason, 10% matching, 10% comprehension, then your generated set must have AT LEAST these proportions. The assess_quality check at the end will verify this and flag you if non-numerical types are below 40%.
 
+### Multi-Concept / Multi-Topic Questions (CRITICAL for NEET & JEE)
+Real NEET and JEE questions regularly combine multiple topics or formulas within a single question. For example:
+- A question that combines Coulomb's Law with Gauss's Law
+- A question linking capacitors with electric field energy
+- A question that requires both kinematics and force analysis
+- A question combining thermodynamics with calorimetry
+
+**Your generated questions MUST include at least 15-20% multi-concept questions** where solving requires applying formulas/concepts from 2+ different topics. Mark these with a **Concepts:** metadata field listing all concepts involved, e.g.:
+```markdown
+**Concepts:** [[Coulomb's Law]], [[Gauss's Law]]
+```
+For moderation questions (Q21-Q60), include at least 5 multi-concept questions. For hard questions (Q61-Q100), include at least 10 multi-concept questions.
+
 ---
 
 ## STRICT PARSER CONTRACT - FOLLOW EXACTLY
@@ -1181,61 +1194,37 @@ D) [Option]
 ✅ [Correct option]
 ```
 
-### Question Generation Guidelines:
+### Question Generation Guidelines (MULTI-CONCEPT EMPHASIS):
 
-#### Q1-Q10: Coulomb's Law Basics
-- Simple force calculation between two point charges
-- Find force given charges and distance
-- Direction determination (attractive/repulsive)
+#### Q1-Q10: Single-Concept Basics
+- Direct application of a single formula/concept
+- Build confidence with straightforward problems
 
-#### Q11-Q20: Electric Field
-- Field due to point charge
-- Field at a point from single/multiple charges
-- Direction of field (radially outward/inward)
+#### Q11-Q20: Single-Concept Application
+- Slightly more complex but still one concept
+- Some multi-step reasoning but same formula
 
-#### Q21-Q30: Electric Potential
-- Potential due to point charge
-- Potential energy of system
-- Work done in moving charge
+#### Q21-Q40: Multi-Concept Problems (first batch) ⭐
+- **At least 5 questions combine 2+ topics**
+- E.g. Coulomb's Law + Electric Field, or Dipole + Potential
+- E.g. Assertion-reason linking two distinct concepts
 
-#### Q31-Q40: Continuous Charge Distribution ⭐
-- Linear charge distribution (rod)
-- Surface charge distribution (ring/disc)
-- Volume charge distribution (sphere)
-- Integration methods
+#### Q41-Q60: Advanced Single-Concept + Multi-Concept Mix
+- Half single-concept (deeper application)
+- Half multi-concept (combine related topics)
+- E.g. Gauss's Law + Capacitors, or Electric Field + Work/Energy
 
-#### Q41-Q50: Electric Dipole
-- Field due to dipole (axial and equatorial)
-- Potential due to dipole
-- Torque on dipole in uniform field
-- Dipole in non-uniform field
+#### Q61-Q80: Multi-Concept Synthesis ⭐
+- **At least 8 questions combine 2+ distinct topics**
+- Combine unrelated-seeming topics (e.g. Gravitation + Electrostatics analogy)
+- Multi-paragraph comprehension integrating multiple concepts
+- Matrix-match questions across topic boundaries
 
-#### Q51-Q60: Gauss's Law Applications ⭐
-- Field inside/outside charged sphere
-- Field due to infinite plane sheet
-- Field due to infinite cylindrical conductor
-- Multiple Gaussian surfaces
-
-#### Q61-Q70: Capacitors
-- Capacitance calculation
-- Energy stored in capacitor
-- Combination of capacitors
-- Charging/discharging
-
-#### Q71-Q80: Multiple Concept Problems ⭐
-- Combine Gauss's Law + Coulomb's Law
-- Energy + Force problems
-- Capacitor + Electric Field problems
-
-#### Q81-Q90: {EXAM_LEVEL2} Level
-- Complex integration problems
-- Unusual charge distributions
-- Multi-stage problems
-
-#### Q91-Q100: Mixed Comprehensive
-- Previous year {EXAM_NAME} questions
-- Mixed topics from entire chapter
-- Integer answer type
+#### Q81-Q100: {EXAM_LEVEL2} Multi-Concept Integration
+- **At least 10 multi-concept questions**
+- Complex integration problems across topic boundaries
+- Unusual charge distributions requiring multiple approaches
+- Multi-stage problems where each stage uses a different formula
 ```
 
 ### Examples of Full Questions with Answers:

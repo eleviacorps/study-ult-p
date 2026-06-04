@@ -740,7 +740,7 @@ function makeToolHandler(workspace: Map<string, string>) {
               return JSON.stringify({
                 questions: [], total: 0, subject, chapter,
                 _distribution: { totalQuestions: 0, typeDistribution: [], difficultyDistribution: [] },
-                _instruction: "No NEET bank questions found for this chapter. Proceed using your knowledge. Remember: at least 40% of questions MUST be non-numerical types (assertion-reason, matching, comprehension, statement-based).",
+                _instruction: "No NEET bank questions found for this chapter. Proceed using your knowledge. Remember: at least 40% of questions MUST be non-numerical types (assertion-reason, matching, comprehension, statement-based). Also include 15-20% multi-concept questions that combine 2+ topics/formulas.",
               });
             }
             const typeCounts: Record<string, number> = {};
@@ -777,7 +777,7 @@ function makeToolHandler(workspace: Map<string, string>) {
               subject,
               chapter,
               _distribution: summary,
-              _instruction: "ANALYZE the typeDistribution above before generating your questions. Your generated question set MUST have a similar or greater proportion of non-numerical types (assertion-reason, matching, comprehension, statement-based). Match the difficulty distribution as well.",
+              _instruction: "ANALYZE the typeDistribution above before generating your questions. Your generated question set MUST have a similar or greater proportion of non-numerical types (assertion-reason, matching, comprehension, statement-based). Match the difficulty distribution as well. Also include 15-20% multi-concept questions that combine 2+ topics/formulas in a single question (e.g. Coulomb's Law + Gauss's Law, or kinematics + force analysis).",
             });
           } catch (err) {
             return JSON.stringify({ error: `neet_bank_search error: ${err instanceof Error ? err.message : String(err)}` });

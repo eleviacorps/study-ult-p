@@ -225,24 +225,56 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
       const diffMatch = block.match(/\*\*Difficulty:\*\*\s*(.+)/);
       const marksMatch = block.match(/\*\*Marks:\*\*\s*(\d+)/);
       const subtopicMatch = block.match(/\*\*Subtopic:\*\*\s*(.+)/);
+      const typeMatch = block.match(/\*\*Type:\*\*\s*(.+)/);
+      const examMatch = block.match(/\*\*Exam:\*\*\s*(.+)/);
 
+      // ── Extract given/find from various section formats ──
+      // Try standard Given/Find first, then Problem (MCQ template), then assertion/passage/matching
       const givenMatch = block.match(/### Given:\s*\n([\s\S]*?)(?=###|$)/);
       const findMatch = block.match(/### Find:\s*\n([\s\S]*?)(?=###|$)/);
-      const solutionMatch = block.match(
-        /### Solution:\s*\n([\s\S]*?)(?=###\s+Answer|$)/i
-      );
-      const answerMatch = block.match(/### Answer:\s*\n([\s\S]*?)(?=$|\n---)/);
-      const explanationMatch = block.match(
-        /### Explanation:\s*\n([\s\S]*?)$/
-      );
+      const problemMatch = block.match(/### Problem:\s*\n([\s\S]*?)(?=###|$)/);
+      const approachMatch = block.match(/### Approach:\s*\n([\s\S]*?)(?=###|$)/i);
 
-      const optionsMatch = block.match(
-        /### Options:\s*\n([\s\S]*?)(?=###|$)/
-      );
+      // ── Assertion-Reason format ──
+      const assertionMatch = block.match(/### Assertion\s*\(A\):\s*\n([\s\S]*?)(?=###|$)/i);
+      const reasonMatch = block.match(/### Reason\s*\(R\):\s*\n([\s\S]*?)(?=###|$)/i);
+
+      // ── Matching format ──
+      const col1Match = block.match(/### Column I[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
+      const col2Match = block.match(/### Column II[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
+
+      // ── Comprehension/Passage format ──
+      const passageMatch = block.match(/### Passage:\s*\n([\s\S]*?)(?=###|$)/i);
+
+      // ── Statement-Based format ──
+      const statementsMatch = block.match(/### Statements:\s*\n([\s\S]*?)(?=###|$)/i);
+
+      // ── Build `given` from available sections ──
+      let given = givenMatch?.[1]?.trim() || problemMatch?.[1]?.trim() || "";
+      if (assertionMatch || reasonMatch) {
+        const a = assertionMatch?.[1]?.trim() || "";
+        const r = reasonMatch?.[1]?.trim() || "";
+        given = `**Assertion (A):** ${a}\n\n**Reason (R):** ${r}`;
+      } else if (col1Match || col2Match) {
+        const c1 = col1Match?.[1]?.trim() || "";
+        const c2 = col2Match?.[1]?.trim() || "";
+        given = `**Column I:**\n${c1}\n\n**Column II:**\n${c2}`;
+      } else if (passageMatch) {
+        given = passageMatch[1].trim();
+      } else if (statementsMatch) {
+        given = statementsMatch[1].trim();
+      }
+
+      const find = findMatch?.[1]?.trim() || "";
+
+      // ── Extract options from various formats ──
       let options: { label: string; text: string }[] | undefined;
+
+      // 1. Standard ### Options: with A) / B) / C) / D) format
+      const optionsMatch = block.match(/### Options:\s*\n([\s\S]*?)(?=###|$)/);
       if (optionsMatch) {
         const optText = optionsMatch[1];
-        const optRegex = /([A-D])\)\s*(.+)/g;
+        const optRegex = /([A-D])\)\s*(.+?)(?:\n|$)/g;
         let m;
         options = [];
         while ((m = optRegex.exec(optText)) !== null) {
@@ -250,7 +282,88 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
         }
       }
 
+      // 2. MCQ table format: | A | [Option text] | [Why wrong] |
+      if (!options || options.length === 0) {
+        const tableRowRegex = /^\|\s*([A-D])\s*\|\s*([^|]+?)\s*\|(?:[^|]*)\|\s*$/gm;
+        const tableOptions: { label: string; text: string }[] = [];
+        let tm;
+        while ((tm = tableRowRegex.exec(block)) !== null) {
+          tableOptions.push({ label: tm[1], text: tm[2].trim() });
+        }
+        if (tableOptions.length >= 2) options = tableOptions;
+      }
+
+      // 3. Assertion-reason standard options (if no explicit ### Options found but assertion detected)
+      if ((!options || options.length === 0) && (assertionMatch || reasonMatch)) {
+        // Try matching the option format within the block directly (without ### Options header)
+        const arOptionRegex = /([A-E])\)\s*(Both A and R|A is true|A is false)/g;
+        const arOptions: { label: string; text: string }[] = [];
+        let ar;
+        while ((ar = arOptionRegex.exec(block)) !== null) {
+          arOptions.push({ label: ar[1], text: ar[2].trim() });
+        }
+        if (arOptions.length >= 2) options = arOptions;
+      }
+
+      // 4. Fallback: bullet list options: - A) text / * A) text / - A. text
+      if (!options || options.length === 0) {
+        const bulletOptRegex = /^[\-\*]\s+([A-D])\)\s*(.+)$/gm;
+        const bulletOptions: { label: string; text: string }[] = [];
+        let bm;
+        while ((bm = bulletOptRegex.exec(block)) !== null) {
+          bulletOptions.push({ label: bm[1], text: bm[2].trim() });
+        }
+        if (bulletOptions.length >= 2) options = bulletOptions;
+      }
+
+      // ── Extract solution ──
+      const solutionMatch = block.match(
+        /### Solution:\s*\n([\s\S]*?)(?=###\s+Answer|### Explanation|$)/i
+      );
+      // Also try ### Detailed Explanation as solution fallback
+      const detailedExplanationMatch = block.match(
+        /### Detailed Explanation:\s*\n([\s\S]*?)(?=###|$)/i
+      );
+      const solution = solutionMatch?.[1]?.trim() || detailedExplanationMatch?.[1]?.trim() || "";
+
+      // ── Extract answer ──
+      const answerMatch = block.match(/### Answer:\s*\n([\s\S]*?)(?=$|\n---|\n##)/);
+      let answer = answerMatch?.[1]?.trim() || "";
+      // If answer is empty, try extracting from Explanation block (MCQ template puts answer there)
+      if (!answer) {
+        const answerInline = block.match(/\*\*Answer:\*\*\s*(.+)/);
+        if (answerInline) answer = answerInline[1].trim();
+      }
+
+      // ── Extract explanation (from ### Explanation: or ### Why Other Options Are Wrong or Detailed Explanation) ──
+      const explanationMatch = block.match(/### Explanation:\s*\n([\s\S]*?)$/);
+      const whyWrongMatch = block.match(
+        />\s*\[!WHY-WRONG\]\s*\n((?:>\s*.*\n?)*)/i
+      );
+      let explanation = explanationMatch?.[1]?.trim() || "";
+      if (!explanation && whyWrongMatch) {
+        explanation = whyWrongMatch[1].split("\n").map((l) => l.replace(/^>\s?/, "")).join("\n").trim();
+      }
+
+      // ── Extract {EXAM_NAME} Insight / Common Trap ──
+      const insightMatch = block.match(
+        />\s*\[!(?:EXAM-INSIGHT|SHORTCUT|JEE-INSIGHT)\]\s*\n((?:>\s*.*\n?)*)/i
+      );
+      const trapMatch = block.match(/### Common Trap:\s*\n([\s\S]*?)(?=###|$)/i);
+      if (trapMatch && !explanation) {
+        explanation = trapMatch[1].trim();
+      }
+
+      // ── Build tags ──
       const tags = parseTags(content);
+      const questionType = typeMatch?.[1]?.trim() || "";
+      if (questionType && !tags.includes(questionType)) {
+        tags.push(questionType);
+      }
+
+      // ── Determine question type (mcq or solved) ──
+      const isMcq = !!(options && options.length >= 2) ||
+        !!assertionMatch || !!col1Match || !!passageMatch;
 
       questions.push({
         id: slugify(`${chapter}-q${i + 1}`),
@@ -264,14 +377,14 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
           | "Moderate"
           | "Hard",
         marks: marksMatch ? parseInt(marksMatch[1]) : 4,
-        given: givenMatch?.[1]?.trim(),
-        find: findMatch?.[1]?.trim(),
-        options,
-        solution: solutionMatch?.[1]?.trim() || "",
-        answer: answerMatch?.[1]?.trim() || "",
-        explanation: explanationMatch?.[1]?.trim(),
+        given: given || undefined,
+        find: find || undefined,
+        options: isMcq ? options : undefined,
+        solution,
+        answer,
+        explanation: explanation || undefined,
         tags,
-        type: options ? "mcq" : "solved",
+        type: isMcq ? "mcq" : "solved",
       });
     });
   }
