@@ -1,17 +1,1 @@
-export {
-  initRagStore,
-  queueDocument,
-  processDocumentQueue,
-  pendingIndexCount,
-  getDocument,
-  searchDocuments,
-  searchDocumentsByContent,
-  deleteDocument,
-  getAllDocumentPaths,
-  getRAGStats,
-  getIndexTelemetry,
-  resetIndexTelemetry,
-  embedSection,
-  getPendingEmbedSummary,
-  resetPendingEmbeds,
-} from "./rag-store";
+// Vector store removed — embeddings are pre-generated locally and pushed to Supabase.

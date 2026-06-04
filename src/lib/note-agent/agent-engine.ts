@@ -1,4 +1,3 @@
-import { queueDocument, processDocumentQueue, searchDocuments, getDocument, pendingIndexCount, getIndexTelemetry, resetIndexTelemetry, embedSection, getPendingEmbedSummary, resetPendingEmbeds } from "./rag-store";
 import type { AgentStep, AgentConfig, ToolDef } from "@/lib/llm-agent";
 
 interface ToolCall {
@@ -158,10 +157,6 @@ function extractMarkdown(text: string): string | null {
 function extractFilePath(text: string): string | null {
   const m = text.match(/([\w][\w/]*\.md)/);
   return m ? m[1] : null;
-}
-
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\/|\/$/g, "");
 }
 
 // ── Compaction helpers ──
@@ -440,10 +435,9 @@ function isResultGarbage(text: string): boolean {
 
 // ── Tool handler ──
 
-function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string) {
+function makeToolHandler(workspace: Map<string, string>) {
   const _readCache = new Map<string, string>();
   const _fullReadCache = new Map<string, { result: string; timestamp: number }>();
-  let _lastWrittenSection: string | null = null;
 
   return {
     handler: async (name: string, args: Record<string, unknown>): Promise<string> => {
@@ -461,13 +455,6 @@ function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string)
           workspace.set(path, content);
           _readCache.delete(path);
           _fullReadCache.delete(path);
-          const type = path.includes("/questions/") ? "questions" : path.includes("/notes/") ? "notes" : path.includes("/flashcards/") ? "flashcards" : path.includes("/quizzes/") ? "quizzes" : path.includes("/revision/") ? "revision" : "other";
-          const section = path.includes("/notes/") ? "notes" : path.includes("/questions/") ? "questions" : path.includes("/revision/") ? "revision" : "other";
-          queueDocument(path, content, ragChapterPath, type, section, false);
-          if (_lastWrittenSection && _lastWrittenSection !== section) {
-            embedSection(_lastWrittenSection).then((res) => {}).catch(() => {});
-          }
-          _lastWrittenSection = section;
           return JSON.stringify({ success: true, path, bytes: content.length });
         }
         case "read_file": {
@@ -484,7 +471,7 @@ function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string)
           let content = workspace.get(path);
           if (content && content.startsWith("[FILE STORED —")) content = undefined;
           if (!content) {
-            try { const ragContent = await getDocument(path); if (ragContent) { workspace.set(path, ragContent); content = ragContent; } } catch {}
+            // workspace is the authoritative store — files not present here don't exist
           }
           if (content) {
             let result: string;
@@ -657,7 +644,6 @@ function makeToolHandler(workspace: Map<string, string>, ragChapterPath: string)
           return JSON.stringify({ error: `Unknown tool: ${name}` });
       }
     },
-    getSection: () => _lastWrittenSection,
   };
 }
 
@@ -688,10 +674,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
     if (c.startsWith("[FILE STORED —")) workspace.delete(p);
   }
 
-  const ragChapterPath = chapterPath;
-
-  // Seed vault into RAG
-  await seedVectorStore(vaultNotes, chapterPath);
+  // RAG system removed — embeddings are pre-generated locally and pushed to Supabase.
 
   const allToolCalls: { turn: number; name: string; args: Record<string, unknown> }[] = [];
   let currentTurn = 0;
@@ -701,7 +684,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
   let consecutiveSameFile = 0;
   let consecutiveIdleTurns = 0;
 
-  const { handler: toolHandlerFn, getSection } = makeToolHandler(workspace, ragChapterPath);
+  const { handler: toolHandlerFn } = makeToolHandler(workspace);
 
   function getChapterFiles(): [string, string][] {
     const files: [string, string][] = [];
@@ -713,7 +696,6 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
 
   while (currentTurn < MAX_TURNS) {
     if (callbacks.isAborted()) {
-      if (getSection()) await embedSection(getSection()!);
       callbacks.onDone({ messages, steps: [], turn: currentTurn, workspace: getChapterFiles() });
       return;
     }
@@ -783,7 +765,6 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       if (result.usage?.prompt_tokens) lastPromptTokens = result.usage.prompt_tokens;
 
       if (result.finished) {
-        if (getSection()) await embedSection(getSection()!);
         callbacks.onDone({ messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() });
         return;
       }
@@ -807,11 +788,6 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
         messages.push(messages[0], messages[1], ...tail);
       }
 
-      // Batch index every 5 turns
-      if (currentTurn % 5 === 0 || pendingIndexCount() > 20) {
-        await processDocumentQueue();
-      }
-
       callbacks.onProgress({ messages, steps: result.steps, turn: currentTurn });
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
@@ -824,41 +800,13 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
         consecutiveIdleTurns = 0;
       }
     } catch (err: any) {
-      if (getSection()) await embedSection(getSection()!).catch(() => {});
       callbacks.onError(err.message);
       return;
     }
   }
 
   // Max turns reached
-  if (getSection()) await embedSection(getSection()!);
   callbacks.onDone({ messages, steps: [], turn: currentTurn, workspace: getChapterFiles() });
 }
 
-// ── Vault seeding ──
 
-async function seedVectorStore(vaultNotes: { path: string; content: string }[], chapterPath: string): Promise<void> {
-  const normChapterPath = normalizePath(chapterPath).toLowerCase();
-  let queuedCount = 0;
-  for (const n of vaultNotes) {
-    const normPath = normalizePath(n.path).toLowerCase();
-    const matchesPath = normPath.split("/").includes(normChapterPath);
-    const matchesFallback = !matchesPath && normChapterPath.length > 0 && normPath.startsWith(normChapterPath + "/");
-    if (matchesPath || matchesFallback) {
-      const type = normPath.includes("/questions/") ? "questions" : normPath.includes("/notes/") ? "notes" : "other";
-      queueDocument(n.path, n.content, chapterPath, type, undefined, true);
-      queuedCount++;
-    }
-  }
-
-  let stallGuard = 0;
-  while (pendingIndexCount() > 0) {
-    const result = await processDocumentQueue();
-    if (result.indexed === 0 && result.skipped === 0) {
-      stallGuard++;
-      if (stallGuard >= 3) break;
-    } else { stallGuard = 0; }
-  }
-  const tel = getIndexTelemetry();
-  resetIndexTelemetry();
-}
