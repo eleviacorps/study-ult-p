@@ -37,7 +37,14 @@ export async function POST(request: Request) {
 
     const svg = await res.text();
     if (!res.ok) {
-      return NextResponse.json({ error: "kroki_render_failed", detail: svg.slice(0, 500) }, { status: res.status });
+      // Extract meaningful error from Kroki response — often an HTML page with "Syntax error in:"
+      const krokiError = svg
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 300);
+      const detail = krokiError || `Kroki returned HTTP ${res.status}`;
+      return NextResponse.json({ error: "kroki_render_failed", detail }, { status: 422 });
     }
 
     await log.success(200, "diagram rendered via kroki");

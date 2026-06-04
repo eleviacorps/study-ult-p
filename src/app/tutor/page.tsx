@@ -45,7 +45,6 @@ export default function TutorPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [pending, setPending] = useState<PendingClarification>(null);
-  const [expandedReasoning, setExpandedReasoning] = useState<Set<number>>(new Set());
   const [tokenReceived, setTokenReceived] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -223,7 +222,6 @@ export default function TutorPage() {
     const greeting = { role: "assistant" as const, content: "Hi! Ask me anything about physics." };
     clearChat(chatKey);
     setMessages([greeting]);
-    setExpandedReasoning(new Set());
     setShowHistory(false);
     setPending(null);
   };
@@ -244,7 +242,6 @@ export default function TutorPage() {
       setChatSession(chatKey, sessionId, nextMessages.length);
       saveChat(chatKey, nextMessages);
       setMessages(nextMessages.length > 0 ? nextMessages : [{ role: "assistant", content: "Hi! Ask me anything about physics." }]);
-      setExpandedReasoning(new Set());
       setShowHistory(false);
       setPending(null);
     } catch {
@@ -267,6 +264,7 @@ export default function TutorPage() {
           <div>
             <p className="text-xs opacity-35">Physics tutor</p>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowHistory((v) => !v)}
@@ -319,21 +317,6 @@ export default function TutorPage() {
                   </div>
                   <span className="text-[10px] font-medium tracking-wide text-white/25">AI Tutor</span>
                 </div>
-
-                {msg.reasoning && (
-                  <div className="ml-7">
-                    <button onClick={() => setExpandedReasoning((prev) => {
-                      const next = new Set(prev); next.has(i) ? next.delete(i) : next.add(i); return next;
-                    })} className="text-[9px] tracking-wider uppercase opacity-20 hover:opacity-40 transition-opacity">
-                      {expandedReasoning.has(i) ? "▾ Hide thinking" : "▸ Show thinking"}
-                    </button>
-                    {expandedReasoning.has(i) && (
-                      <div className="mt-1 p-2.5 rounded-lg bg-[#1856FF]/[0.03] border border-[#1856FF]/[0.08] text-[10px] leading-relaxed opacity-35 max-h-48 overflow-y-auto">
-                        {msg.reasoning}
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 <div className="ml-7 max-w-[90%] sm:max-w-[80%] p-3 sm:p-4 rounded-2xl rounded-bl-md border border-white/[0.06] bg-[#09090B]">
                   <div className="prose-glass text-sm leading-relaxed min-w-0" style={{ color: "var(--text-primary)" }}>

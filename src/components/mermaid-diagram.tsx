@@ -27,11 +27,15 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
     })
       .then(async (res) => {
         const text = await res.text();
-        if (!res.ok) throw new Error(text || "Diagram render failed");
+        if (!res.ok) {
+          let detail: string;
+          try { const j = JSON.parse(text); detail = j.detail || j.error || text.slice(0, 200); } catch { detail = text.slice(0, 200); }
+          throw new Error(detail);
+        }
         if (!cancelled) setSvg(text);
       })
-      .catch(() => {
-        if (!cancelled) setError("Diagram could not be rendered.");
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message || "Diagram could not be rendered.");
       });
 
     return () => { cancelled = true; };
@@ -93,7 +97,10 @@ export function MermaidDiagram({ source }: MermaidDiagramProps) {
         {svg ? (
           <div className="mermaid-svg min-w-fit [&_svg]:max-w-full [&_svg]:h-auto" dangerouslySetInnerHTML={{ __html: svg }} />
         ) : error ? (
-          <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-white/30">{cleanedSource}</pre>
+          <div className="p-2.5">
+            <p className="text-[10px] text-[#EF4444]/60 mb-1.5 font-medium">Render failed: {error}</p>
+            <pre className="overflow-x-auto whitespace-pre-wrap text-xs text-white/30">{cleanedSource}</pre>
+          </div>
         ) : (
           <div className="h-24 skeleton" />
         )}

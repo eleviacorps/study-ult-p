@@ -131,12 +131,7 @@ function processCallouts(content: string): string {
   );
 }
 
-import { MERMAID_STARTERS } from "@/lib/mermaid-security";
-
-function isMermaidSource(value: string): boolean {
-  const firstLine = value.trim().split(/\r?\n/).find(Boolean)?.trim() || "";
-  return MERMAID_STARTERS.some((starter) => firstLine.startsWith(starter));
-}
+import { isMermaidSource, MERMAID_STARTERS } from "@/lib/mermaid-security";
 
 function findMermaidBlock(content: string): string | null {
   const lines = content.split(/\r?\n/);
@@ -149,8 +144,20 @@ function findMermaidBlock(content: string): string | null {
     }
   }
   if (start === -1) return null;
+  // Collect until blank line OR another keyword start OR end
   let end = start + 1;
-  while (end < lines.length && lines[end].trim() !== "") end++;
+  while (end < lines.length) {
+    const trimmed = lines[end].trim();
+    // Stop at code-fence markers, next keyword start, or content divider (---)
+    if (trimmed.startsWith("```") || trimmed.startsWith("---") || (trimmed.startsWith("graph ") && end > start + 1)) break;
+    // Stop at blank lines ONLY if followed by a non-Mermaid line (e.g. regular markdown)
+    if (trimmed === "") {
+      // Look ahead: if next non-empty line is not a mermaid continuation, break
+      const nextNonEmpty = lines.slice(end + 1).find((l) => l.trim());
+      if (nextNonEmpty && !MERMAID_STARTERS.some((k) => nextNonEmpty.trim().startsWith(k)) && !nextNonEmpty.trim().startsWith("end")) break;
+    }
+    end++;
+  }
   return lines.slice(start, end).join("\n");
 }
 
