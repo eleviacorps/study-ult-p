@@ -5,9 +5,9 @@ const config: CapacitorConfig = {
   appName: "StudyUlt",
   webDir: "capacitor-public",
   server: {
-    url: "https://study-ult-p.vercel.app",
+    url: "https://evstudy.vercel.app",
     cleartext: true,
-    allowNavigation: ["study-ult-p.vercel.app", "*.vercel.app"],
+    allowNavigation: ["evstudy.vercel.app", "*.vercel.app"],
   },
 } as any;
 
