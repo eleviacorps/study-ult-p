@@ -303,18 +303,21 @@ export default function TestTakePage() {
     });
     saveActivitySnapshot("test", correct, qs.length, chapterName, qs.map((q) => q.text.substring(0, 40)));
 
+    // ── Build wrong-questions summary once, used by both AI feedback and dashboard analysis ──
+    const wrongQs = qs
+      .map((q, i) => {
+        const userAns = ans.get(i);
+        if (userAns === undefined || userAns === null) return `Q${i+1}: Skipped. Correct: ${q.options[q.correctIndex] || "N/A"}`;
+        if (typeof userAns === "number" && userAns === q.correctIndex) return "";
+        const userTopic = q.topic ? ` (Topic: ${q.topic})` : "";
+        return `Q${i+1}${userTopic}: ${q.text.substring(0, 100)}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${q.options[userAns] || "skipped"}`;
+      })
+      .filter(Boolean).join("\n\n");
+
+    // ── AI test feedback (only when there are mistakes) ──
     if (config.enabled && correct < qs.length) {
       setAiScoreLoading(true);
       try {
-        const wrongQs = qs
-          .map((q, i) => {
-            const userAns = ans.get(i);
-            if (userAns === undefined || userAns === null) return "";
-            if (typeof userAns === "number" && userAns === q.correctIndex) return "";
-            return `Q${i+1}: ${q.text}\nCorrect: ${q.options[q.correctIndex] || "N/A"}\nYour answer: ${typeof userAns === "number" ? q.options[userAns] || "skipped" : userAns}`;
-          })
-          .filter(Boolean).join("\n\n");
-
         const feedbackContext = PROMPTS.TEST_FEEDBACK
           .replace("{CHAPTER}", chapterName)
           .replace("{SCORE}", String(correct))
@@ -328,6 +331,71 @@ export default function TestTakePage() {
         setScore((prev) => prev ? { ...prev, feedback: content } : prev);
       } catch {}
       setAiScoreLoading(false);
+    }
+
+    // ── AI-driven dashboard analysis ──
+    // After every test, use the LLM to generate structured weak areas, todos,
+    // and priority tasks based on actual performance, not just static math.
+    if (config.enabled) {
+      try {
+        const dashboardPrompt = PROMPTS.DASHBOARD_ANALYSIS
+          .replace("{CHAPTER}", chapterName)
+          .replace("{SCORE}", String(correct))
+          .replace("{TOTAL}", String(questions.length))
+          .replace("{PERCENT}", String(Math.round((correct / questions.length) * 100)))
+          .replace("{WRONG_DETAILS}", wrongQs || "All correct — review focused on speed and accuracy");
+
+        const { content } = await ask("Generate structured dashboard analysis. Return ONLY valid JSON.", dashboardPrompt);
+
+        // Extract JSON from the response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const analysis = JSON.parse(jsonMatch[0]);
+            if (analysis.weakAreas || analysis.todos || analysis.topicAccuracy) {
+              updateStudyState((state) => {
+                // Update weak areas with AI-generated analysis
+                if (Array.isArray(analysis.weakAreas) && analysis.weakAreas.length > 0) {
+                  // Merge AI weak areas with existing ones, keeping the AI ones first
+                  const aiTopics = new Set(analysis.weakAreas.map((w: any) => w.topic));
+                  const existingOthers = (state.weakAreas || []).filter((w) => !aiTopics.has(w.topic));
+                  state.weakAreas = [...analysis.weakAreas, ...existingOthers].slice(0, 10);
+                }
+                // Add AI-generated todos
+                if (Array.isArray(analysis.todos)) {
+                  for (const t of analysis.todos) {
+                    if (t.task && t.priority) {
+                      const exists = state.aiTodos.find((todo) => todo.task === t.task && !todo.completed);
+                      if (!exists) {
+                        state.aiTodos.unshift({
+                          id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                          task: t.task,
+                          priority: t.priority,
+                          createdAt: new Date().toISOString(),
+                          completed: false,
+                          source: "AI Analysis",
+                        });
+                      }
+                    }
+                  }
+                }
+                // Merge AI topic accuracy data
+                if (analysis.topicAccuracy && typeof analysis.topicAccuracy === "object") {
+                  for (const [topic, acc] of Object.entries(analysis.topicAccuracy) as [string, any][]) {
+                    if (acc && typeof acc.correct === "number" && typeof acc.total === "number") {
+                      const existing = state.topicAccuracy[topic] || { correct: 0, total: 0 };
+                      state.topicAccuracy[topic] = {
+                        correct: existing.correct + acc.correct,
+                        total: existing.total + acc.total,
+                      };
+                    }
+                  }
+                }
+              });
+            }
+          } catch {}
+        }
+      } catch {}
     }
   };
 
