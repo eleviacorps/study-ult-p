@@ -337,6 +337,32 @@ function parseOptions(block: string): { label: string; text: string; correct?: b
   return options;
 }
 
+function extractMatchingTable(body: string): string | null {
+  // Line-based parser: find the ### Match... heading, then capture content
+  // until the next ### heading. This avoids the regex backtracking bugs
+  // we hit with `(?=\n###|$)` under the /m flag (where `$` matches every \n).
+  const lines = body.split(/\r?\n/);
+  let startIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^###\s+Match\b/i.test(lines[i])) {
+      startIdx = i;
+      break;
+    }
+  }
+  if (startIdx === -1) return null;
+
+  let endIdx = lines.length;
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    if (/^#{1,4}\s+/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  // Capture everything from the line AFTER the heading up to (not including) the next heading
+  const slice = lines.slice(startIdx + 1, endIdx).join("\n").trim();
+  return slice || null;
+}
+
 function applyAnswerToOptions<T extends { label: string; text: string; correct?: boolean }>(options: T[], answer: string): T[] {
   if (options.length === 0 || options.some((option) => option.correct)) return options;
   const answerLabel = stripMdNoise(answer).match(/^([A-D])(?:\b|[).:])/i)?.[1]?.toUpperCase();
@@ -384,15 +410,10 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         given: (() => {
           const g = formatGiven(sections);
           // For matching questions (Match List-I with List-II), extract the matching table from raw body
-          // Try H3 format first — captures content between ### sections (correctly gets table)
-          const matchH3 = body.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|$)/im);
-          if (matchH3?.[1]?.trim()) {
-            return cleanGivenText(matchH3[1].trim());
-          }
-          // Fallback: match inline Match the following: ... without ### (but stops at first blank line)
-          const matchMatch = body.match(/(?:^|###\s+)Match(?: the following| List-I[^:]*)?:[\s\S]*?(?=\n{2,}|\n\||$)/im);
-          if (matchMatch) {
-            return cleanGivenText(matchMatch[0].trim());
+          // using line-based parsing (find heading, slice to next heading) — regex was unreliable
+          const matchingTable = extractMatchingTable(body);
+          if (matchingTable) {
+            return cleanGivenText(matchingTable);
           }
           return cleanGivenText(g);
         })(),
