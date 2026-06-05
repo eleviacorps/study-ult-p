@@ -384,10 +384,12 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         given: (() => {
           const g = formatGiven(sections);
           // For matching questions (Match List-I with List-II), extract the matching table from raw body
-          const matchMatch = body.match(/(?:^|###\s+)Match\s+(?:the\s+following|List[\s-][IVXL]+\s+with\s+List[\s-][IVXL]+):[\s\S]*?(?=\n{2,}|\n\||$)/im);
-          // Also try full-line "### Match the following:" pattern
+          // Match all formats: ### Match the following:, ### Match List-I with List-II:, ### Match:, Match the following:
+          // Use $(?!\n) to match only end-of-string (regex m flag makes $ match at every newline)
+          const matchMatch = body.match(/(?:^|###\s+)Match(?: the following| List-I[^:]*)?:[\s\S]*?(?=\n{2,}|\n\||$(?!\n))/im);
+          // Also try H3 heading format (captures content between ### sections)
           if (!matchMatch) {
-            const matchH3 = body.match(/^###\s+Match\s+(?:the\s+following|List[\s-][IVXL]+\s+with\s+List[\s-][IVXL]+):\s*\n([\s\S]*?)(?=###|$)/im);
+            const matchH3 = body.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|$(?!\n))/im);
             if (matchH3) return cleanGivenText(matchH3[1].trim());
           }
           if (matchMatch) {

@@ -243,8 +243,9 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
       const col1Match = block.match(/### Column I[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
       const col2Match = block.match(/### Column II[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
 
-      // ── Match the following format (common in 100_mcqs.md) ──
-      const matchFollowingMatch = block.match(/### Match the following:\s*\n([\s\S]*?)(?=###|$)/i);
+      // ── Match question formats (### Match the following: / ### Match List-I with List-II: / ### Match:) ──
+      // Use $(?!\n) to match only end-of-string, not end-of-line (regex m flag makes $ match at every newline)
+      const matchFollowingMatch = block.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|$(?!\n))/im);
 
       // ── Comprehension/Passage format ──
       const passageMatch = block.match(/### Passage:\s*\n([\s\S]*?)(?=###|$)/i);
