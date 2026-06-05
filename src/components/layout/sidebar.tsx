@@ -7,7 +7,7 @@ import { useVaultStore } from "@/stores/vault-store";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Layers, ClipboardList,
   BarChart3, Share2, Bot, Settings, ChevronLeft, ChevronRight,
-  Menu, X, FileCheck, Play, Wand2, UserRound,
+  Menu, X, FileCheck, Play, Wand2, UserRound, Database,
   User, LogOut, ChevronDown, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -26,6 +26,7 @@ const navItems = [
   { href: "/simulations", label: "Simulations", icon: Play },
   { href: "/tutor", label: "AI Tutor", icon: Bot },
   { href: "/note-agent", label: "Note Agent", icon: Wand2 },
+  { href: "/note-agent?tab=vault", label: "Vault Bank", icon: Database },
   { href: "/roc2", label: "ROC2", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -45,6 +46,7 @@ export function Sidebar() {
   const [profile, setProfile] = useState<{ name?: string; avatar_url?: string; username?: string; role?: string } | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAclose, setIsAclose] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { vault } = useVaultStore();
@@ -73,6 +75,7 @@ export function Sidebar() {
           if (d?.id) {
             setProfile(d);
             setIsAdmin(d.role === "admin");
+            setIsAclose(d.role === "aclose");
           }
         })
         .catch(() => {});
@@ -116,8 +119,17 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5 bg-[#09090B]">
-        {navItems.filter((item) => item.href !== "/roc2" || isAdmin).map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+        {navItems.filter((item) => {
+          if (item.href === "/roc2") return isAdmin;
+          if (item.href === "/note-agent?tab=vault") return isAdmin || isAclose;
+          return true;
+        }).map((item) => {
+          const [pathPart, queryPart] = item.href.split("?");
+          const isActive = pathname === pathPart && (
+            !queryPart
+              ? true
+              : typeof window !== "undefined" && window.location.search.includes(queryPart)
+          ) || (pathPart && pathname?.startsWith(pathPart + "/"));
           return (
             <Link key={item.href} href={item.href}
               className={cn(
