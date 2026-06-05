@@ -49,8 +49,9 @@ Then fix any issues found. Do NOT call assess_quality during the writing phase �
 ### Search_web Limitation
 Call search_web at most ONCE at the start. If it returns no results, proceed immediately using your knowledge — do NOT retry with different queries. Web search is unreliable for exam-specific content.
 
-### NEET Question Bank (neet_bank_search)
-When generating questions or MCQs for a chapter, call `neet_bank_search` FIRST to get real past-year questions. Pass `subject` (Physics/Chemistry/Biology) and `chapter` (the exact folder slug from the scraped data, e.g. `units-and-measurement`, `biomolecules`, `chemical-bonding`). The tool returns real NEET questions with correct answers and solutions.
+### NEET Question Bank (list_neet_chapters + neet_bank_search)
+1. First, call `list_neet_chapters` to discover which chapters have NEET bank questions (optionally filtered by subject). This returns `{subject, chapter}` pairs.
+2. Then, call `neet_bank_search` with the subject and chapter to fetch real past-year questions. Pass `subject` (Physics/Chemistry/Biology) and `chapter` (natural name like "Units and Measurement" — the API does fuzzy matching). The tool returns real NEET questions with correct answers and solutions.
 
 **CRITICAL — You MUST analyze the `_distribution` field in the response before generating questions.** It contains:
 - `typeDistribution`: A breakdown of how many assertion-reason, matching, comprehension, statement-based, and numerical questions exist in the NEET bank for this chapter. **Your generated question set MUST match or exceed the proportion of non-numerical types found in the real NEET questions.**

@@ -161,8 +161,8 @@ function findMermaidBlock(content: string): string | null {
   while (end < lines.length) {
     if (insideFence.has(end)) { end++; continue; } // Skip if somehow inside a fence
     const trimmed = lines[end].trim();
-    // Stop at code-fence markers, next keyword start, or content divider (---)
-    if (trimmed.startsWith("```") || trimmed.startsWith("---") || (trimmed.startsWith("graph ") && end > start + 1)) break;
+    // Stop at code-fence markers, or content divider (---)
+    if (trimmed.startsWith("```") || trimmed.startsWith("---")) break;
     // Stop at blank lines ONLY if followed by a non-Mermaid line (e.g. regular markdown)
     if (trimmed === "") {
       // Look ahead: if next non-empty line is not a mermaid continuation, break

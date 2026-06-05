@@ -40,6 +40,22 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
 
+    // Special mode: list all subjects with question counts
+    if (searchParams.get("mode") === "subjects") {
+      const { data } = await supabase
+        .from("neet_bank")
+        .select("subject, chapter");
+      const counts: Record<string, { chapters: number; questions: number }> = {};
+      const seenChapters = new Set<string>();
+      for (const r of (data || []) as { subject: string; chapter: string }[]) {
+        if (!counts[r.subject]) counts[r.subject] = { chapters: 0, questions: 0 };
+        counts[r.subject].questions++;
+        const ck = `${r.subject}/${r.chapter}`;
+        if (!seenChapters.has(ck)) { seenChapters.add(ck); counts[r.subject].chapters++; }
+      }
+      return NextResponse.json({ subjects: Object.entries(counts).map(([subject, info]) => ({ subject, ...info })) });
+    }
+
     // Special mode: list available chapters
     if (searchParams.get("mode") === "chapters") {
       const subject = searchParams.get("subject");

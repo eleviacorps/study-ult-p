@@ -154,7 +154,7 @@ export default function TutorPage() {
       setMessages((prev) => {
         if (!msgAdded) {
           msgAdded = true;
-          return [...prev, { role: "assistant", content, reasoning: "" }];
+          return [...prev, { role: "assistant", content }];
         }
         const updated = [...prev];
         updated[updated.length - 1] = { ...updated[updated.length - 1], content };

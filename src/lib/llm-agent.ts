@@ -207,6 +207,20 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "list_neet_chapters",
+      description: "List all available chapters in the NEET question bank, optionally filtered by subject. Call this BEFORE neet_bank_search when you don't know which chapters exist for a subject. Returns a list of {subject, chapter} entries so you can discover what's available.",
+      parameters: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "Optional filter: Physics, Chemistry, or Biology. Omit to see all subjects." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "neet_bank_search",
       description: "Search the NEET question bank for real past-year questions. Call this FIRST when generating questions or MCQs — it returns actual NEET questions with correct answers and solutions so you can match real exam style. Do NOT copy questions verbatim; use them as a style reference for difficulty level and trap design. Returns question_text, options (A/B/C/D), correct_answer, solution_text. Can be filtered by subject, chapter (any name format works, e.g. 'Units and Measurement' or 'Chemical Bonding'), or year.",
       parameters: {
@@ -252,7 +266,7 @@ export function getAgentSystemPrompt(examName?: string): string {
 - Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
 - write_file now handles both NEW files and CONTINUATIONS after truncation. If the file exists and your new content is longer, it replaces the truncated version.
 - Use search_web when generating questions, MCQs, or exam material to reference real previous-year question patterns and difficulty levels from the target exam.
-- Use neet_bank_search FIRST when generating questions/MCQs — it returns real past exam questions so you can match the difficulty, style, and trap patterns.
+- Use list_neet_chapters to discover which chapters have NEET bank questions (optionally filtered by subject), then use neet_bank_search to fetch real past exam questions. Use neet_bank_search FIRST when generating questions/MCQs — it returns real past exam questions so you can match the difficulty, style, and trap patterns.
 
 === WORKFLOW OVERVIEW ===
 1. ANALYZE input → extract ALL topics

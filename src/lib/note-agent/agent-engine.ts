@@ -54,6 +54,10 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { query: { type: "string" } },
     required: ["query"],
   },
+  list_neet_chapters: {
+    properties: { subject: { type: "string" } },
+    required: [],
+  },
   neet_bank_search: {
     properties: { subject: { type: "string" }, chapter: { type: "string" }, year: { type: "string" }, limit: { type: "number" }, random: { type: "boolean" } },
     required: ["subject", "chapter"],
@@ -713,6 +717,27 @@ function makeToolHandler(workspace: Map<string, string>) {
             return JSON.stringify({ query, results: cleanResults.map((r: { title?: string; snippet?: string }) => `${r.title || ""}${r.title ? ": " : ""}${r.snippet || ""}`.trim()).filter(Boolean), count: cleanResults.length });
           } catch (err) {
             return JSON.stringify({ error: `Web search failed: ${err instanceof Error ? err.message : String(err)}`, query });
+          }
+        }
+        case "list_neet_chapters": {
+          const lsSubject = (args.subject as string) || "";
+          try {
+            const params = new URLSearchParams();
+            params.set("mode", "chapters");
+            if (lsSubject) params.set("subject", lsSubject);
+            const res = await fetch(`/api/neet-bank?${params.toString()}`, {
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!res.ok) return JSON.stringify({ error: "list_neet_chapters failed", status: res.status });
+            const data = await res.json();
+            const chapters: { subject: string; chapter: string }[] = data.chapters || [];
+            return JSON.stringify({
+              chapters,
+              total: chapters.length,
+              _instruction: "Use the chapters above as input for neet_bank_search. Call neet_bank_search with subject + chapter to get the actual questions.",
+            });
+          } catch (err) {
+            return JSON.stringify({ error: `list_neet_chapters error: ${err instanceof Error ? err.message : String(err)}` });
           }
         }
         case "neet_bank_search": {

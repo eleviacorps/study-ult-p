@@ -244,8 +244,7 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
       const col2Match = block.match(/### Column II[^\n]*\s*\n([\s\S]*?)(?=###|$)/i);
 
       // ── Match question formats (### Match the following: / ### Match List-I with List-II: / ### Match:) ──
-      // Use $(?!\n) to match only end-of-string, not end-of-line (regex m flag makes $ match at every newline)
-      const matchFollowingMatch = block.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|$(?!\n))/im);
+      const matchFollowingMatch = block.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|\n##|$)/im);
 
       // ── Comprehension/Passage format ──
       const passageMatch = block.match(/### Passage:\s*\n([\s\S]*?)(?=###|$)/i);
@@ -333,7 +332,7 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
       const solution = solutionMatch?.[1]?.trim() || detailedExplanationMatch?.[1]?.trim() || "";
 
       // ── Extract answer ──
-      const answerMatch = block.match(/### Answer:\s*\n([\s\S]*?)(?=$|\n---|\n##)/);
+      const answerMatch = block.match(/### Answer:\s*\n([\s\S]*?)(?=\n---|\n##|\n###|$)/);
       let answer = answerMatch?.[1]?.trim() || "";
       // If answer is empty, try extracting from Explanation block (MCQ template puts answer there)
       if (!answer) {
@@ -342,7 +341,7 @@ function parseQuestions(roots: VaultRoot[]): Question[] {
       }
 
       // ── Extract explanation (from ### Explanation: or ### Why Other Options Are Wrong or Detailed Explanation) ──
-      const explanationMatch = block.match(/### Explanation:\s*\n([\s\S]*?)$/);
+      const explanationMatch = block.match(/### Explanation:\s*\n([\s\S]*?)(?=\n---|\n##|\n###|$)/);
       const whyWrongMatch = block.match(
         />\s*\[!WHY-WRONG\]\s*\n((?:>\s*.*\n?)*)/i
       );

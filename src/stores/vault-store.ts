@@ -384,16 +384,14 @@ export function parseAgentQuestions(notes: Note[]): Question[] {
         given: (() => {
           const g = formatGiven(sections);
           // For matching questions (Match List-I with List-II), extract the matching table from raw body
-          // Match all formats: ### Match the following:, ### Match List-I with List-II:, ### Match:, Match the following:
-          // Use $(?!\n) to match only end-of-string (regex m flag makes $ match at every newline)
-          const matchMatch = body.match(/(?:^|###\s+)Match(?: the following| List-I[^:]*)?:[\s\S]*?(?=\n{2,}|\n\||$(?!\n))/im);
-          // Also try H3 heading format (captures content between ### sections)
-          if (!matchMatch) {
-            const matchH3 = body.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|$(?!\n))/im);
-            if (matchH3) return cleanGivenText(matchH3[1].trim());
+          // Try H3 format first — captures content between ### sections (correctly gets table)
+          const matchH3 = body.match(/^###\s+Match(?: the following| List-I[^:]*)?:\s*\n([\s\S]*?)(?=\n###|$)/im);
+          if (matchH3?.[1]?.trim()) {
+            return cleanGivenText(matchH3[1].trim());
           }
+          // Fallback: match inline Match the following: ... without ### (but stops at first blank line)
+          const matchMatch = body.match(/(?:^|###\s+)Match(?: the following| List-I[^:]*)?:[\s\S]*?(?=\n{2,}|\n\||$)/im);
           if (matchMatch) {
-            // Return the matching table content (before options)
             return cleanGivenText(matchMatch[0].trim());
           }
           return cleanGivenText(g);
