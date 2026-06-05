@@ -110,17 +110,15 @@ Every question set MUST include these question types mixed throughout all diffic
 - **Moderate** (Q21-Q60): Numerical (multi-step) + Assertion-Reason + Statement-Based + Matching + comprehension with short passages
 - **Hard** (Q61-Q100): Numerical (multi-concept synthesis) + Multi-paragraph comprehension + Matrix-match + complex Assertion-Reason with traps
 
-**CRITICAL — Do NOT generate only formula plug-and-chug questions.** At least 40% of questions MUST be non-numerical types (assertion-reason, statement-based, matching, comprehension). This is the ACTUAL proportion found in real {EXAM_NAME} exams. Every single question must feel like it could appear on the actual {EXAM_NAME} exam — multi-step reasoning, conceptual depth, hidden traps. If a student could answer in 10 seconds, it is too easy — delete it and write a harder version.
+**CRITICAL — Do NOT generate only formula plug-and-chug questions.** At least 40% of questions MUST be non-numerical types (assertion-reason, statement-based, matching, comprehension). This is the ACTUAL proportion found in real NEET exams. Every single question must feel like it could appear on the actual {EXAM_NAME} exam — multi-step reasoning, conceptual depth, hidden traps. If a student could answer in 10 seconds, it is too easy — delete it and write a harder version.
 
-**Use the `_distribution` field from neet_bank_search as your quality target (NEET only).** If the real NEET questions for this chapter have 15% assertion-reason, 10% matching, 10% comprehension, then your generated set must have AT LEAST these proportions. The assess_quality check at the end will verify this and flag you if non-numerical types are below 40%.
+**Use the `_distribution` field from neet_bank_search as your quality target.** If the real NEET questions for this chapter have 15% assertion-reason, 10% matching, 10% comprehension, then your generated set must have AT LEAST these proportions. The assess_quality check at the end will verify this and flag you if non-numerical types are below 40%.
 
-### Multi-Concept / Multi-Topic Questions (CRITICAL for all exams)
-Real {EXAM_NAME} questions regularly combine multiple topics or formulas within a single question. For example:
-- A physics question that combines Coulomb's Law with Gauss's Law
-- A physics question linking capacitors with electric field energy
-- A physics question that requires both kinematics and force analysis
-- A biology question that links cell biology with genetics
-- A chemistry question that combines thermodynamics with equilibrium
+### Multi-Concept / Multi-Topic Questions (CRITICAL for NEET & JEE)
+Real NEET and JEE questions regularly combine multiple topics or formulas within a single question. For example:
+- A question that combines Coulomb's Law with Gauss's Law
+- A question linking capacitors with electric field energy
+- A question that requires both kinematics and force analysis
 - A question combining thermodynamics with calorimetry
 
 **Your generated questions MUST include at least 15-20% multi-concept questions** where solving requires applying formulas/concepts from 2+ different topics. Mark these with a **Concepts:** metadata field listing all concepts involved, e.g.:
@@ -152,14 +150,7 @@ Write these exact files under the generated chapter path:
 - Start every flashcard with `## FC<number>. <title>`.
 - Start every quiz item with `### Q<number>. <title>`.
 - Use bold metadata fields exactly like `**Topic:**`, `**Subtopic:**`, `**Difficulty:**`, `**Marks:**`, `**Type:**`.
-- Use ONLY these exact section headings (any other heading will break parsing):
-  - `### Given:`, `### Find:`, `### Problem:`, `### Question:`, `### Solution:`, `### Answer:`, `### Explanation:`, `### Detailed Explanation:`, `### Formula:`, `### Variable Meanings:`, `### Memory Trick:`
-  - `### Assertion (A):`, `### Reason (R):` (assertion-reason only)
-  - `### Options:` (assertion-reason, statement-based, matching)
-  - `### Statements:` (statement-based only)
-  - `### Approach:`, `### Step-by-step solution:` (solved questions)
-  - `### Why Other Options Are Wrong:` (MCQs)
-  - `### NEET Insight:`, `### JEE Insight:`, `### Exam Insight:`, `### Common Trap:`, `### Common Mistake:` (educational notes)
+- Use section headings exactly like `### Given:`, `### Find:`, `### Problem:`, `### Solution:`, `### Answer:`, `### Explanation:`, `### Formula:`, `### Variable Meanings:`, `### Memory Trick:`.
 - Put the answer letter first in MCQs and quizzes, for example `### Answer: C - brief reason`.
 - For MCQs, use only this option table shape:
 
@@ -170,18 +161,7 @@ Write these exact files under the generated chapter path:
 | D | [Option text] | [Why wrong] |
 ```
 
-- For assertion-reason, statement-based, and matching questions that don't fit the table shape, use lettered list options:
-  ```markdown
-  ### Options:
-  A) [Option text]
-  B) [Option text]
-  C) [Option text]
-  D) [Option text]
-  E) [Option text]  (assertion-reason only — 5 options A-E)
-  ```
 - For quiz multiple-choice items, use only bullet options: `- A) ...`, `- B) ...`, `- C) ...`, `- D) ...`.
-- For matching questions, put the matching items table inside `### Question:` (or `### Given:`) and the matched answers table inside `### Answer:`. Use `### Match List-I with List-II:` or `### Match the following:` to introduce the matching table if needed.
-- Do NOT use `**Bold:**` style labels as section headers inside the answer body (e.g. `**Structure:**`, `**Functions:**`). These get parsed as new sections and break the answer. Use `### Structure:` / `### Functions:` if you need a sub-heading, or just use plain text/bullets.
 - Do not use placeholder continuations like `[Continue for 100 questions...]`, `(+90 more)`, `same pattern`, or `todo`.
 - Do not mix `**Q:**` / `**A:**` shorthand with flashcards; use `### Question:` and `### Answer:`.
 
@@ -276,8 +256,8 @@ study-ult Progress:
         /questions/
             100_questions.md     # 100 questions with ANSWERS
             100_mcqs.md          # 100 MCQs with explanations
-            exam_level1.md       # {EXAM_LEVEL1} practice
-            exam_level2.md       # {EXAM_LEVEL2} practice
+            jee_main.md          # {EXAM_LEVEL1} practice
+            jee_advanced.md      # {EXAM_LEVEL2} practice
             solved.md            # Solved examples
         /flashcards/
             100_flashcards.md    # 100 flashcards
@@ -380,8 +360,8 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 ### 📋 Questions
 - [[100 Questions with Answers]] - questions/100_questions.md
 - [[100 MCQs with Explanations]] - questions/100_mcqs.md
-- [[{EXAM_LEVEL1} Practice]] - questions/exam_level1.md
-- [[{EXAM_LEVEL2} Practice]] - questions/exam_level2.md
+- [[{EXAM_NAME} Main Practice]] - questions/jee_main.md
+- [[{EXAM_NAME} Advanced Practice]] - questions/jee_advanced.md
 - [[Solved Problems]] - questions/solved.md
 
 ### 🎴 Flashcards & Quizzes
@@ -1038,9 +1018,7 @@ C) A is true but R is false
 D) A is false but R is true
 E) Both A and R are false
 
-### Answer: [A-E] - [brief justification]
-
-### Detailed Explanation:
+### Explanation:
 [Step-by-step reasoning evaluating both statements]
 - **A is [true/false] because:** [reasoning]
 - **R is [true/false] because:** [reasoning]
@@ -1075,13 +1053,14 @@ B) (ii) and (iii) only
 C) (i), (ii), and (iv) only
 D) All of the above
 
-### Answer: [A-D] - [brief justification]
-
-### Detailed Explanation:
+### Explanation:
 - **(i) [Correct/Incorrect]:** [Reasoning for each statement]
 - **(ii) [Correct/Incorrect]:** [Reasoning]
 - **(iii) [Correct/Incorrect]:** [Reasoning]
 - **(iv) [Correct/Incorrect]:** [Reasoning]
+
+### Correct Combination:
+✅ [Correct option with explanation]
 
 ### Common Trap:
 ⚠️ [Why students pick the wrong combination — e.g. missing a subtle exception]
@@ -1096,17 +1075,18 @@ D) All of the above
 **Marks:** [X]
 **Type:** True/False
 
-### Question:
-[Single statement to evaluate as True or False]
+### Statement:
+[Single statement to evaluate]
 
 ### Options:
 A) True
 B) False
 
-### Answer: [A or B] - [brief justification]
-
-### Detailed Explanation:
+### Explanation:
 [Detailed reasoning showing why the statement is true or false, referencing the specific concept]
+
+### Correct Answer:
+✅ [True/False]
 ```
 
 #### Matching Format:
@@ -1118,31 +1098,32 @@ B) False
 **Marks:** [X]
 **Type:** Matching
 
-### Question:
-Match the following:
+### Column I (List):
+| (P) | [Item P] |
+| (Q) | [Item Q] |
+| (R) | [Item R] |
+| (S) | [Item S] |
 
-| Column I | Column II |
-|----------|-----------|
-| (A) [Item A] | (I) [Match 1] |
-| (B) [Item B] | (II) [Match 2] |
-| (C) [Item C] | (III) [Match 3] |
-| (D) [Item D] | (IV) [Match 4] |
+### Column II (List):
+| (1) | [Item 1] |
+| (2) | [Item 2] |
+| (3) | [Item 3] |
+| (4) | [Item 4] |
 
 ### Options:
-A) A→I, B→II, C→III, D→IV
-B) A→II, B→III, C→IV, D→I
-C) A→III, B→IV, C→I, D→II
-D) A→IV, B→I, C→II, D→III
+A) P→1, Q→2, R→3, S→4
+B) P→2, Q→3, R→4, S→1
+C) P→3, Q→4, R→1, S→2
+D) P→4, Q→1, R→2, S→3
 
-### Answer: [A-D] - [brief justification]
+### Explanation:
+- **P matches [X] because:** [Reasoning for each pairing]
+- **Q matches [Y] because:** [Reasoning]
+- **R matches [Z] because:** [Reasoning]
+- **S matches [W] because:** [Reasoning]
 
-### Detailed Explanation:
-- **A matches [I/II/III/IV] because:** [Reasoning for each pairing]
-- **B matches [I/II/III/IV] because:** [Reasoning]
-- **C matches [I/II/III/IV] because:** [Reasoning]
-- **D matches [I/II/III/IV] because:** [Reasoning]
-
-### Common Trap:
+### Correct Matching:
+✅ P→[#], Q→[#], R→[#], S→[#]
 
 ### Common Trap:
 ⚠️ [Which pairs students commonly mismatch and why]
