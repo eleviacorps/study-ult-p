@@ -62,6 +62,14 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { subject: { type: "string" }, chapter: { type: "string" }, year: { type: "string" }, limit: { type: "number" }, random: { type: "boolean" } },
     required: ["subject", "chapter"],
   },
+  list_jee_main_chapters: {
+    properties: { subject: { type: "string" } },
+    required: [],
+  },
+  jee_main_bank_search: {
+    properties: { subject: { type: "string" }, chapter: { type: "string" }, year: { type: "string" }, limit: { type: "number" }, random: { type: "boolean" } },
+    required: ["subject", "chapter"],
+  },
 };
 
 const MAX_TOOL_RESULT_BYTES = 50 * 1024;
@@ -806,6 +814,93 @@ function makeToolHandler(workspace: Map<string, string>) {
             });
           } catch (err) {
             return JSON.stringify({ error: `neet_bank_search error: ${err instanceof Error ? err.message : String(err)}` });
+          }
+        }
+        case "list_jee_main_chapters": {
+          const lsSubject = (args.subject as string) || "";
+          try {
+            const params = new URLSearchParams();
+            params.set("mode", "chapters");
+            if (lsSubject) params.set("subject", lsSubject);
+            const res = await fetch(`/api/jee-bank?${params.toString()}`, {
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!res.ok) return JSON.stringify({ error: "list_jee_main_chapters failed", status: res.status });
+            const data = await res.json();
+            const chapters: { subject: string; chapter: string }[] = data.chapters || [];
+            return JSON.stringify({
+              chapters,
+              total: chapters.length,
+              _instruction: "Use the chapters above as input for jee_main_bank_search. Call jee_main_bank_search with subject + chapter to get the actual questions.",
+            });
+          } catch (err) {
+            return JSON.stringify({ error: `list_jee_main_chapters error: ${err instanceof Error ? err.message : String(err)}` });
+          }
+        }
+        case "jee_main_bank_search": {
+          const subject = (args.subject as string) || "";
+          const chapter = (args.chapter as string) || "";
+          const year = (args.year as string) || "";
+          const limit = Math.min(Number(args.limit) || 50, 200);
+          const random = args.random === true;
+          try {
+            const params = new URLSearchParams({ subject, chapter });
+            if (year) params.set("year", year);
+            if (random) params.set("random", "true");
+            params.set("limit", String(limit));
+            const res = await fetch(`/api/jee-bank?${params.toString()}`, {
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!res.ok) {
+              const err = await res.text().catch(() => "");
+              return JSON.stringify({ error: `jee_main_bank_search failed (${res.status})`, detail: err });
+            }
+            const data = await res.json();
+            const questions: any[] = data.questions || [];
+            if (questions.length === 0) {
+              return JSON.stringify({
+                questions: [], total: 0, subject, chapter,
+                _distribution: { totalQuestions: 0, typeDistribution: [], difficultyDistribution: [] },
+                _instruction: "No JEE Main bank questions found for this chapter. Proceed using your knowledge. Remember: at least 40% of questions MUST be non-numerical types (assertion-reason, matching, comprehension, statement-based). Also include 15-20% multi-concept questions that combine 2+ topics/formulas.",
+              });
+            }
+            const typeCounts: Record<string, number> = {};
+            const difficultyCounts: Record<string, number> = {};
+            const typeExamples: Record<string, string[]> = {};
+            for (const q of questions) {
+              const t = (q.type || "unknown").toLowerCase();
+              typeCounts[t] = (typeCounts[t] || 0) + 1;
+              const d = (q.difficulty || "unknown").toLowerCase();
+              difficultyCounts[d] = (difficultyCounts[d] || 0) + 1;
+              if (!typeExamples[t]) typeExamples[t] = [];
+              if (typeExamples[t].length < 2 && q.question_text) {
+                typeExamples[t].push(q.question_text.substring(0, 150));
+              }
+            }
+            const summary = {
+              totalQuestions: questions.length,
+              typeDistribution: Object.entries(typeCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([type, count]) => ({
+                  type,
+                  count,
+                  pct: Math.round((count / questions.length) * 100) + "%",
+                  examples: typeExamples[type] || [],
+                })),
+              difficultyDistribution: Object.entries(difficultyCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([diff, count]) => ({ difficulty: diff, count, pct: Math.round((count / questions.length) * 100) + "%" })),
+            };
+            return JSON.stringify({
+              questions,
+              total: questions.length,
+              subject,
+              chapter,
+              _distribution: summary,
+              _instruction: "ANALYZE the typeDistribution above before generating your questions. Your generated question set MUST have a similar or greater proportion of non-numerical types (assertion-reason, matching, comprehension, statement-based). Match the difficulty distribution as well. JEE Main frequently has integer/numerical answer questions, MCQs with single correct, and multi-correct patterns. Also include 15-20% multi-concept questions that combine 2+ topics/formulas in a single question.",
+            });
+          } catch (err) {
+            return JSON.stringify({ error: `jee_main_bank_search error: ${err instanceof Error ? err.message : String(err)}` });
           }
         }
         default:

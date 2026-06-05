@@ -239,6 +239,38 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "list_jee_main_chapters",
+      description: "List all available chapters in the JEE Main question bank, optionally filtered by subject. Call this BEFORE jee_main_bank_search when you don't know which chapters exist for a subject. Returns a list of {subject, chapter} entries so you can discover what's available.",
+      parameters: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "Optional filter: Physics, Chemistry, or Mathematics. Omit to see all subjects." },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "jee_main_bank_search",
+      description: "Search the JEE Main question bank for real past-year questions. Call this FIRST when generating questions or MCQs — it returns actual JEE Main questions with correct answers and solutions so you can match real exam style. Do NOT copy questions verbatim; use them as a style reference for difficulty level and trap design. Returns question_text, options (A/B/C/D), correct_answer, solution_text. Can be filtered by subject, chapter (any name format works, e.g. 'Units and Measurements' or 'Matrices and Determinants'), or year.",
+      parameters: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "Subject: Physics, Chemistry, or Mathematics" },
+          chapter: { type: "string", description: "Chapter name in any format (e.g. 'Units and Measurements', 'matrices-and-determinants', '3D Geometry'). The API does fuzzy matching so just use the natural chapter name." },
+          year: { type: "string", description: "Optional year filter (e.g. '2024')" },
+          limit: { type: "number", description: "Max results to return (default 50, max 200). Use higher limits (50-200) when you need a comprehensive view of question patterns across many years." },
+          random: { type: "boolean", description: "If true, randomize results (default: most recent first). Use true when you need a variety of questions across years." },
+        },
+        required: ["subject", "chapter"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "final_report",
       description: "Call this when ALL work is complete AND all assessment issues are fixed. Provide a summary of everything generated and fixed.",
       parameters: {
@@ -267,6 +299,7 @@ export function getAgentSystemPrompt(examName?: string): string {
 - write_file now handles both NEW files and CONTINUATIONS after truncation. If the file exists and your new content is longer, it replaces the truncated version.
 - Use search_web when generating questions, MCQs, or exam material to reference real previous-year question patterns and difficulty levels from the target exam.
 - Use list_neet_chapters to discover which chapters have NEET bank questions (optionally filtered by subject), then use neet_bank_search to fetch real past exam questions. Use neet_bank_search FIRST when generating questions/MCQs — it returns real past exam questions so you can match the difficulty, style, and trap patterns.
+- Use list_jee_main_chapters to discover JEE Main bank chapters (Physics, Chemistry, Mathematics), then use jee_main_bank_search to fetch real JEE Main past-year questions for style reference.
 
 === WORKFLOW OVERVIEW ===
 1. ANALYZE input → extract ALL topics

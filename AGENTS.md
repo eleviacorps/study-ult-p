@@ -5,7 +5,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 ## Goal
-Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and read-file loops. Implement SSE streaming to eliminate 504s, add write-once file rules, disable RAG to stop payload bloat, fix assess_quality regex to stop read loops, and use 1M token compaction.
+Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and read-file loops. Implement SSE streaming to eliminate 504s, add write-once file rules, disable RAG to stop payload bloat, fix assess_quality regex to stop read loops, and use 1M token compaction. Scrape and import JEE Main past-year questions into Supabase with embeddings for RAG-style style reference during note generation.
 
 ## Constraints & Preferences
 - Do NOT remove Supabase auth from `/api/llm/route.ts` — needed for security.
@@ -48,6 +48,10 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 28. **Write-then-assess flow** — skill.md Priority Order restructured: Phase 1 (write all files: core.md → notes → concept map → questions → MCQs → flashcards → quizzes → revision), Phase 2 (assess once at end with detailed=true, fix issues, final_report). No assess_quality during writing phase.
 29. **Search_web instruction limited** — skill.md now says "call search_web ONCE. If empty, proceed using your knowledge — do NOT retry."
 30. **Vault Creation Order simplified** — no subject folder/core.md creation, only chapter-level files.
+31. **JEE Main scrape** — 16,649 questions across 92 chapters (Physics 5,570 / Chemistry 5,562 / Mathematics 5,517), years 2002-2026. `scripts/scrape-jee.ts` discovers chapters dynamically from `/past-years/jee/jee-main/__data.json` (subject-level works, chapter-level returns `type:error`).
+32. **JEE bank table + import** — `migration-005-jee-main-bank.sql` (4096D pgvector, `numeric(5,2)` marks, no vector index, exact cosine on filtered subsets). `scripts/import-jee-main-bank.ts` clones NEET import with checkpoint/resume via LM Studio. 16,649/16,649 imported, 0 failed.
+33. **JEE bank API** — `/api/jee-bank` mirrors `/api/neet-bank` (modes: `subjects`, `chapters`, default with chapter+year+limit+random). Auth-required.
+34. **JEE bank tools** — `list_jee_main_chapters` + `jee_main_bank_search` added to `NOTE_AGENT_TOOLS` (`src/lib/llm-agent.ts:242-279`) and `agent-engine.ts` TOOL_SCHEMAS + handlers. Returns `_distribution` (type/difficulty) + `_instruction` for proportion matching.
 
 ### In Progress
 - **Opencode-style tool calling** — schema validation, output truncation, execution context all implemented. Permission gating and task tool pending.
@@ -89,6 +93,10 @@ Fix 504 timeouts, the core.md rewrite loop, 413 request-too-large errors, and re
 - `src/app/api/web-search/route.ts` — Multi-backend search proxy: DDG lite → DDG html → Wikipedia OpenSearch API → raw text extraction. Returns title/link/snippet with `backend` field identifying the source.
 - `src/app/api/llm/route.ts` — Edge Runtime, auth check, 500KB payload cap, 32768 max_tokens cap, streaming passthrough.
 - `AGENTS.md` — this file full progress log, key decisions, critical context.
+- `scripts/scrape-jee.ts` — JEE Main scraper. Discovers 92 chapters dynamically from `/past-years/jee/jee-main/__data.json` (subject-level only — chapter-level returns `type:error`). Outputs to `scraped/jee/{subject}/{chapter}/`. 16,649 questions across years 2002-2026.
+- `scripts/import-jee-main-bank.ts` — JEE bank import. Reads `scraped/jee/`, embeds via LM Studio (4096D Qwen3), upserts to `jee_main_bank`. Checkpoint-resume. 16,649/16,649 imported, 0 failed.
+- `src/lib/supabase/migration-005-jee-main-bank.sql` — JEE bank table (mirrors NEET bank). `vector(4096)`, no vector index (Qwen3 4096D exceeds 2000D pgvector cap), exact cosine on filtered subsets.
+- `src/app/api/jee-bank/route.ts` — JEE bank API. Modes: `subjects`, `chapters`, default (subject+chapter+year+limit+random). Auth-required.
 
 ## graphify
 
