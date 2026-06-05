@@ -167,6 +167,11 @@ function parseSections(block: string): ParsedSections {
   const sections: ParsedSections = new Map();
   let currentKey = "";
   let currentValue: string[] = [];
+  // Once we see an `### ` heading, we're past the metadata phase.
+  // `**Bold:**` lines after this are subsection labels (e.g. "**Structure:**",
+  // "**Functions:**") inside the answer, not new sections. Treating them as
+  // sections was eating the answer content (Q31, Q32, etc.).
+  let inContentPhase = false;
 
   const commit = () => {
     if (!currentKey) return;
@@ -175,7 +180,13 @@ function parseSections(block: string): ParsedSections {
 
   for (const line of block.split(/\r?\n/)) {
     const headingMatch = line.match(/^#{1,4}\s+(.+?)(?::\s*(.*))?$/);
-    const boldMatch = line.match(/^\*\*([^*:]+):\*\*\s*(.*)$/);
+    if (headingMatch) inContentPhase = true;
+    // Only treat `**Bold:**` as a section header in the metadata phase.
+    // `**Q:**` / `**A:**` short forms (e.g. inline answer keys) are still
+    // treated as section headers in the content phase.
+    const boldMatch = !inContentPhase
+      ? line.match(/^\*\*([^*:]+):\*\*\s*(.*)$/)
+      : null;
     const shortBoldMatch = line.match(/^\*\*([QA]):\*\*?\s*(.*)$/i);
     const plainHeaderMatch = !headingMatch && !boldMatch && !shortBoldMatch
       ? (() => {
@@ -203,7 +214,6 @@ function parseSections(block: string): ParsedSections {
       currentValue.push(line);
     }
   }
-
   commit();
   return sections;
 }
@@ -304,7 +314,13 @@ function cleanOptionText(value: string): string {
 function parseOptions(block: string): { label: string; text: string; correct?: boolean }[] {
   const options: { label: string; text: string; correct?: boolean }[] = [];
 
-  const checkboxMatches = [...block.matchAll(/^\s*[-*]\s*\[([ xX])\]\s*(.+)$/gm)];
+  // Limit search to lines BEFORE the answer/explanation section so the
+  // answer text (e.g. "A) Both A and R are true") doesn't get parsed
+  // as a 5th/6th option (Q47, Q54 had this issue).
+  const stopMatch = block.match(/^###\s+(?:Answer|Explanation|Solution)\s*:/im);
+  const optionsBlock = stopMatch ? block.slice(0, stopMatch.index) : block;
+
+  const checkboxMatches = [...optionsBlock.matchAll(/^\s*[-*]\s*\[([ xX])\]\s*(.+)$/gm)];
   if (checkboxMatches.length > 0) {
     return checkboxMatches.map((match, index) => ({
       label: String.fromCharCode(65 + index),
@@ -313,7 +329,7 @@ function parseOptions(block: string): { label: string; text: string; correct?: b
     }));
   }
 
-  const tableRows = [...block.matchAll(/^\s*\|(.+)\|\s*$/gm)]
+  const tableRows = [...optionsBlock.matchAll(/^\s*\|(.+)\|\s*$/gm)]
     .map((match) => match[1].split("|").map((cell) => cell.trim()))
     .filter((cells) => cells.length >= 2);
   const tableOptions = tableRows.filter((cells) => /^[A-D]$/i.test(cells[0]));
@@ -325,7 +341,7 @@ function parseOptions(block: string): { label: string; text: string; correct?: b
     }));
   }
 
-  const letterMatches = [...block.matchAll(/^\s*(?:[-*]\s*)?([A-D])[).]\s+(.+)$/gim)];
+  const letterMatches = [...optionsBlock.matchAll(/^\s*(?:[-*]\s*)?([A-E])[).]\s+(.+)$/gim)];
   for (const match of letterMatches) {
     options.push({
       label: match[1].toUpperCase(),
@@ -365,7 +381,7 @@ function extractMatchingTable(body: string): string | null {
 
 function applyAnswerToOptions<T extends { label: string; text: string; correct?: boolean }>(options: T[], answer: string): T[] {
   if (options.length === 0 || options.some((option) => option.correct)) return options;
-  const answerLabel = stripMdNoise(answer).match(/^([A-D])(?:\b|[).:])/i)?.[1]?.toUpperCase();
+  const answerLabel = stripMdNoise(answer).match(/^([A-E])(?:\b|[).:])/i)?.[1]?.toUpperCase();
   if (!answerLabel) return options;
   return options.map((option) => option.label === answerLabel ? { ...option, correct: true } : option);
 }
@@ -502,7 +518,12 @@ function dedupKey(n: Note): string {
 
 // Strip trailing closing ** from field values (e.g. "A**" -> "A")
 function stripField(val: string | undefined): string {
-  return stripMdNoise(val?.trim().replace(/\*+\s*$/, "") || "");
+  return stripMdNoise(
+    val?.trim()
+      .replace(/\*+\s*$/, "")
+      .replace(/\n+---\s*$/, "")  // strip trailing markdown separator
+      .replace(/\n{3,}/g, "\n\n") || ""
+  );
 }
 
 function mergeNotesIntoVault(base: VaultContent, extraNotes: Note[]): VaultContent {
