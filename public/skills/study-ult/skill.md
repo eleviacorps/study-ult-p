@@ -60,6 +60,17 @@ Call search_web at most ONCE at the start. If it returns no results, proceed imm
 
 Study their patterns (difficulty, style, trap design), then generate your own questions matching the same standard. Do NOT copy questions verbatim — use them as style reference. Call only once per chapter.
 
+### JEE Main Question Bank (list_jee_main_chapters + jee_main_bank_search)
+1. First, call `list_jee_main_chapters` to discover which chapters have JEE Main bank questions (optionally filtered by subject: Physics, Chemistry, or Mathematics). This returns `{subject, chapter}` pairs.
+2. Then, call `jee_main_bank_search` with the subject and chapter to fetch real past-year JEE Main questions. Pass `subject` (Physics/Chemistry/Mathematics) and `chapter` (natural name like "Units and Measurements" or "Matrices and Determinants" — the API does fuzzy matching). The tool returns real JEE Main questions with correct answers and solutions.
+
+**CRITICAL — You MUST analyze the `_distribution` field in the response before generating questions.** It contains:
+- `typeDistribution`: A breakdown of question types (MCQ single-correct, integer/numerical answer, multi-correct, assertion-reason, matching, comprehension, statement-based). **Your generated question set MUST match or exceed the proportion of non-numerical types found in the real JEE Main questions.**
+- `difficultyDistribution`: Shows what percentage are Easy/Moderate/Hard. Match this in your own questions.
+- `examples`: Sample question texts per type so you can see the actual style and phrasing.
+
+Study their patterns (difficulty, style, trap design), then generate your own questions matching the same standard. JEE Main frequently has **integer/numerical answer type questions** (where the answer is a number between 0 and 9), single-correct MCQs, and multi-correct patterns. Do NOT copy questions verbatim — use them as style reference. Call only once per chapter.
+
 ### No Planning Mode
 Do not plan. Do not explain what you will do. Do not redesign existing files. Every single turn must produce exactly one new file with its full content in the write_file content parameter. Do NOT output any reasoning, thinking, or planning text — just immediately output the tool call with both path and content filled. If you catch yourself thinking "let me first build the structure," stop — the structure is just core.md files, write them once and move to notes. **Zero tokens spent on thinking. Only the tool call with path + content.**
 
