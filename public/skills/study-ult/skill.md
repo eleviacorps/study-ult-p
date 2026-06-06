@@ -50,8 +50,9 @@ Then fix any issues found. Do NOT call assess_quality during the writing phase �
 Call search_web at most ONCE at the start. If it returns no results, proceed immediately using your knowledge — do NOT retry with different queries. Web search is unreliable for exam-specific content.
 
 ### NEET Question Bank (list_neet_chapters + neet_bank_search)
-1. First, call `list_neet_chapters` to discover which chapters have NEET bank questions (optionally filtered by subject). This returns `{subject, chapter}` pairs.
-2. Then, call `neet_bank_search` with the subject and chapter to fetch real past-year questions. Pass `subject` (Physics/Chemistry/Biology) and `chapter` (natural name like "Units and Measurement" — the API does fuzzy matching). The tool returns real NEET questions with correct answers and solutions.
+1. **First, call `list_neet_chapters`** (with `subject=Physics|Chemistry|Biology`) to get the **exact bank chapter names**. The bank uses its own taxonomy (e.g. "Electrostatics", "Human Reproduction", "Cell - The Unit of Life") that does NOT match the user's input chapter name. NEVER pass the user's chapter name directly to `neet_bank_search` — it will return 0 results.
+2. Find the bank chapter that best matches the user's input chapter. For example, if the user typed "Electric Charges and Fields", the bank chapter is "Electrostatics". If the user typed "Cell: The Unit of Life", the bank chapter is "Cell - The Unit of Life".
+3. Then, call `neet_bank_search` with the **bank's exact chapter name** (from step 2) and the subject to fetch real past-year questions. The tool returns real NEET questions with correct answers and solutions.
 
 **CRITICAL — You MUST analyze the `_distribution` field in the response before generating questions.** It contains:
 - `typeDistribution`: A breakdown of how many assertion-reason, matching, comprehension, statement-based, and numerical questions exist in the NEET bank for this chapter. **Your generated question set MUST match or exceed the proportion of non-numerical types found in the real NEET questions.**
@@ -61,8 +62,9 @@ Call search_web at most ONCE at the start. If it returns no results, proceed imm
 Study their patterns (difficulty, style, trap design), then generate your own questions matching the same standard. Do NOT copy questions verbatim — use them as style reference. Call only once per chapter.
 
 ### JEE Main Question Bank (list_jee_main_chapters + jee_main_bank_search)
-1. First, call `list_jee_main_chapters` to discover which chapters have JEE Main bank questions (optionally filtered by subject: Physics, Chemistry, or Mathematics). This returns `{subject, chapter}` pairs.
-2. Then, call `jee_main_bank_search` with the subject and chapter to fetch real past-year JEE Main questions. Pass `subject` (Physics/Chemistry/Mathematics) and `chapter` (natural name like "Units and Measurements" or "Matrices and Determinants" — the API does fuzzy matching). The tool returns real JEE Main questions with correct answers and solutions.
+1. **First, call `list_jee_main_chapters`** (with `subject=Physics|Chemistry|Mathematics`) to get the **exact bank chapter names**. The bank uses its own taxonomy that does NOT match the user's input chapter name (e.g. user types "Electric Charges and Fields" → bank chapter is "Electrostatics"; user types "Conic Sections" → bank has "Circle", "Parabola", "Ellipse", "Hyperbola" as separate chapters). NEVER pass the user's chapter name directly to `jee_main_bank_search` — it will return 0 results.
+2. Find the bank chapter(s) that best match the user's input chapter. One user chapter may map to multiple bank chapters (e.g. "Integrals" → "Indefinite Integrals" + "Definite Integration"; "Conic Sections" → all 4 conic chapters).
+3. Then, call `jee_main_bank_search` with the **bank's exact chapter name** (from step 2) and the subject. To fetch from multiple bank chapters for one user chapter, call `jee_main_bank_search` once per bank chapter and combine the results. The tool returns real JEE Main questions with correct answers and solutions.
 
 **CRITICAL — You MUST analyze the `_distribution` field in the response before generating questions.** It contains:
 - `typeDistribution`: A breakdown of question types (MCQ single-correct, integer/numerical answer, multi-correct, assertion-reason, matching, comprehension, statement-based). **Your generated question set MUST match or exceed the proportion of non-numerical types found in the real JEE Main questions.**
