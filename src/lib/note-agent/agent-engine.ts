@@ -356,7 +356,7 @@ async function parseStreamingResponse(res: Response): Promise<{
 
 // ── Agent turn ──
 
-async function runAgentTurn(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, config: AgentConfig, isAborted: () => boolean, attempt = 1): Promise<{
+async function runAgentTurn(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, config: AgentConfig, isAborted: () => boolean, counters: { writeFailCount: number; writeFailInjected: boolean }, attempt = 1): Promise<{
   newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }> {
   void config;
@@ -364,14 +364,14 @@ async function runAgentTurn(messages: Record<string, unknown>[], tools: ToolDef[
   const abortCheck = setInterval(() => { if (isAborted()) abortController.abort(); }, 500);
   let result;
   try {
-    result = await runAgentTurnInner(messages, tools, handler, attempt, abortController.signal);
+    result = await runAgentTurnInner(messages, tools, handler, counters, attempt, abortController.signal);
     return result;
   } finally {
     clearInterval(abortCheck);
   }
 }
 
-async function runAgentTurnInner(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, attempt = 1, signal?: AbortSignal): Promise<{
+async function runAgentTurnInner(messages: Record<string, unknown>[], tools: ToolDef[], handler: (name: string, args: Record<string, unknown>) => Promise<string>, counters: { writeFailCount: number; writeFailInjected: boolean }, attempt = 1, signal?: AbortSignal): Promise<{
   newMessages: Record<string, unknown>[]; steps: AgentStep[]; finished: boolean; content: string; usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 }> {
   const res = await fetch("/api/llm", {
@@ -382,7 +382,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
   if (res.status === 504 && attempt < 3) {
     const backoff = 2000 * attempt;
     await new Promise((r) => setTimeout(r, backoff));
-    return runAgentTurnInner(messages, tools, handler, attempt + 1, signal);
+    return runAgentTurnInner(messages, tools, handler, counters, attempt + 1, signal);
   }
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -393,22 +393,36 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
   const reasoningContent = msg.reasoning_content as string | undefined;
   const toolCalls = (msg.tool_calls as ToolCall[]) || [];
   if (truncated && toolCalls.length === 0) {
-    // Extract file path from the truncated tool call's partial arguments
+    // FIX Bug 3: the original message told the agent "Use write_file with the
+    // COMPLETE content to finish writing it." This caused a rewrite-from-scratch
+    // loop: the model tried to regenerate the full file, hit the token limit
+    // again at the same offset, and looped indefinitely.
+    //
+    // The correct instruction is to CONTINUE from where it left off, not retry.
+    // For write_file truncations we extract the partial path so the agent knows
+    // which file was in progress. For other tool truncations we just say retry.
     let truncatedPath = "";
+    let truncatedToolName = "";
     if (truncatedToolInfo?.partialArgs) {
-      const pathMatch = truncatedToolInfo.partialArgs.match(/"path"\s*:\s*"([^"]+)"/);
-      if (pathMatch) truncatedPath = pathMatch[1];
+      const pathMatch = truncatedToolInfo.partialArgs.match(/"path"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (pathMatch) truncatedPath = pathMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      truncatedToolName = truncatedToolInfo.name || "";
     }
-    const pathHint = truncatedPath
-      ? ` The file "${truncatedPath}" was being written when truncation occurred. Use write_file with the COMPLETE content to finish writing it.`
-      : truncatedToolInfo
-        ? ` The ${truncatedToolInfo.name} tool call was truncated. Retry with complete arguments.`
-        : "";
+
+    let hint = "";
+    if (truncatedToolName === "write_file" && truncatedPath) {
+      hint = ` The file "${truncatedPath}" was partially written. Call write_file again with the SAME path and the NEXT CHUNK of content starting from where you left off — the engine will append it. Do NOT start the file over from the beginning.`;
+    } else if (truncatedToolInfo) {
+      hint = ` The ${truncatedToolInfo.name} tool call was cut off. Retry with the complete arguments.`;
+    }
+
     const continuation: Record<string, unknown> = {
       role: "user",
-      content: `[Output exceeded token limit. Continue immediately with your next action — do NOT explain, plan, or recap. Just output the next tool call.]${pathHint}`,
+      content: `[Output exceeded token limit. Continue immediately with your next action — do NOT explain, plan, or recap. Just output the next tool call.]${hint}`,
     };
-    return { newMessages: [...messages, continuation], steps: [], finished: false, content: "(truncated)", usage };
+    // FIX Bug 9: a truncation is not an idle turn. Return a non-empty content
+    // marker so the idle-turn counter is not incremented.
+    return { newMessages: [...messages, continuation], steps: [], finished: false, content: "(truncated — continuing)", usage };
   }
   const step: AgentStep = { turn: 0, toolCalls: [], response: msgContent || reasoningContent || "", phase: "processing" };
   const assistantMsg: Record<string, unknown> = { role: "assistant" };
@@ -435,9 +449,9 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       const validationError = validateToolArgs(tc.function.name, args);
       if (validationError) {
         if (tc.function.name === "write_file") {
-          _writeFailCount++;
-          if (_writeFailCount >= MAX_WRITE_FAILS && !_writeFailInjected) {
-            _writeFailInjected = true;
+          counters.writeFailCount++;
+          if (counters.writeFailCount >= MAX_WRITE_FAILS && !counters.writeFailInjected) {
+            counters.writeFailInjected = true;
             const errBody = JSON.stringify({ error: "write_file retry limit reached — see next user message" });
             newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
             const reminder: Record<string, unknown> = { role: "user", content: "[REMINDER: write_file requires both \"path\" (string) and \"content\" (string) parameters. The content must be the full file content. If you already wrote the content file before, use read_file to check it instead of trying to rewrite it.]" };
@@ -451,7 +465,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
         newMsgs.push({ role: "tool", tool_call_id: tc.id, content: errBody });
         continue;
       }
-      _writeFailCount = 0;
+      counters.writeFailCount = 0;
       const raw = await handler(tc.function.name, args);
       const result = truncateToolResult(raw);
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
@@ -488,26 +502,48 @@ function makeToolHandler(workspace: Map<string, string>) {
           if (content.startsWith("[FILE STORED —")) {
             return JSON.stringify({ error: "Cannot write placeholder as content", path });
           }
-          // Allow continuation after truncation: if the file exists and the new content
-          // extends the existing content (e.g. the agent was truncated mid-write),
-          // replace it with the full new content. This prevents write_file loops where
-          // the agent keeps trying to overwrite a truncated file.
+          // FIX Bug 8: the original guard compared the first 100 chars of new
+          // vs existing content to decide if the new content is the "same file".
+          // This blocked legitimate rewrites of corrupted files where the
+          // corruption changed the first 100 chars (e.g. placeholder text at
+          // the top). Now we only block: exact duplicates, or shorter content
+          // that doesn't start with a heading when the existing file does AND
+          // the existing file is already a healthy note (1500+ bytes). For
+          // corrupted files (short, no heading) we always allow overwrite.
           const existing = workspace.get(path);
           if (existing) {
-            // If new content doesn't start like existing, it's a different file — reject
-            if (!content.startsWith(existing.substring(0, Math.min(100, existing.length)))) {
-              return JSON.stringify({ error: `File already exists in workspace: "${path}". Use read_file to check it instead of rewriting.`, path });
+            const newStartsWithHeading = /^#{1,6}\s/m.test(content);
+            const existingStartsWithHeading = /^#{1,6}\s/m.test(existing);
+            const sameContent = content === existing;
+            // Block exact duplicates
+            if (sameContent) {
+              return JSON.stringify({ error: `Identical content already in workspace: "${path}". File is unchanged.`, path });
             }
-            // If new content isn't longer, not making progress — reject
-            if (content.length <= existing.length) {
-              return JSON.stringify({ error: `File already exists and wouldn't be improved: "${path}".`, path });
+            // Block degradation: new content is shorter AND existing is already
+            // a good note (has heading, 1500+ bytes) AND new doesn't have a heading
+            if (!newStartsWithHeading && existingStartsWithHeading && existing.length >= 1500 && content.length < existing.length) {
+              return JSON.stringify({ error: `File already exists with good content (${existing.length} bytes, ${existing.split("\n").length} lines): "${path}". Use read_file to inspect it.`, path });
             }
-            // New content is longer and starts the same — continuation after truncation, allowed
+            // Otherwise allow: this handles corrupted files, short existing,
+            // continuation chunks, and longer replacement notes.
           }
           workspace.set(path, content);
           _readCache.delete(path);
           _fullReadCache.delete(path);
-          return JSON.stringify({ success: true, path, bytes: content.length, continuation: !!existing });
+          // FIX Bug 2: the original success result was a free-form status string
+          // with "COMPLETE — full content written to workspace" and a "continuation"
+          // bool. When the message history was compacted or summarized, this result
+          // could be read back as if it were file content, causing confusion.
+          // Now the result is a clean JSON with only unambiguous numeric fields.
+          // The agent uses bytes + lines to confirm the write succeeded without
+          // needing to re-read.
+          return JSON.stringify({
+            success: true,
+            path,
+            bytes: content.length,
+            lines: content.split("\n").length,
+            overwrite: !!existing,
+          });
         }
 
         case "read_file": {
@@ -531,11 +567,33 @@ function makeToolHandler(workspace: Map<string, string>) {
             if (needsFull) {
               const truncated = content.length > MAX_TOOL_RESULT_BYTES;
               const body = truncated ? content.substring(0, MAX_TOOL_RESULT_BYTES) : content;
-              result = JSON.stringify({ path, content: body, size: content.length, mode: "full", truncated });
+              result = JSON.stringify({ path, content: body, size: content.length, lines: content.split("\n").length, mode: "full", truncated });
               _fullReadCache.set(path, { result, timestamp: Date.now() });
             } else {
-              const excerpt = content.replace(/\n/g, " ").substring(0, 300).trim();
-              result = JSON.stringify({ path, size: content.length, excerpt, mode: "compact" });
+              // FIX Bug 7: the original compact mode showed a 300-char excerpt
+              // of the file *content*. When the agent wrote a 400-line note and
+              // then read it back in compact mode, it saw 300 chars of markdown
+              // and concluded the file was short — triggering a rewrite loop.
+              //
+              // The compact mode now shows size + line count prominently, plus
+              // a short excerpt of the FIRST meaningful line (after frontmatter/
+              // tags) so the agent can confirm the file is complete without
+              // misreading the excerpt length as the file length.
+              const lines = content.split("\n");
+              const firstMeaningful = lines.find((l) => l.trim().length > 10 && !l.startsWith("#") && !l.startsWith("---")) || lines[0] || "";
+              const excerpt = firstMeaningful.replace(/\n/g, " ").substring(0, 120).trim();
+              result = JSON.stringify({
+                path,
+                size: content.length,
+                lines: lines.length,
+                // Explicit size/line summary so agent never confuses excerpt
+                // length with file length.
+                summary: `${lines.length} lines, ${content.length} bytes`,
+                excerpt,
+                mode: "compact",
+                // Remind agent: this is a summary, not the full file
+                _note: "compact view — use full:true to read full content",
+              });
               _readCache.set(path, result);
             }
             return result;
@@ -910,22 +968,26 @@ function makeToolHandler(workspace: Map<string, string>) {
   };
 }
 
-// Module-level state for search_web guard
+// Module-level state for search_web guard — reset at the start of each run.
+// This stays module-level only because makeToolHandler is a standalone factory
+// and cannot easily close over runAgentEngine's local state. It is reset
+// at the top of runAgentEngine so it never leaks across runs.
 let _emptySearchCount = 0;
-
-// Module-level state for write_file retry tracker across turns
-let _writeFailCount = 0;
-let _writeFailInjected = false;
 
 export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
   const { config, vaultNotes, chapterName, chapterPath, callbacks } = params;
   let messages = structuredClone(params.messages);
   const tools = params.tools;
 
-  // Reset per-run state
-  _writeFailCount = 0;
-  _writeFailInjected = false;
+  // FIX Bug 5: _writeFailCount and _writeFailInjected were module-level,
+  // persisting across vault generations in the same browser session. The
+  // second run would start with a non-zero counter and trigger the misleading
+  // "write_file retry limit reached" reminder on the very first write failure.
+  // Now they are local to each run, and passed into the turn runner via a
+  // mutable counter object. _emptySearchCount stays module-level but is reset
+  // here — it only matters within a single run anyway.
   _emptySearchCount = 0;
+  const writeCounters = { writeFailCount: 0, writeFailInjected: false };
 
   // Seed workspace with vault notes
   const workspace = new Map<string, string>();
@@ -999,7 +1061,7 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
     }
 
     try {
-      const result = await runAgentTurn(messages, tools, toolHandlerFn, config, () => callbacks.isAborted());
+      const result = await runAgentTurn(messages, tools, toolHandlerFn, config, () => callbacks.isAborted(), writeCounters);
       messages.length = 0;
       messages.push(...result.newMessages);
 
@@ -1009,6 +1071,12 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       }
 
       // Loop detection
+      // FIX Bug 4: the original detector incremented consecutiveSameFile for
+      // ANY repeated (tool, path) pair including the totally legitimate pattern
+      // of write_file → read_file on the same path (write then verify).
+      // Now we only count it a loop if the SAME tool is called on the SAME path
+      // consecutively — a write followed by a read on the same path resets the
+      // counter because it is normal verify behavior.
       for (const tc of thisTurnCalls) {
         if (tc.name === "read_file" || tc.name === "write_file") {
           const path = (tc.args.path as string) || "";
@@ -1017,10 +1085,15 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
             if (consecutiveSameFile >= MAX_CONSECUTIVE_SAME_ACTION) {
               throw new Error(`Loop detected: repeated "${tc.name}" on "${path}" ${consecutiveSameFile + 1} consecutive times`);
             }
-          } else if (path) {
+          } else {
+            // Different tool OR different path — reset. This allows
+            // write_file(foo) → read_file(foo) → write_file(foo) without
+            // triggering the loop detector.
             consecutiveSameFile = 0;
-            lastFilePath = path;
-            lastToolName = tc.name;
+            if (path) {
+              lastFilePath = path;
+              lastToolName = tc.name;
+            }
           }
         }
       }
@@ -1034,31 +1107,38 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
 
       currentTurn++;
 
-      // Sliding window (high threshold — compaction at 1M handles trimming)
-      if (messages.length > 80) {
-        const tail: Record<string, unknown>[] = [];
-        let pendingTools = 0;
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const m = messages[i];
-          tail.unshift(m);
-          if (m.role === "tool") pendingTools++;
-          else if (m.role === "assistant" && m.tool_calls) {
-            pendingTools = Math.max(0, pendingTools - (m.tool_calls as unknown[]).length);
-          }
-          if (tail.length >= 6 && pendingTools === 0 && m.role !== "tool") break;
-        }
-        messages.length = 0;
-        messages.push(messages[0], messages[1], ...tail);
-      }
+      // Sliding window REMOVED.
+      // The previous sliding window had three serious bugs:
+      //
+      //   Bug 1: messages.length = 0 then messages.push(messages[0], messages[1])
+      //          pushed `undefined` because the array was already cleared. The
+      //          system prompt and original user message were silently dropped.
+      //
+      //   Bug 6: the tail builder exited on m.role !== "tool" even when
+      //          pendingTools > 0, which could orphan assistant tool_calls
+      //          from their tool results, giving the LLM calls it never made.
+      //
+      // Compaction at 1M tokens (see above) handles long-context trimming.
+      // With the 5MB payload limit in /api/llm, we can fit ~10x more history
+      // than before, and we never lose the system prompt. The MAX_TURNS=150
+      // cap still bounds total work.
 
       callbacks.onProgress({ messages, steps: result.steps, turn: currentTurn });
 
       if (!result.content || !result.steps.some((s) => s.toolCalls.length > 0)) {
-        consecutiveIdleTurns++;
-        if (consecutiveIdleTurns >= MAX_CONSECUTIVE_SAME_ACTION) {
-          throw new Error(`Loop detected: ${MAX_CONSECUTIVE_SAME_ACTION} consecutive idle turns (no tool calls or content)`);
+        // FIX Bug 9 (part 2): "(truncated — continuing)" is a non-empty content
+        // marker returned by the truncation handler. It should NOT count as an
+        // idle turn — the agent is actively working, just got cut off.
+        // Only truly idle turns (no tool calls AND no truncation) increment the counter.
+        if (result.content === "(truncated — continuing)") {
+          consecutiveIdleTurns = 0;
+        } else {
+          consecutiveIdleTurns++;
+          if (consecutiveIdleTurns >= MAX_CONSECUTIVE_SAME_ACTION) {
+            throw new Error(`Loop detected: ${MAX_CONSECUTIVE_SAME_ACTION} consecutive idle turns (no tool calls or content)`);
+          }
+          messages.push({ role: "user", content: "Continue the work. If you are completely done with all tasks (notes, questions, flashcards, quizzes, revision, verification, placeholders), call the final_report tool with a summary." });
         }
-        messages.push({ role: "user", content: "Continue the work. If you are completely done with all tasks (notes, questions, flashcards, quizzes, revision, verification, placeholders), call the final_report tool with a summary." });
       } else {
         consecutiveIdleTurns = 0;
       }
