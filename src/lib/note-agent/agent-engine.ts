@@ -524,6 +524,27 @@ function makeToolHandler(workspace: Map<string, string>) {
             if (!newStartsWithHeading && existingStartsWithHeading && existing.length >= 1500 && content.length < existing.length) {
               return JSON.stringify({ error: `File already exists with good content (${existing.length} bytes, ${existing.split("\n").length} lines): "${path}". Use read_file to inspect it.`, path });
             }
+            // FIX Bug 8 (round 2): same-size-class rewrites.
+            // The original guard only blocked writes that were SHORTER than the
+            // existing file. But the actual loop is the agent rewriting 308→266→379
+            // lines on the same path, each one "longer than the previous" so the
+            // length check never fires. The agent reasons: "308 lines is under 400,
+            // let me try again" → loops until MAX_CONSECUTIVE_SAME_ACTION trips.
+            //
+            // Real fix: if the existing file already has a heading AND 300+ lines
+            // (i.e. it's a real note that the agent wrote earlier in the run), block
+            // any rewrite that doesn't add at least 20% more content. That forces
+            // the agent to either commit to a meaningful expansion or move on.
+            const existingLines = existing.split("\n").length;
+            const newLines = content.split("\n").length;
+            if (existingStartsWithHeading && existingLines >= 300 && newLines < existingLines * 1.2) {
+              return JSON.stringify({
+                error: `File already exists with ${existingLines} lines. New content (${newLines} lines) is not a significant improvement. Move to the next file.`,
+                path,
+                existing_lines: existingLines,
+                suggestion: "If you need to add more content, use read_file first to see what exists, then write a version at least 20% longer. Otherwise proceed to the next topic.",
+              });
+            }
             // Otherwise allow: this handles corrupted files, short existing,
             // continuation chunks, and longer replacement notes.
           }
@@ -1082,7 +1103,15 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
           const path = (tc.args.path as string) || "";
           if (path && path === lastFilePath && tc.name === lastToolName) {
             consecutiveSameFile++;
-            if (consecutiveSameFile >= MAX_CONSECUTIVE_SAME_ACTION) {
+            // FIX Bug 4 (round 2): write_file gets one extra attempt before the
+            // detector fires, because the legitimate pattern of write → read →
+            // rewrite (truncation recovery, or "I forgot to add section X") can
+            // produce 2-3 consecutive writes on the same path without being a
+            // loop. The real loop protection is the write guard itself (Bug 8
+            // round 2) which blocks same-size-class rewrites; this is just a
+            // safety net that should not fire prematurely.
+            const limit = tc.name === "write_file" ? MAX_CONSECUTIVE_SAME_ACTION + 1 : MAX_CONSECUTIVE_SAME_ACTION;
+            if (consecutiveSameFile >= limit) {
               throw new Error(`Loop detected: repeated "${tc.name}" on "${path}" ${consecutiveSameFile + 1} consecutive times`);
             }
           } else {

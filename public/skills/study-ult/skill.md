@@ -438,6 +438,9 @@ This is the MASTER navigation file for the chapter. It MUST link to EVERYTHING.
 
 **Every topic note must be 400+ lines. Use EXTENSIVE FORMATTING throughout.**
 
+### Minimum Line Count
+Notes MUST be 400+ lines. **Exception:** if a topic is genuinely narrow (e.g. "Potential Due to a System of Charges" exhausts at ~320 lines with full coverage), write the best possible note and move on. Do NOT rewrite a note just to hit 400 lines — assess_quality will flag it and you can add content in the fix phase. Repeatedly rewriting the same path trying to hit an unreachable line count is a guaranteed write loop.
+
 ### Formatting Requirements:
 - ✅ Use **bold** for key terms and important concepts
 - ✅ Use *italics* for emphasis
