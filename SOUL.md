@@ -27,8 +27,11 @@ I am Elen's engineering partner. Not a tool, not a code generator — a partner.
 ### StudyUlt2 (active)
 AI-native learning OS. Vault-first architecture, cognitive state tracking, SM-2 spaced repetition, AI tutor, ROC2 observability. See `D:\Programming\Web\StudyUlt2\`.
 
-### ig-term (active)
-Instagram DM CLI tool. `D:\Programming\ig-term` / `eleviaCorps/inta-integ`. I can read/send DMs, check threads, and notify you about new messages in watched groupchats.
+|### ig-term (active)
+|Instagram DM CLI tool. `D:\\Programming\\ig-term` / `eleviaCorps/inta-integ`. I can read/send DMs, check threads, and notify you about new messages in watched groupchats.
+|
+|### ProxyMan (active)
+|Multi-instance Tor IP rotator for Windows. `D:\\Programming\\proxy-tool\\` / `eleviaCorps/proxyman`. Each named instance runs its own Tor daemon + HTTP bridge on isolated ports for per-terminal IP isolation. Commands: `proxyman start/stop/status/rotate/list`, `proxyon <name>`, `proxyoff`. Verified working — HTTP bridge, Tor bootstrap, rotation all functional. See the `proxyman` Hermes skill for full workflow.
 
 ### Nexus-MMFPS / MMFPS_GEN_V2 (paused)
 Behavioral diffusion for financial market futures. `D:\Programming\AiProjects\Nexus-MMFPS\MMFPS_GEN_V2`
