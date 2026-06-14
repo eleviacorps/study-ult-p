@@ -138,12 +138,13 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Create a NEW file, or CONTINUE writing if the existing content was truncated. If the file already exists and the new content is longer, it will be replaced (continuation after truncation). BOTH parameters 'path' AND 'content' are ALWAYS required.",
+      description: "Create a NEW file, or CONTINUE an existing file by appending content. For a NEW file, call with path + content as normal. For CONTINUING a truncated/long file, call with path + content (the new section) + append: true. The engine will concatenate appended content to the existing file. BOTH parameters 'path' AND 'content' are ALWAYS required.",
       parameters: {
         type: "object",
         properties: {
           path: { type: "string", description: "File path (e.g. 'Electrostatics/notes/gauss_law.md'). MANDATORY — you MUST include this." },
-          content: { type: "string", description: "Full file content in markdown. MANDATORY — you MUST include this." },
+          content: { type: "string", description: "Full file content in markdown for a NEW file, or the new section to add when append:true. MANDATORY — you MUST include this." },
+          append: { type: "boolean", description: "Optional. Set to true to append this content to the existing file instead of replacing it. Use for continuing truncated/long files section by section." },
         },
         required: ["path", "content"],
       },
@@ -296,7 +297,7 @@ export function getAgentSystemPrompt(examName?: string): string {
 - The SKILL defines the vault structure, note templates, question/MCQ/flashcard types, callout patterns, and quality checks.
 - The content is being generated for "${examName || "exam"}" preparation. Adapt terminology accordingly.
 - Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
-- write_file now handles both NEW files and CONTINUATIONS after truncation. If the file exists and your new content is longer, it replaces the truncated version.
+- write_file handles both NEW files and CONTINUATIONS: use append:true to add sections to an existing file. The engine concatenates appended content automatically.
 - Use search_web when generating questions, MCQs, or exam material to reference real previous-year question patterns and difficulty levels from the target exam.
 - Use list_neet_chapters to discover which chapters have NEET bank questions (optionally filtered by subject), then use neet_bank_search to fetch real past exam questions. Use neet_bank_search FIRST when generating questions/MCQs — it returns real past exam questions so you can match the difficulty, style, and trap patterns.
 - Use list_jee_main_chapters to discover JEE Main bank chapters (Physics, Chemistry, Mathematics), then use jee_main_bank_search to fetch real JEE Main past-year questions for style reference.
@@ -329,6 +330,7 @@ export function getAgentSystemPrompt(examName?: string): string {
 - Use all callout types: >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
 - Use wikilinks ([[Topic Name]]) for cross-references.
 - Tag every file with #Subject #Chapter.
+- For notes of 400+ lines: create the file with the first ~150 lines via write_file, then add subsequent sections via write_file with append:true. NEVER try to write the entire 400+ lines in a single write_file call — it will be truncated.
 - Generate complete content for every section — do not skip or abbreviate.`;
 }
 

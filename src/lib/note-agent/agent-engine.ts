@@ -31,7 +31,7 @@ export interface AgentEngineParams {
 
 const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; description?: string }>; required: string[] }> = {
   write_file: {
-    properties: { path: { type: "string" }, content: { type: "string" } },
+    properties: { path: { type: "string" }, content: { type: "string" }, append: { type: "boolean" } },
     required: ["path", "content"],
   },
   read_file: {
@@ -169,6 +169,18 @@ function extractMarkdown(text: string): string | null {
 function extractFilePath(text: string): string | null {
   const m = text.match(/([\w][\w/]*\.md)/);
   return m ? m[1] : null;
+}
+
+function extractPartialContentFromTruncated(partialArgs: string): string | null {
+  // Extract the content value from a truncated JSON arguments string.
+  // The string was cut off mid-stream, so the JSON value may be incomplete.
+  // First try a regex that captures everything after "content":" up to the end.
+  const match = partialArgs.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)$/);
+  if (match) return match[1];
+  // Fallback: find "content":" and take everything after it verbatim
+  const idx = partialArgs.indexOf('"content":"');
+  if (idx === -1) return null;
+  return partialArgs.substring(idx + 11);
 }
 
 // ── Compaction helpers ──
@@ -411,7 +423,14 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
 
     let hint = "";
     if (truncatedToolName === "write_file" && truncatedPath) {
-      hint = ` The file "${truncatedPath}" was partially written. Call write_file again with the SAME path and the NEXT CHUNK of content starting from where you left off — the engine will append it. Do NOT start the file over from the beginning.`;
+      // Extract partial content from the truncated tool call and save it to the workspace
+      if (truncatedToolInfo?.partialArgs) {
+        const partialContent = extractPartialContentFromTruncated(truncatedToolInfo.partialArgs);
+        if (partialContent) {
+          await handler("write_file", { path: truncatedPath, content: partialContent, append: true }).catch(() => {});
+        }
+      }
+      hint = ` The file "${truncatedPath}" was partially saved. Call write_file with the SAME path, append:true, and ONLY the NEXT chunk of content continuing from where you left off. Do NOT resend any content that was already written. The engine will append this new chunk to the existing file.`;
     } else if (truncatedToolInfo) {
       hint = ` The ${truncatedToolInfo.name} tool call was cut off. Retry with the complete arguments.`;
     }
@@ -512,6 +531,14 @@ function makeToolHandler(workspace: Map<string, string>) {
           // corrupted files (short, no heading) we always allow overwrite.
           const existing = workspace.get(path);
           if (existing) {
+            // Append mode: concatenate new content to existing, skip all guard checks
+            if (args.append === true) {
+              const merged = existing + content;
+              workspace.set(path, merged);
+              _readCache.delete(path);
+              _fullReadCache.delete(path);
+              return JSON.stringify({ success: true, path, bytes: merged.length, lines: merged.split("\n").length, appended: true });
+            }
             const newStartsWithHeading = /^#{1,6}\s/m.test(content);
             const existingStartsWithHeading = /^#{1,6}\s/m.test(existing);
             const sameContent = content === existing;

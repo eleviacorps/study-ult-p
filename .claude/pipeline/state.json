@@ -1,0 +1,11 @@
+{
+  "current_task": "fix-truncation-loop",
+  "checkpoints": {
+    "orchestrator": "completed",
+    "architect": "awaiting_approval",
+    "engineer": "pending",
+    "qa": "pending"
+  },
+  "completed_tasks": [],
+  "task_order": ["fix-truncation-loop"]
+}
