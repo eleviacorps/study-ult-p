@@ -404,7 +404,13 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
   const msgContent = (msg.content as string) || "";
   const reasoningContent = msg.reasoning_content as string | undefined;
   const toolCalls = (msg.tool_calls as ToolCall[]) || [];
-  if (truncated && toolCalls.length === 0) {
+  if (truncated) {
+    // Handle ALL truncation: even if some tool_calls have valid JSON, the model
+    // was cut off mid-generation and its reasoning is incomplete. Executing
+    // partial tool calls silently (while dropping the truncated write_file)
+    // causes the model to think the write succeeded and move on — creating a
+    // silent data loss. Discard the entire truncated response and let the model
+    // retry cleanly with a continuation prompt.
     // FIX Bug 3: the original message told the agent "Use write_file with the
     // COMPLETE content to finish writing it." This caused a rewrite-from-scratch
     // loop: the model tried to regenerate the full file, hit the token limit
@@ -423,14 +429,17 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
 
     let hint = "";
     if (truncatedToolName === "write_file" && truncatedPath) {
-      // Extract partial content from the truncated tool call and save it to the workspace
       if (truncatedToolInfo?.partialArgs) {
         const partialContent = extractPartialContentFromTruncated(truncatedToolInfo.partialArgs);
         if (partialContent) {
           await handler("write_file", { path: truncatedPath, content: partialContent, append: true }).catch(() => {});
+          const partialLines = partialContent.split("\n").length;
+          const previewLines = partialContent.split("\n").slice(0, 3).filter(Boolean).map((l) => l.length > 80 ? l.substring(0, 80) + "..." : l).join("\n");
+          hint = ` The file "${truncatedPath}" was partially saved (${partialLines} lines written so far). Content already written:\n${previewLines}\n[...]\nCall write_file with the SAME path, append:true, and ONLY the NEXT chunk continuing from where you left off. Do NOT repeat any content already written.`;
+        } else {
+          hint = ` The file "${truncatedPath}" was being written when truncation occurred. Call write_file with the SAME path and the full content.`;
         }
       }
-      hint = ` The file "${truncatedPath}" was partially saved. Call write_file with the SAME path, append:true, and ONLY the NEXT chunk of content continuing from where you left off. Do NOT resend any content that was already written. The engine will append this new chunk to the existing file.`;
     } else if (truncatedToolInfo) {
       hint = ` The ${truncatedToolInfo.name} tool call was cut off. Retry with the complete arguments.`;
     }
@@ -1073,8 +1082,8 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       return;
     }
 
-    // Compaction at 1M tokens
-    if (lastPromptTokens > 1_000_000) {
+    // Compaction at 300K tokens — prevents context from reaching 500K+ per turn
+    if (lastPromptTokens > 300_000) {
       const systemMsg = messages[0];
       const userMsg = messages[1];
       const originalUserContent = typeof userMsg?.content === "string" ? userMsg.content : "";
