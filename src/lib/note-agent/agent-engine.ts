@@ -388,7 +388,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
 }> {
   const res = await fetch("/api/llm", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 65536, stream: true }),
+    body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 65536, stream: true, reasoning_effort: 0, thinking: null }),
     signal,
   });
   if (res.status === 504 && attempt < 3) {
@@ -444,9 +444,10 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       hint = ` The ${truncatedToolInfo.name} tool call was cut off. Retry with the complete arguments.`;
     }
 
+    const completionTokens = usage?.completion_tokens ?? 0;
     const continuation: Record<string, unknown> = {
       role: "user",
-      content: `[Output exceeded token limit. Continue immediately with your next action — do NOT explain, plan, or recap. Just output the next tool call.]${hint}`,
+      content: `[Output exceeded token limit (got ${completionTokens} completion tokens). Continue immediately — do NOT explain, plan, or recap. Just output the next tool call. Write ONLY 5-10 more items at a time using append:true — anything larger will truncate again.]${hint}`,
     };
     // FIX Bug 9: a truncation is not an idle turn. Return a non-empty content
     // marker so the idle-turn counter is not incremented.
@@ -1164,6 +1165,9 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       }
 
       if (result.usage?.prompt_tokens) lastPromptTokens = result.usage.prompt_tokens;
+      if (result.usage?.completion_tokens) {
+        console.warn(`[agent] turn ${currentTurn}: prompt=${result.usage.prompt_tokens} completion=${result.usage.completion_tokens} total=${result.usage.total_tokens}`);
+      }
 
       if (result.finished) {
         callbacks.onDone({ messages, steps: result.steps, turn: currentTurn + 1, workspace: getChapterFiles() });

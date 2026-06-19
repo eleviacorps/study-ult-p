@@ -325,13 +325,19 @@ export function getAgentSystemPrompt(examName?: string): string {
 10. REPORT via final_report with full summary
 
 === RULES ===
-- Every file must have REAL content. No placeholders, "Coming soon", or "(+X more)".
-- Use LaTeX ($$...$$) for all formulas.
-- Use all callout types: >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
-- Use wikilinks ([[Topic Name]]) for cross-references.
-- Tag every file with #Subject #Chapter.
-- For notes of 400+ lines: create the file with the first ~150 lines via write_file, then add subsequent sections via write_file with append:true. NEVER try to write the entire 400+ lines in a single write_file call — it will be truncated.
-- Generate complete content for every section — do not skip or abbreviate.`;
+|- Every file must have REAL content. No placeholders, "Coming soon", or "(+X more)".
+|- Use LaTeX ($$...$$) for all formulas.
+|- Use all callout types: >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
+|- Use wikilinks ([[Topic Name]]) for cross-references.
+|- Tag every file with #Subject #Chapter.
+|- TOOL CALL SIZE LIMIT — CRITICAL: The LLM completion budget is ~65K tokens, but reasoning/thinking BEFORE the tool call consumes from that budget. If you generate 30K tokens of reasoning, only ~35K remain for the write_file JSON. Each tool call argument MUST fit in the remaining budget or it WILL be truncated mid-JSON and discarded. Keep all write_file chunks small: 5-10 items per call for questions/MCQs, 40-60 lines per chunk for notes.
+|- CHUNK EVERYTHING into small batches — this is MANDATORY, not optional:
+  - NOTES (400+ lines): write 40-60 lines per chunk via write_file. First call: append=false. Subsequent calls: append=true. NEVER write more than 60 lines per chunk.
+  - QUESTIONS (100 items): write 5-10 questions per chunk. append=false first, then append=true.
+  - MCQs (100 items): write 5-10 MCQs per chunk. Same append pattern.
+  - FLASHCARDS (100 items): write 8-10 per chunk. Same append pattern.
+  - QUIZZES (100 items): write 8-10 per chunk. Same append pattern.
+|- If a write_file IS truncated: call write_file with append:true and write ONLY 5-10 more items / 40-60 more lines. Write SMALL chunks — anything large WILL truncate again.
 }
 
 export const AGENT_SYSTEM_PROMPT = getAgentSystemPrompt();
