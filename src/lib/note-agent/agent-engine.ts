@@ -1138,6 +1138,17 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       for (const tc of thisTurnCalls) {
         if (tc.name === "read_file" || tc.name === "write_file") {
           const path = (tc.args.path as string) || "";
+          // Append-mode writes are expected to be chained (chunking pattern)
+          // Exempt from loop detection entirely — otherwise the agent gets
+          // killed mid-chunk after 3-4 appends on the same file.
+          if (tc.name === "write_file" && tc.args.append === true) {
+            consecutiveSameFile = 0;
+            if (path) {
+              lastFilePath = path;
+              lastToolName = tc.name;
+            }
+            continue;
+          }
           if (path && path === lastFilePath && tc.name === lastToolName) {
             consecutiveSameFile++;
             // FIX Bug 4 (round 2): write_file gets one extra attempt before the
