@@ -330,14 +330,8 @@ export function getAgentSystemPrompt(examName?: string): string {
 |- Use all callout types: >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
 |- Use wikilinks ([[Topic Name]]) for cross-references.
 |- Tag every file with #Subject #Chapter.
-|- TOOL CALL SIZE LIMIT — CRITICAL: The LLM completion budget is ~65K tokens, but reasoning/thinking BEFORE the tool call consumes from that budget. If you generate 30K tokens of reasoning, only ~35K remain for the write_file JSON. Each tool call argument MUST fit in the remaining budget or it WILL be truncated mid-JSON and discarded. Keep all write_file chunks small: 5-10 items per call for questions/MCQs, 40-60 lines per chunk for notes.
-|- CHUNK EVERYTHING into small batches — this is MANDATORY, not optional:
-  - NOTES (400+ lines): write 40-60 lines per chunk via write_file. First call: append=false. Subsequent calls: append=true. NEVER write more than 60 lines per chunk.
-  - QUESTIONS (100 items): write 5-10 questions per chunk. append=false first, then append=true.
-  - MCQs (100 items): write 5-10 MCQs per chunk. Same append pattern.
-  - FLASHCARDS (100 items): write 8-10 per chunk. Same append pattern.
-  - QUIZZES (100 items): write 8-10 per chunk. Same append pattern.
-|- If a write_file IS truncated: call write_file with append:true and write ONLY 5-10 more items / 40-60 more lines. Write SMALL chunks — anything large WILL truncate again.`;
+|- OUTPUT CAPACITY: You have 65,536 tokens of output budget per turn. Each write_file call CAN hold the entire content of a 400+ line note or all 100 questions. Write each file in ONE write_file call with its COMPLETE content. Do NOT chunk, do NOT use append:true for initial writes.
+|- If a write_file returns an error about partial content, retry the ENTIRE content in one new write_file call. The conversation history truncation of your write_file content is just display-only — the file was saved completely. Use read_file or assess_quality to verify.`;
 }
 
 export const AGENT_SYSTEM_PROMPT = getAgentSystemPrompt();
