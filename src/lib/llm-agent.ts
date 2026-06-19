@@ -337,7 +337,7 @@ export function getAgentSystemPrompt(examName?: string): string {
   - MCQs (100 items): write 5-10 MCQs per chunk. Same append pattern.
   - FLASHCARDS (100 items): write 8-10 per chunk. Same append pattern.
   - QUIZZES (100 items): write 8-10 per chunk. Same append pattern.
-|- If a write_file IS truncated: call write_file with append:true and write ONLY 5-10 more items / 40-60 more lines. Write SMALL chunks — anything large WILL truncate again.
+|- If a write_file IS truncated: call write_file with append:true and write ONLY 5-10 more items / 40-60 more lines. Write SMALL chunks — anything large WILL truncate again.`;
 }
 
 export const AGENT_SYSTEM_PROMPT = getAgentSystemPrompt();
