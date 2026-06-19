@@ -502,7 +502,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
     }
     for (const tc2 of toolCalls) {
       if (tc2.function.name !== "write_file") continue;
-      try { const a = JSON.parse(tc2.function.arguments); if (typeof a.content === "string" && a.content.length > 200) { a.content = a.content.substring(0, 200) + "\n... [content truncated in history, but full content was written successfully]"; tc2.function.arguments = JSON.stringify(a); } } catch {}
+      try { const a = JSON.parse(tc2.function.arguments); if (typeof a.content === "string" && a.content.length > 200) { a.content = "[FILE FULLY WRITTEN — see assess_quality or read_file to verify content]"; tc2.function.arguments = JSON.stringify(a); } } catch {}
     }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response, usage };
   }
