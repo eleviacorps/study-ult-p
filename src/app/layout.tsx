@@ -8,7 +8,6 @@ import { AuthGate } from "@/components/auth-gate";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { VoiceTutorWrapper } from "@/components/voice-tutor/voice-tutor-wrapper";
-import { TutorWrapper } from "@/components/tutor/tutor-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,7 +50,6 @@ export default function RootLayout({
             <AuthGate>
               {children}
               <VoiceTutorWrapper />
-              <TutorWrapper />
             </AuthGate>
           </LlmProvider>
         </ErrorBoundary>
