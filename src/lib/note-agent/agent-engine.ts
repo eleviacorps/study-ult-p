@@ -1030,43 +1030,59 @@ function makeToolHandler(workspace: Map<string, string>) {
           if (!prompt) return JSON.stringify({ error: "Missing prompt" });
           if (!destPath) return JSON.stringify({ error: "Missing path" });
           try {
-            // Call opencode directly instead of going through /api/llm to avoid
-            // streaming/SSE conversion issues
-            const baseUrl = (process.env.AI_BASE_URL || "https://opencode.ai/zen").replace(/\/+$/, "");
-            const model = process.env.AI_MODEL || "deepseek-v4-flash-free";
-            const apiKey = process.env.AI_API_KEY || process.env.OPENCODE_API_KEY || "";
-            const res = await fetch(`${baseUrl}/v1/chat/completions`, {
-              method: "POST", headers: {
-                "Content-Type": "application/json",
-                ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-              },
+            // Use /api/llm for auth (env vars aren't available in Web Worker)
+            // Use stream:true with SSE parsing — works within Edge timeouts for content generation
+            const res = await fetch("/api/llm", {
+              method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                model,
                 messages: [{ role: "user", content: prompt }],
                 max_tokens: maxTokens,
-                stream: false,
+                stream: true,
               }),
-              signal: AbortSignal.timeout(180_000),
+              signal: AbortSignal.timeout(300_000),
             });
             if (!res.ok) {
               const err = await res.text().catch(() => "");
               return JSON.stringify({ error: `generate_content failed (${res.status})`, detail: err.substring(0, 500) });
             }
-            const body = await res.json();
-            const content = body.choices?.[0]?.message?.content || "";
-            // Write directly to workspace so the orchestrator doesn't need to pass content back
-            workspace.set(destPath, content);
+            // Parse SSE stream to extract content
+            const reader = res.body!.getReader();
+            const decoder = new TextDecoder();
+            let sseBuffer = "";
+            let fullContent = "";
+            let usage: any = null;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              sseBuffer += decoder.decode(value, { stream: true });
+              const lines = sseBuffer.split("\n");
+              sseBuffer = lines.pop() || "";
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith("data: ")) continue;
+                const payload = trimmed.slice(6).trim();
+                if (payload === "[DONE]") continue;
+                try {
+                  const chunk = JSON.parse(payload);
+                  if (chunk.usage) usage = chunk.usage;
+                  const delta = chunk.choices?.[0]?.delta;
+                  if (delta?.content) fullContent += delta.content;
+                } catch {}
+              }
+            }
+            // Write directly to workspace
+            workspace.set(destPath, fullContent);
             _readCache.delete(destPath);
             _fullReadCache.delete(destPath);
-            const lines = content.split("\n");
+            const lines = fullContent.split("\n");
             const previewLine = lines.find((l: string) => l.trim().length > 10 && !l.startsWith("#") && !l.startsWith("---")) || lines[0] || "";
             return JSON.stringify({
               success: true,
               path: destPath,
-              bytes: content.length,
+              bytes: fullContent.length,
               lines: lines.length,
               preview: previewLine.substring(0, 120).trim(),
-              usage: body.usage || null,
+              usage: usage || null,
             });
           } catch (err) {
             return JSON.stringify({ error: `generate_content error: ${err instanceof Error ? err.message : String(err)}` });
