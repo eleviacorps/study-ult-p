@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { logRequest } from "@/lib/server-log";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const DEFAULT_AI_BASE_URL = "https://opencode.ai/zen";
 const DEFAULT_AI_MODEL = "deepseek-v4-flash-free";
