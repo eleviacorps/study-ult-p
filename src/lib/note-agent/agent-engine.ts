@@ -500,7 +500,14 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       }
       counters.writeFailCount = 0;
       const raw = await handler(tc.function.name, args);
-      const result = truncateToolResult(raw);
+      // Strip generate_content results to minimum — full content is in workspace
+      let result = truncateToolResult(raw);
+      if (tc.function.name === "generate_content") {
+        try {
+          const parsed = JSON.parse(result);
+          result = JSON.stringify({ success: parsed.success, path: parsed.path, lines: parsed.lines, skipped: parsed.skipped });
+        } catch {}
+      }
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
     }
