@@ -1028,15 +1028,23 @@ function makeToolHandler(workspace: Map<string, string>) {
           const maxTokens = Math.min(Number(args.max_tokens) || 65536, 65536);
           const destPath = (args.path as string) || "";
           if (!prompt) return JSON.stringify({ error: "Missing prompt" });
-          if (!destPath) return JSON.stringify({ error: "Missing path — specify where to save the generated content" });
+          if (!destPath) return JSON.stringify({ error: "Missing path" });
           try {
-            const res = await fetch("/api/llm", {
-              method: "POST", headers: { "Content-Type": "application/json" },
+            // Call opencode directly instead of going through /api/llm to avoid
+            // streaming/SSE conversion issues
+            const baseUrl = (process.env.AI_BASE_URL || "https://opencode.ai/zen").replace(/\/+$/, "");
+            const model = process.env.AI_MODEL || "deepseek-v4-flash-free";
+            const apiKey = process.env.AI_API_KEY || process.env.OPENCODE_API_KEY || "";
+            const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+              method: "POST", headers: {
+                "Content-Type": "application/json",
+                ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+              },
               body: JSON.stringify({
+                model,
                 messages: [{ role: "user", content: prompt }],
                 max_tokens: maxTokens,
                 stream: false,
-                temperature: 0.25,
               }),
               signal: AbortSignal.timeout(180_000),
             });
