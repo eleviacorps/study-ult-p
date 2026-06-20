@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { useVaultStore } from "@/stores/vault-store";
 
+const SAMPLE_RATE = 24000;
+
 export function VoiceTutorButton() {
   const [active, setActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -12,20 +14,55 @@ export function VoiceTutorButton() {
   const [error, setError] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Get vault data from store
+  // Audio PCM buffer queue for playback
+  const pcmQueueRef = useRef<Int16Array[]>([]);
+  const isPlayingRef = useRef(false);
+  const audioChunkQueueRef = useRef<AudioBuffer[]>([]);
+
   const vaultData = useVaultStore((s) => s.vault);
+
+  // Play next buffered PCM chunk
+  const playNext = useCallback(() => {
+    if (isPlayingRef.current || audioChunkQueueRef.current.length === 0) return;
+    isPlayingRef.current = true;
+    const buf = audioChunkQueueRef.current.shift()!;
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const source = ctx.createBufferSource();
+    source.buffer = buf;
+    source.connect(ctx.destination);
+    source.onended = () => {
+      isPlayingRef.current = false;
+      playNext();
+    };
+    source.start();
+  }, []);
+
+  // Convert raw PCM Int16 to AudioBuffer
+  const appendPcmChunk = useCallback((pcm: Int16Array) => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    const float32 = new Float32Array(pcm.length);
+    for (let i = 0; i < pcm.length; i++) float32[i] = pcm[i] / 32768;
+    const audioBuf = ctx.createBuffer(1, float32.length, SAMPLE_RATE);
+    audioBuf.getChannelData(0).set(float32);
+    audioChunkQueueRef.current.push(audioBuf);
+    if (!isPlayingRef.current) playNext();
+  }, [playNext]);
 
   const startSession = useCallback(async () => {
     setLoading(true);
     setError("");
+    setTranscript([]);
+    audioChunkQueueRef.current = [];
 
     try {
       // 1. Mic access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // 2. Collect vault context from all chapters
+      // 2. Collect vault context
       const vaultContext = vaultData
         ? [
             vaultData.notes?.map((n: any) => `--- ${n.path} ---\n${n.content || ""}`).join("\n\n"),
@@ -34,20 +71,23 @@ export function VoiceTutorButton() {
           ].filter(Boolean).join("\n\n")
         : "";
 
-      // 3. Connect to Gemini Live via our proxy
+      // 3. Init AudioContext
+      audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
+
+      // 4. Connect to Gemini Live
       const res = await fetch("/api/gemini-live/token");
       const { url, key } = await res.json();
       const wsUrl = `${url}?key=${key}`;
       const ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
       ws.onopen = () => {
-        // Send setup with vault context
         ws.send(JSON.stringify({
           setup: {
             model: "models/gemini-2.5-flash-001",
             system_instruction: {
-              parts: [{ text: `You are a voice tutor for JEE/NEET Physics. The student's vault data is below. Use it to answer questions, explain concepts, quiz the student, and track their mastery.\n\nVAULT DATA:\n${vaultContext.slice(0, 900000)}` }]
+              parts: [{ text: `You are a voice tutor for JEE/NEET Physics. The student's vault data is below. Use it to answer questions, explain concepts, quiz the student, and track their mastery.\n\nVAULT DATA:\n${(vaultContext || "").slice(0, 800000)}` }]
             },
             generation_config: {
               temperature: 0.7,
@@ -78,21 +118,12 @@ export function VoiceTutorButton() {
               if (part.text) {
                 setTranscript((prev) => [...prev, part.text]);
               }
-              // Audio parts are binary data handled below
             }
           }
-        } else {
-          // Binary audio data — play through speakers
-          const audioCtx = audioContextRef.current || new AudioContext();
-          audioContextRef.current = audioCtx;
-          e.data.arrayBuffer().then((buf: ArrayBuffer) => {
-            audioCtx.decodeAudioData(buf, (audioBuf) => {
-              const source = audioCtx.createBufferSource();
-              source.buffer = audioBuf;
-              source.connect(audioCtx.destination);
-              source.start();
-            });
-          });
+        } else if (e.data instanceof ArrayBuffer) {
+          // Binary PCM audio data — 16-bit PCM at 24000 Hz
+          const int16 = new Int16Array(e.data);
+          if (int16.length > 0) appendPcmChunk(int16);
         }
       };
 
@@ -102,21 +133,22 @@ export function VoiceTutorButton() {
       setError(err.message || "Failed to start");
       setLoading(false);
     }
-  }, [vaultData]);
+  }, [vaultData, appendPcmChunk]);
 
   const stopSession = useCallback(() => {
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
     wsRef.current?.close();
-    audioContextRef.current?.close();
+    audioCtxRef.current?.close();
     wsRef.current = null;
     mediaRecorderRef.current = null;
-    audioContextRef.current = null;
+    audioCtxRef.current = null;
+    audioChunkQueueRef.current = [];
+    isPlayingRef.current = false;
     setActive(false);
     setLoading(false);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => () => stopSession(), [stopSession]);
 
   return (
