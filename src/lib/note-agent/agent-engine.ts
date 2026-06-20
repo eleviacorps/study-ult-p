@@ -1070,7 +1070,18 @@ function makeToolHandler(workspace: Map<string, string>) {
                 } catch {}
               }
             }
-            // Write directly to workspace
+            // Write directly to workspace — skip if existing content is already substantial
+            const existing = workspace.get(destPath);
+            if (existing && existing.length > 10000 && existing.length >= fullContent.length) {
+              return JSON.stringify({
+                success: true,
+                path: destPath,
+                bytes: existing.length,
+                lines: existing.split("\n").length,
+                skipped: true,
+                reason: "existing file is already complete",
+              });
+            }
             workspace.set(destPath, fullContent);
             _readCache.delete(destPath);
             _fullReadCache.delete(destPath);
