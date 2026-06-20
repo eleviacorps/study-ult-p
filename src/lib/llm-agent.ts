@@ -285,6 +285,21 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
         required: ["summary", "filesCreated", "filesModified", "issuesFixed"],
       },
     },
+  {
+    type: "function",
+    function: {
+      name: "generate_content",
+      description: "Generate study content using a FRESH LLM call with full 65K output budget. Use this for creating full notes, question sets, MCQ sets, etc. The content is written DIRECTLY to the path you specify — no separate write_file needed. The sub-agent has NO tools, NO history, and the full output budget.",
+      parameters: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "The complete prompt for the sub-agent. Include topic, format, structure, and style. Self-contained — sub-agent has no context." },
+          path: { type: "string", description: "Path to save the content (e.g. 'Electrostatics/notes/coulombs_law.md'). MANDATORY." },
+          max_tokens: { type: "number", description: "Optional. Max tokens (default: 65536)." },
+        },
+        required: ["prompt", "path"],
+      },
+    },
   },
 ];
 
@@ -296,7 +311,12 @@ export function getAgentSystemPrompt(examName?: string): string {
 - Follow the SKILL instructions below as your primary workflow and formatting guide.
 - The SKILL defines the vault structure, note templates, question/MCQ/flashcard types, callout patterns, and quality checks.
 - The content is being generated for "${examName || "exam"}" preparation. Adapt terminology accordingly.
-- Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report) throughout the workflow.
+|- Use the available tools (write_file, read_file, list_workspace, assess_quality, final_report, generate_content) throughout the workflow.
+|- ORCHESTRATOR PATTERN — Use generate_content for ALL content. It writes DIRECTLY to the path you specify. No separate write_file call needed.
+  Example: generate_content(prompt="Write a 400+ line note about Coulomb's Law...", path="notes/coulombs_law.md")
+  → Sub-agent generates the full content and saves it to workspace at that path.
+  → Returns {bytes, lines, preview} so you can verify.
+|- Each generate_content call = ONE complete file: one note (400+ lines), one question set (100 items), one MCQ set, etc. Make the prompt self-contained.
 - write_file handles both NEW files and CONTINUATIONS: use append:true to add sections to an existing file. The engine concatenates appended content automatically.
 - Use search_web when generating questions, MCQs, or exam material to reference real previous-year question patterns and difficulty levels from the target exam.
 - Use list_neet_chapters to discover which chapters have NEET bank questions (optionally filtered by subject), then use neet_bank_search to fetch real past exam questions. Use neet_bank_search FIRST when generating questions/MCQs — it returns real past exam questions so you can match the difficulty, style, and trap patterns.
@@ -330,8 +350,8 @@ export function getAgentSystemPrompt(examName?: string): string {
 |- Use all callout types: >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT].
 |- Use wikilinks ([[Topic Name]]) for cross-references.
 |- Tag every file with #Subject #Chapter.
-|- OUTPUT CAPACITY: You have 65,536 tokens of output budget per turn. Each write_file call CAN hold the entire content of a 400+ line note or all 100 questions. Write each file in ONE write_file call with its COMPLETE content. Do NOT chunk, do NOT use append:true for initial writes.
-|- If a write_file returns an error about partial content, retry the ENTIRE content in one new write_file call. The conversation history truncation of your write_file content is just display-only — the file was saved completely. Use read_file or assess_quality to verify.`;
+|- ORCHESTRATOR FLOW: generate_content(prompt, path) writes DIRECTLY to workspace at that path. No write_file needed after generate_content.
+|- If generate_content returns an error, retry with a clearer prompt. Use write_file only for small manual edits or metadata.`;
 }
 
 export const AGENT_SYSTEM_PROMPT = getAgentSystemPrompt();

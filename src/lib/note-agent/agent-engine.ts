@@ -70,6 +70,10 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
     properties: { subject: { type: "string" }, chapter: { type: "string" }, year: { type: "string" }, limit: { type: "number" }, random: { type: "boolean" } },
     required: ["subject", "chapter"],
   },
+  generate_content: {
+    properties: { prompt: { type: "string" }, path: { type: "string" }, max_tokens: { type: "number" } },
+    required: ["prompt", "path"],
+  },
 };
 
 const MAX_TOOL_RESULT_BYTES = 50 * 1024;
@@ -1017,6 +1021,47 @@ function makeToolHandler(workspace: Map<string, string>) {
             });
           } catch (err) {
             return JSON.stringify({ error: `jee_main_bank_search error: ${err instanceof Error ? err.message : String(err)}` });
+          }
+        }
+        case "generate_content": {
+          const prompt = (args.prompt as string) || "";
+          const maxTokens = Math.min(Number(args.max_tokens) || 65536, 65536);
+          const destPath = (args.path as string) || "";
+          if (!prompt) return JSON.stringify({ error: "Missing prompt" });
+          if (!destPath) return JSON.stringify({ error: "Missing path — specify where to save the generated content" });
+          try {
+            const res = await fetch("/api/llm", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                messages: [{ role: "user", content: prompt }],
+                max_tokens: maxTokens,
+                stream: false,
+                temperature: 0.25,
+              }),
+              signal: AbortSignal.timeout(180_000),
+            });
+            if (!res.ok) {
+              const err = await res.text().catch(() => "");
+              return JSON.stringify({ error: `generate_content failed (${res.status})`, detail: err.substring(0, 500) });
+            }
+            const body = await res.json();
+            const content = body.choices?.[0]?.message?.content || "";
+            // Write directly to workspace so the orchestrator doesn't need to pass content back
+            workspace.set(destPath, content);
+            _readCache.delete(destPath);
+            _fullReadCache.delete(destPath);
+            const lines = content.split("\n");
+            const previewLine = lines.find((l: string) => l.trim().length > 10 && !l.startsWith("#") && !l.startsWith("---")) || lines[0] || "";
+            return JSON.stringify({
+              success: true,
+              path: destPath,
+              bytes: content.length,
+              lines: lines.length,
+              preview: previewLine.substring(0, 120).trim(),
+              usage: body.usage || null,
+            });
+          } catch (err) {
+            return JSON.stringify({ error: `generate_content error: ${err instanceof Error ? err.message : String(err)}` });
           }
         }
         default:
