@@ -1125,7 +1125,7 @@ function makeToolHandler(workspace: Map<string, string>) {
             ];
             let subFinished = false;
             let subTurns = 0;
-            let filesWritten: string[] = [];
+            let filesWritten: { path: string; bytes: number; lines: number }[] = [];
             while (!subFinished && subTurns < 10) {
               subTurns++;
               const res = await fetch("/api/llm", {
@@ -1194,7 +1194,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                       workspace.set(path, content);
                       _readCache.delete(path);
                       _fullReadCache.delete(path);
-                      filesWritten.push(path);
+                      filesWritten.push({ path, bytes: content.length, lines: content.split("\n").length });
                     }
                   }
                   subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: true }) });
