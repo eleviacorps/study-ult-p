@@ -29,42 +29,82 @@ export const SUB_AGENTS: SubAgentConfig[] = [
     description: "Generate a single 400+ line JEE study note on one topic.",
     instruction: `You are a NOTE AGENT. Write ONE study note (400+ lines) on the given topic.
 
-STRUCTURE:
+EXACT STRUCTURE (follow strictly):
 # Topic Name
 #Physics #ElectricChargesAndFields #JEE #Class12
 
 ## Why This Topic?
-Big question hook + historical context + real-world connection.
+### The Big Question
+[Hook question that grabs attention]
+### Historical/Conceptual Introduction
+[Context and background]
+### Real-World Connection
+> [!INTUITION]
+[Analogy or real-world example]
 
-## Section 1..N
-Detailed explanation with formulas, tables, callouts.
+## 1. Concept Name
+### 1.1 Sub-Concept
+> [!KEY-CONCEPT]
+[Core definition or law]
 
-## Worked Examples (4+)
+Explanation with details, bullet points, and bold terms.
+
+### 1.2 Sub-Concept
+Same format.
+
+## 2. Mathematical Formulation
+$$[LaTeX formula]$$
+
+### Variable Meanings
+| Symbol | Meaning | Unit |
+|--------|---------|------|
+
+## Important Results
+### Case 1: [description]
+$$[formula]$$
+[Explanation]
+
+## Detailed Worked Examples (4+)
 ### Example 1: Title
-**Problem:** ... **Given:** ... **Find:** ... **Solution:** Step-by-step with $$...$$ LaTeX. **Answer:** ✅ ...
+**Problem:** [description]
+**Given:** [list with values]
+**Find:** [what to find]
+**Solution:**
+**Step 1:** [description]
+$$[calculation]$$
+**Step 2:**
+$$[calculation]$$
+**Answer:** ✅ [final answer]
 
 ## Common Mistakes (4+)
 > [!COMMON-MISTAKE]
-Wrong: ...
-Correct: ...
+**❌ Wrong:** [common error]
+**✅ Correct:** [correction]
+**Why:** [reason]
 
 ## JEE Insights
 > [!JEE-INSIGHT]
-Pattern analysis.
+[Pattern analysis, tips]
 
-## Formula Summary
+## Formula Summary Table
 | Concept | Formula | Notes |
+|---------|---------|-------|
 
-## Memory Tricks
+## Memory Techniques
 > [!TIP]
-Mnemonic
+[Mnemonic or trick]
+
+## Related Topics
+- [[wikilinks]] to other notes
 
 RULES:
-- Use >[!KEY-CONCEPT], >[!JEE-INSIGHT], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT] callouts
+- ALL callouts: >[!KEY-CONCEPT], >[!JEE-INSIGHT], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT]
 - $$...$$ LaTeX for ALL formulas
 - [[wikilinks]] for cross-references
-- 4+ solved examples, 4+ common mistakes
-- Write the file ONCE using write_file tool. Do NOT revise.`,
+- 4+ solved examples with FULL step-by-step
+- 4+ common mistakes
+- Bold key terms
+- Write ONCE using write_file. Do NOT revise.`,
     tools: [WRITE_FILE_TOOL],
   },
   {
