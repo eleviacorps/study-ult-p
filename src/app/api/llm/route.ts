@@ -70,6 +70,7 @@ export async function POST(request: Request) {
     if (body.reasoning !== undefined) requestBody.reasoning = body.reasoning;
     if (body.reasoning_effort !== undefined) requestBody.reasoning_effort = body.reasoning_effort;
     if (body.thinking !== undefined) requestBody.thinking = body.thinking;
+    if (body.max_model_len !== undefined) requestBody.max_model_len = body.max_model_len;
 
     const res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",

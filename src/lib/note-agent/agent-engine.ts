@@ -1044,6 +1044,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                 model,
                 messages: [{ role: "user", content: prompt }],
                 max_tokens: maxTokens,
+                max_model_len: 393216,
                 stream: false,
               }),
               signal: AbortSignal.timeout(180_000),
