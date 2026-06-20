@@ -102,7 +102,7 @@ export function VoiceTutorButton() {
       setError(err.message || "Failed to start");
       setLoading(false);
     }
-  }, [vaultRoots]);
+  }, [vaultData]);
 
   const stopSession = useCallback(() => {
     mediaRecorderRef.current?.stop();
