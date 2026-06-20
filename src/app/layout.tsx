@@ -7,12 +7,7 @@ import { LlmProvider } from "@/lib/llm-context";
 import { AuthGate } from "@/components/auth-gate";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
-import dynamic from "next/dynamic";
-
-const VoiceTutorButton = dynamic(
-  () => import("@/components/voice-tutor/voice-tutor-button").then((m) => ({ default: m.VoiceTutorButton })),
-  { ssr: false }
-);
+import { VoiceTutorWrapper } from "@/components/voice-tutor/voice-tutor-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,7 +49,7 @@ export default function RootLayout({
             <VaultLoader />
             <AuthGate>
               {children}
-              <VoiceTutorButton />
+              <VoiceTutorWrapper />
             </AuthGate>
           </LlmProvider>
         </ErrorBoundary>
