@@ -14,7 +14,8 @@ export default function LoginPage() {
   useEffect(() => {
     setLoading(true);
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    if (!supabase) { setLoading(false); return; }
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
       if (user) router.replace("/dashboard");
     }).finally(() => setLoading(false));
   }, [router]);
