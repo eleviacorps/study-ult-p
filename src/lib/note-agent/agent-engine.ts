@@ -1,4 +1,5 @@
 import type { AgentStep, AgentConfig, ToolDef } from "@/lib/llm-agent";
+import { SUB_AGENTS } from "./sub-agents";
 
 interface ToolCall {
   id: string;
@@ -73,6 +74,10 @@ const TOOL_SCHEMAS: Record<string, { properties: Record<string, { type: string; 
   generate_content: {
     properties: { prompt: { type: "string" }, path: { type: "string" }, max_tokens: { type: "number" } },
     required: ["prompt", "path"],
+  },
+  run_agent: {
+    properties: { agent_name: { type: "string" }, topic: { type: "string" }, path: { type: "string" } },
+    required: ["agent_name", "topic", "path"],
   },
 };
 
@@ -1104,6 +1109,103 @@ function makeToolHandler(workspace: Map<string, string>) {
             });
           } catch (err) {
             return JSON.stringify({ error: `generate_content error: ${err instanceof Error ? err.message : String(err)}` });
+          }
+        }
+        case "run_agent": {
+          const agentName = args.agent_name as string;
+          const topic = args.topic as string;
+          const destPath = args.path as string;
+          const agent = SUB_AGENTS.find((a) => a.name === agentName);
+          if (!agent) return JSON.stringify({ error: `Unknown agent: ${agentName}` });
+          // Run sub-agent with FRESH context — no history from orchestrator
+          try {
+            const subMessages: Record<string, unknown>[] = [
+              { role: "system", content: agent.instruction },
+              { role: "user", content: `Topic: ${topic}\nPath: ${destPath}\n\nGenerate the content and save it using write_file.` },
+            ];
+            let subFinished = false;
+            let subTurns = 0;
+            let filesWritten: string[] = [];
+            while (!subFinished && subTurns < 10) {
+              subTurns++;
+              const res = await fetch("/api/llm", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  messages: subMessages,
+                  tools: agent.tools,
+                  tool_choice: "auto",
+                  max_tokens: 65536,
+                  stream: true,
+                }),
+                signal: AbortSignal.timeout(300_000),
+              });
+              if (!res.ok) {
+                const err = await res.text().catch(() => "");
+                return JSON.stringify({ error: `sub_agent failed (${res.status})`, detail: err.substring(0, 500) });
+              }
+              const reader = res.body!.getReader();
+              const decoder = new TextDecoder();
+              let sseBuf = "";
+              let msgContent = "";
+              let toolCalls: Record<number, { id: string; function: { name: string; arguments: string } }> = {};
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                sseBuf += decoder.decode(value, { stream: true });
+                const lines = sseBuf.split("\n");
+                sseBuf = lines.pop() || "";
+                for (const line of lines) {
+                  const t = line.trim();
+                  if (!t.startsWith("data: ")) continue;
+                  const p = t.slice(6).trim();
+                  if (p === "[DONE]") continue;
+                  try {
+                    const chunk = JSON.parse(p);
+                    const delta = chunk.choices?.[0]?.delta;
+                    if (delta?.content) msgContent += delta.content;
+                    if (delta?.tool_calls) {
+                      for (const tc of delta.tool_calls) {
+                        const idx = tc.index ?? 0;
+                        if (!toolCalls[idx]) {
+                          toolCalls[idx] = { id: tc.id || "", function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" } };
+                        } else {
+                          if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
+                          if (tc.function?.name) toolCalls[idx].function.name = tc.function.name;
+                        }
+                      }
+                    }
+                    if (chunk.choices?.[0]?.finish_reason === "stop") subFinished = true;
+                  } catch {}
+                }
+              }
+              // Execute tool calls
+              const tcArray = Object.values(toolCalls);
+              if (tcArray.length > 0) {
+                subFinished = false; // more to do after tools
+                const assistantMsg: Record<string, unknown> = { role: "assistant", content: msgContent || null, tool_calls: tcArray };
+                subMessages.push(assistantMsg);
+                for (const tc of tcArray) {
+                  let argsJson: Record<string, unknown> = {};
+                  try { argsJson = JSON.parse(tc.function.arguments); } catch { continue; }
+                  if (tc.function.name === "write_file") {
+                    const path = argsJson.path as string;
+                    const content = argsJson.content as string;
+                    if (path && content) {
+                      workspace.set(path, content);
+                      _readCache.delete(path);
+                      _fullReadCache.delete(path);
+                      filesWritten.push(path);
+                    }
+                  }
+                  subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: true }) });
+                }
+              } else {
+                subMessages.push({ role: "assistant", content: msgContent || "" });
+              }
+            }
+            return JSON.stringify({ success: true, agent: agentName, topic, filesWritten, turnCount: subTurns });
+          } catch (err) {
+            return JSON.stringify({ error: `run_agent error: ${err instanceof Error ? err.message : String(err)}` });
           }
         }
         default:

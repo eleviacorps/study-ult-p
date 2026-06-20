@@ -301,29 +301,50 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
         required: ["prompt", "path"],
       },
     },
+  {
+    type: "function",
+    function: {
+      name: "run_agent",
+      description: "Delegate a task to a specialized sub-agent. The sub-agent has its own instruction, tools, and FULLY FRESH context — no history bleed. It runs independently and returns what it generated. Use this instead of generate_content for complex tasks.",
+      parameters: {
+        type: "object",
+        properties: {
+          agent_name: {
+            type: "string",
+            description: "Agent name. Available: 'note_agent' (single 400+ line note), 'question_agent' (100 solved questions), 'mcq_agent' (100 MCQs), 'flashcard_agent' (100 flashcards), 'quiz_agent' (100 quizzes), 'revision_agent' (all 7 revision files)",
+            enum: ["note_agent", "question_agent", "mcq_agent", "flashcard_agent", "quiz_agent", "revision_agent"],
+          },
+          topic: { type: "string", description: "Topic/chapter name. For note_agent: single topic name. For others: full chapter name." },
+          path: { type: "string", description: "Target file path in workspace (e.g. 'Electrostatics/notes/coulombs_law.md' or 'Electrostatics/questions/100_questions.md'). For revision_agent, use revision folder path." },
+        },
+        required: ["agent_name", "topic", "path"],
+      },
+    },
   },
 ];
 
 export function getAgentSystemPrompt(examName?: string): string {
   const insight = examName ? `${examName}-INSIGHT` : "EXAM-INSIGHT";
-  return `You build an Obsidian vault from NCERT chapter content. Use the tools to generate and save content.
+  return `You build an Obsidian vault from NCERT chapter content. Delegate work to sub-agents.
 
 Steps:
-1. list_workspace — check what files already exist
-2. Call generate_content for the NEXT missing file: notes, questions (100), MCQs (100), flashcards (100), quizzes (100), revision files (7), concept map
-3. Repeat until all files exist
+1. list_workspace — check what files exist
+2. Call run_agent for the NEXT missing file type. Each agent generates content and saves it directly.
+   - note_agent: generates one 400+ line note → pass topic name and path
+   - question_agent: generates 100 solved questions
+   - mcq_agent: generates 100 MCQs
+   - flashcard_agent: generates 100 flashcards
+   - quiz_agent: generates 100 quizzes
+   - revision_agent: generates all 7 revision files
+3. Repeat until all files exist. Use list_workspace to track progress.
 4. Call assess_quality, fix issues, call final_report
 
 Rules:
-- Each generate_content call generates ONE complete file: one note, one question set, etc.
-- The SKILL defines exact format for each file type
+- Each run_agent call is COMPLETELY independent — fresh context, no history bleed.
+- The SKILL defines exact format for each file type. Put format requirements in the topic field.
 - Use >[!KEY-CONCEPT], >[!${insight}], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT] callouts
 - Use $$...$$ LaTeX for formulas
-- Use wikilinks [[Topic Name]] for cross-references
-- write_file handles appending with append:true
-- generate_content(prompt, path) saves DIRECTLY to workspace
-- Check bank tools for real exam questions: list_jee_main_chapters, jee_main_bank_search, list_neet_chapters, neet_bank_search
-- search_web at most once at start`;
+- Use wikilinks [[Topic Name]] for cross-references`;
 }
 
 export const AGENT_SYSTEM_PROMPT = getAgentSystemPrompt();
