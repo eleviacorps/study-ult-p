@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
-import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { NoteRenderer } from "@/components/reader/note-renderer";
 import { AiTutorSidebar } from "@/components/ai-tutor-sidebar";
 import { SelectionToolbar } from "@/components/selection-toolbar";
 import { useLlm } from "@/lib/llm-context";
@@ -204,7 +204,7 @@ export default function ReaderPage() {
               transition={{ duration: 0.3 }}
             >
               <div className="glass p-3 sm:p-6 md:p-8 rounded-2xl overflow-x-hidden" style={{ fontSize: `${fontSize}px` }}>
-                <MarkdownRenderer content={note.content} className="reader-prose" />
+                <NoteRenderer content={note.content} className="reader-prose" />
               </div>
 
               {note.tags.length > 0 && (
