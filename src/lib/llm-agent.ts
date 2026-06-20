@@ -301,6 +301,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
         required: ["prompt", "path"],
       },
     },
+  },
   {
     type: "function",
     function: {
