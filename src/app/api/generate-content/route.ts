@@ -27,7 +27,7 @@ export async function POST(request: Request) {
         model,
         messages: [{ role: "user", content: prompt }],
         max_tokens: maxTokens,
-        stream: false,
+        stream: true,
       }),
       signal: AbortSignal.timeout(300_000),
     });
@@ -37,13 +37,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "provider_error", detail: err.substring(0, 1000) }, { status: 502 });
     }
 
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    return NextResponse.json({
-      success: true,
-      content,
-      bytes: content.length,
-      lines: content.split("\n").length,
+    // Pipe SSE stream directly — keeps Vercel HTTP/2 connection alive
+    return new Response(res.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (err) {
     return NextResponse.json(
