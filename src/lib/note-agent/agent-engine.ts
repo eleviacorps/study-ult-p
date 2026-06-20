@@ -392,7 +392,7 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
 }> {
   const res = await fetch("/api/llm", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 65536, stream: true, reasoning_effort: 0, thinking: null }),
+    body: JSON.stringify({ messages, tools: tools.length > 0 ? tools : undefined, tool_choice: tools.length > 0 ? "auto" : undefined, max_tokens: 65536, stream: true }),
     signal,
   });
   if (res.status === 504 && attempt < 3) {
