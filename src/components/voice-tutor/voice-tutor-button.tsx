@@ -15,7 +15,7 @@ export function VoiceTutorButton() {
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Get vault data from store
-  const vaultRoots = useVaultStore((s) => s.roots);
+  const vaultData = useVaultStore((s) => s.vault);
 
   const startSession = useCallback(async () => {
     setLoading(true);
@@ -25,13 +25,14 @@ export function VoiceTutorButton() {
       // 1. Mic access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // 2. Collect vault context
-      const vaultContext = vaultRoots
-        ?.map((root: any) => {
-          const files = root.files?.map((f: any) => `--- ${f.path} ---\n${f.content || ""}`).join("\n\n");
-          return `# ${root.name}\n${files || ""}`;
-        })
-        .join("\n\n") || "";
+      // 2. Collect vault context from all chapters
+      const vaultContext = vaultData
+        ? [
+            vaultData.notes?.map((n: any) => `--- ${n.path} ---\n${n.content || ""}`).join("\n\n"),
+            vaultData.questions?.map((q: any) => `--- ${q.path} ---\nQ: ${q.title || q.content?.substring(0, 100)}`).join("\n\n"),
+            vaultData.flashcards?.slice(0, 50).map((f: any) => `FC: ${f.front || f.question}`).join("\n"),
+          ].filter(Boolean).join("\n\n")
+        : "";
 
       // 3. Connect to Gemini Live via our proxy
       const res = await fetch("/api/gemini-live/token");
