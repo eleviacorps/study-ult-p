@@ -1,197 +1,150 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Loader2 } from "lucide-react";
+import { Bot, Send, Loader2, X, GraduationCap, User } from "lucide-react";
 import { useVaultStore } from "@/stores/vault-store";
 
-const SAMPLE_RATE = 24000;
+interface ChatMsg {
+  role: "tutor" | "student";
+  content: string;
+}
 
-export function VoiceTutorButton() {
-  const [active, setActive] = useState(false);
+export function LiveTutorPanel() {
+  const [open, setOpen] = useState(false);
+  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [transcript, setTranscript] = useState<string[]>([]);
   const [error, setError] = useState("");
-  const wsRef = useRef<WebSocket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  // Audio PCM buffer queue for playback
-  const pcmQueueRef = useRef<Int16Array[]>([]);
-  const isPlayingRef = useRef(false);
-  const audioChunkQueueRef = useRef<AudioBuffer[]>([]);
-
   const vaultData = useVaultStore((s) => s.vault);
+  const cc = useVaultStore((s) => s.currentChapter);
+  const cn = useVaultStore((s) => s.currentNote);
 
-  // Play next buffered PCM chunk
-  const playNext = useCallback(() => {
-    if (isPlayingRef.current || audioChunkQueueRef.current.length === 0) return;
-    isPlayingRef.current = true;
-    const buf = audioChunkQueueRef.current.shift()!;
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    const source = ctx.createBufferSource();
-    source.buffer = buf;
-    source.connect(ctx.destination);
-    source.onended = () => {
-      isPlayingRef.current = false;
-      playNext();
-    };
-    source.start();
-  }, []);
-
-  // Convert raw PCM Int16 to AudioBuffer
-  const appendPcmChunk = useCallback((pcm: Int16Array) => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    const float32 = new Float32Array(pcm.length);
-    for (let i = 0; i < pcm.length; i++) float32[i] = pcm[i] / 32768;
-    const audioBuf = ctx.createBuffer(1, float32.length, SAMPLE_RATE);
-    audioBuf.getChannelData(0).set(float32);
-    audioChunkQueueRef.current.push(audioBuf);
-    if (!isPlayingRef.current) playNext();
-  }, [playNext]);
-
-  const startSession = useCallback(async () => {
+  const start = useCallback(async () => {
+    setOpen(true);
     setLoading(true);
     setError("");
-    setTranscript([]);
-    audioChunkQueueRef.current = [];
+    setMsgs([]);
+
+    const vaultCtx = vaultData?.notes?.map((n: any) => `${n.path}\n${(n.content || "").slice(0, 3000)}`).join("\n\n").slice(0, 50000) || "";
 
     try {
-      // 1. Mic access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      // 2. Collect vault context
-      const vaultContext = vaultData
-        ? [
-            vaultData.notes?.map((n: any) => `--- ${n.path} ---\n${n.content || ""}`).join("\n\n"),
-            vaultData.questions?.map((q: any) => `--- ${q.path} ---\nQ: ${q.title || q.content?.substring(0, 100)}`).join("\n\n"),
-            vaultData.flashcards?.slice(0, 50).map((f: any) => `FC: ${f.front || f.question}`).join("\n"),
-          ].filter(Boolean).join("\n\n")
-        : "";
-
-      // 3. Init AudioContext
-      audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
-
-      // 4. Connect to Gemini Live
-      const res = await fetch("/api/gemini-live/token");
-      const { url, key } = await res.json();
-      const wsUrl = `${url}?key=${key}`;
-      const ws = new WebSocket(wsUrl);
-      ws.binaryType = "arraybuffer";
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          setup: {
-            model: "models/gemini-2.5-flash-001",
-            system_instruction: {
-              parts: [{ text: `You are a voice tutor for JEE/NEET Physics. The student's vault data is below. Use it to answer questions, explain concepts, quiz the student, and track their mastery.\n\nVAULT DATA:\n${(vaultContext || "").slice(0, 800000)}` }]
-            },
-            generation_config: {
-              temperature: 0.7,
-              max_output_tokens: 4096,
-            },
-          },
-        }));
-
-        // Start sending mic audio
-        const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-        mediaRecorderRef.current = recorder;
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-            e.data.arrayBuffer().then((buf) => ws.send(buf));
-          }
-        };
-        recorder.start(100);
-        setActive(true);
-        setLoading(false);
-      };
-
-      ws.onmessage = (e) => {
-        if (typeof e.data === "string") {
-          const msg = JSON.parse(e.data);
-          if (msg.setupComplete) setActive(true);
-          if (msg?.serverContent?.modelTurn?.parts) {
-            for (const part of msg.serverContent.modelTurn.parts) {
-              if (part.text) {
-                setTranscript((prev) => [...prev, part.text]);
-              }
-            }
-          }
-        } else if (e.data instanceof ArrayBuffer) {
-          // Binary PCM audio data — 16-bit PCM at 24000 Hz
-          const int16 = new Int16Array(e.data);
-          if (int16.length > 0) appendPcmChunk(int16);
-        }
-      };
-
-      ws.onerror = () => setError("Connection failed");
-      ws.onclose = () => setActive(false);
-    } catch (err: any) {
-      setError(err.message || "Failed to start");
-      setLoading(false);
-    }
-  }, [vaultData, appendPcmChunk]);
-
-  const stopSession = useCallback(() => {
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
-    wsRef.current?.close();
-    audioCtxRef.current?.close();
-    wsRef.current = null;
-    mediaRecorderRef.current = null;
-    audioCtxRef.current = null;
-    audioChunkQueueRef.current = [];
-    isPlayingRef.current = false;
-    setActive(false);
+      const r = await fetch("/api/gemini-live/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: `Start teaching "${cn?.title || cn?.name}" — topic: "${cn?.title || ""}". Introduce it conversationally.`,
+          vaultContext: vaultCtx,
+          chapterName: cc?.name || "Physics",
+          topicName: cn?.title || "",
+        }),
+      });
+      const d = await r.json();
+      if (d.error) { setError(d.error); return; }
+      setMsgs([{ role: "tutor", content: d.reply }]);
+    } catch { setError("Failed to connect"); }
     setLoading(false);
-  }, []);
+  }, [vaultData, cc, cn]);
 
-  useEffect(() => () => stopSession(), [stopSession]);
+  const send = useCallback(async () => {
+    if (!input.trim() || loading) return;
+    const q = input.trim();
+    setInput("");
+    setMsgs((p) => [...p, { role: "student", content: q }]);
+    setLoading(true);
+
+    const vaultCtx = vaultData?.notes?.map((n: any) => `${n.path}\n${(n.content || "").slice(0, 2000)}`).join("\n\n").slice(0, 40000) || "";
+
+    try {
+      const r = await fetch("/api/gemini-live/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: q,
+          vaultContext: vaultCtx,
+          chapterName: cc?.name || "Physics",
+          topicName: cn?.title || "",
+        }),
+      });
+      const d = await r.json();
+      if (d.error) { setError(d.error); return; }
+      setMsgs((p) => [...p, { role: "tutor", content: d.reply }]);
+    } catch { setError("Lost connection"); }
+    setLoading(false);
+  }, [input, loading, vaultData, cc, cn]);
 
   return (
     <>
       <AnimatePresence>
-        {transcript.length > 0 && active && (
+        {open && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-24 right-6 z-50 w-80 max-h-96 glass rounded-2xl border border-white/[0.06] p-4 overflow-y-auto"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-20 right-6 z-50 w-96 h-[520px] glass rounded-2xl border border-white/[0.06] flex flex-col overflow-hidden shadow-2xl"
           >
-            <p className="text-[10px] uppercase tracking-wider text-white/25 mb-2">Voice Tutor</p>
-            {transcript.map((t, i) => (
-              <p key={i} className="text-sm text-white/70 mb-1">{t}</p>
-            ))}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
+              <div className="flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-[#1856FF]" />
+                <span className="text-sm font-medium text-white/80">Live Tutor</span>
+              </div>
+              <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/[0.06] rounded-lg">
+                <X className="w-4 h-4 text-white/40" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {msgs.length === 0 && !loading && (
+                <div className="text-center py-12">
+                  <Bot className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                  <p className="text-sm text-white/30">Open a note, then tap the button to start.</p>
+                </div>
+              )}
+              {msgs.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "tutor" ? "justify-start" : "justify-end"}`}>
+                  <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${m.role === "tutor" ? "bg-white/[0.04] text-white/70 border border-white/[0.04]" : "bg-[#1856FF]/20 text-white/80 border border-[#1856FF]/20"}`}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {m.role === "tutor" ? <Bot className="w-3 h-3 text-[#1856FF]" /> : <User className="w-3 h-3 text-white/40" />}
+                      <span className="text-[10px] text-white/20">{m.role === "tutor" ? "Tutor" : "You"}</span>
+                    </div>
+                    <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-white/[0.04] px-3 py-2 rounded-xl border border-white/[0.04]">
+                    <Loader2 className="w-4 h-4 text-white/30 animate-spin" />
+                  </div>
+                </div>
+              )}
+              {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+            </div>
+
+            <div className="p-3 border-t border-white/[0.04]">
+              <div className="flex gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && send()}
+                  placeholder="Ask a question..."
+                  className="flex-1 bg-white/[0.04] border border-white/[0.06] rounded-xl px-3 py-2 text-sm text-white/70 placeholder-white/20 outline-none focus:border-[#1856FF]/40"
+                />
+                <button onClick={send} disabled={loading || !input.trim()}
+                  className="p-2 bg-[#1856FF] hover:bg-[#1547D6] disabled:bg-white/[0.06] rounded-xl transition-colors"
+                ><Send className="w-4 h-4 text-white" /></button>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {error && (
-        <div className="fixed bottom-24 right-6 z-50 glass rounded-2xl border border-red-500/20 p-3">
-          <p className="text-xs text-red-400">{error}</p>
-        </div>
-      )}
-
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={active ? stopSession : startSession}
-        disabled={loading}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-colors ${
-          active
-            ? "bg-red-500 hover:bg-red-600"
-            : "bg-[#1856FF] hover:bg-[#1547D6]"
-        }`}
+        onClick={open ? () => setOpen(false) : start}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-[#1856FF] hover:bg-[#1547D6]"
       >
-        {loading ? (
-          <Loader2 className="w-6 h-6 text-white animate-spin" />
-        ) : active ? (
-          <MicOff className="w-6 h-6 text-white" />
-        ) : (
-          <Mic className="w-6 h-6 text-white" />
-        )}
+        {loading ? <Loader2 className="w-6 h-6 text-white animate-spin" /> : open ? <X className="w-6 h-6 text-white" /> : <GraduationCap className="w-6 h-6 text-white" />}
       </motion.button>
     </>
   );
