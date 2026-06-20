@@ -1179,7 +1179,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                 }
               }
               // Execute tool calls
-              const tcArray = Object.values(toolCalls);
+              const tcArray = Object.values(toolCalls).map((tc) => ({ ...tc, type: "function" }));
               if (tcArray.length > 0) {
                 subFinished = false; // more to do after tools
                 const assistantMsg: Record<string, unknown> = { role: "assistant", content: msgContent || null, tool_calls: tcArray };
