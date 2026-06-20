@@ -285,6 +285,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
         required: ["summary", "filesCreated", "filesModified", "issuesFixed"],
       },
     },
+  },
   {
     type: "function",
     function: {
