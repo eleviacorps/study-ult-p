@@ -90,9 +90,9 @@ export function NoteRenderer({ content, className }: { content: string; classNam
         components={{
           blockquote({ node, children }) {
             // Extract callout type from the first child text
-            const firstChild = node?.children?.[0];
+            const firstChild = node?.children?.[0] as any;
             let calloutType = "";
-            if (firstChild?.type === "paragraph") {
+            if (firstChild?.type === "element" && firstChild?.tagName === "p") {
               const paraText = (firstChild as any).children?.[0]?.value || "";
               const match = paraText.match(/^\[!([A-Z\-]+)\]/i);
               if (match) calloutType = match[1].toLowerCase();
