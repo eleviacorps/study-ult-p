@@ -67,7 +67,8 @@ export function Sidebar() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    if (!supabase) return;
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => {
       if (!user) return;
       fetch("/api/profile")
         .then((r) => r.ok ? r.json() : null)
