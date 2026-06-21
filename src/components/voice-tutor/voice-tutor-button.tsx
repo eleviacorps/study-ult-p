@@ -209,8 +209,8 @@ export function VoiceTutorButton() {
               canSpeakRef.current = true;
             }
             // Mute mic while AI speaks, unmute when done
-            const parts = msg?.serverContent?.modelTurn?.parts || [];
-            const hasAudio = parts.some((p: any) => p.inlineData?.data);
+            const serverParts = msg?.serverContent?.modelTurn?.parts || [];
+            const hasAudio = serverParts.some((p: any) => p.inlineData?.data);
             if (hasAudio) canSpeakRef.current = false;
             if (msg?.serverContent?.turnComplete) canSpeakRef.current = true;
             // Track user speech
@@ -223,7 +223,7 @@ export function VoiceTutorButton() {
                 if (chatHistory.current.length > 10) chatHistory.current = chatHistory.current.slice(-10);
               }
             }
-            const parts = msg?.serverContent?.modelTurn?.parts || [];
+            const parts = serverParts;
             for (const p of parts) {
               if (p.inlineData?.data) {
                 const bin = atob(p.inlineData.data);
