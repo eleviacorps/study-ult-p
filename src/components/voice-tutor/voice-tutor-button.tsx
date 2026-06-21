@@ -19,6 +19,7 @@ export function VoiceTutorButton() {
   const scriptRef = useRef<ScriptProcessorNode | null>(null);
   const audioQRef = useRef<AudioBuffer[]>([]);
   const playingRef = useRef(false);
+  const convoLogRef = useRef<{role:string;text:string}[]>([]);
 
   const vaultData = useVaultStore((s) => s.vault);
 
@@ -102,7 +103,7 @@ export function VoiceTutorButton() {
               system_instruction: {
                 parts: [
                   {
-                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${vaultCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
+                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${vaultCtx}\n\n${convoLogRef.current.length > 0 ? "Previous conversation:\n" + convoLogRef.current.map(e => (e.role === "user" ? "Student: " : "Tutor: ") + e.text).join("\n") + "\n\n" : ""}Have a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
                   },
                 ],
               },
@@ -199,8 +200,20 @@ export function VoiceTutorButton() {
               audioQRef.current = [];
               playingRef.current = false;
             }
+            // Trim convo log to last 5 turns
+            if (msg?.serverContent?.turnComplete && convoLogRef.current.length > 10) {
+              convoLogRef.current = convoLogRef.current.slice(-10);
+            }
+            // Track conversation for context persistence
+            if (msg?.serverContent?.inputTranscription) {
+              const txt = typeof msg.serverContent.inputTranscription === "string"
+                ? msg.serverContent.inputTranscription
+                : msg.serverContent.inputTranscription.text || "";
+              if (txt) convoLogRef.current.push({ role: "user", text: txt });
+            }
             const parts = msg?.serverContent?.modelTurn?.parts || [];
             for (const p of parts) {
+              if (p.text) convoLogRef.current.push({ role: "model", text: p.text });
               if (p.inlineData?.data) {
                 const bin = atob(p.inlineData.data);
                 const len = bin.length;
