@@ -77,9 +77,10 @@ export function VoiceTutorButton() {
       const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + KEY;
 
       const vaultCtx = vaultData?.notes
-        ?.map((n: any) => `${n.path}\n${(n.content || "").slice(0, 2000)}`)
+        ?.slice(0, 3)
+        .map((n: any) => `${n.path}\n${(n.content || "").slice(0, 500)}`)
         .join("\n\n")
-        .slice(0, 100000) || "";
+        .slice(0, 10000) || "";
 
       if (!KEY) { setError("NEXT_PUBLIC_GEMINI_KEY not set"); setLoading(false); return; }
 
@@ -124,9 +125,30 @@ export function VoiceTutorButton() {
           const src = inCtx.createMediaStreamSource(stream);
           const script = inCtx.createScriptProcessor(4096, 1, 1);
           scriptRef.current = script;
+          let silenceTimer: ReturnType<typeof setTimeout> | null = null;
           script.onaudioprocess = (ev) => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const input = ev.inputBuffer.getChannelData(0);
+            // Silence detection: check if amplitude is above threshold
+            let maxAmp = 0;
+            for (let i = 0; i < input.length; i++) {
+              const abs = Math.abs(input[i]);
+              if (abs > maxAmp) maxAmp = abs;
+            }
+            if (maxAmp > 0.02) {
+              // Speaking - reset silence timer
+              if (silenceTimer) { clearTimeout(silenceTimer); silenceTimer = null; }
+            } else if (!silenceTimer) {
+              // Silence started - set timer to send turnComplete after 1.5s
+              silenceTimer = setTimeout(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    clientContent: { turns: [{ role: "user", parts: [{ text: "" }] }], turnComplete: true }
+                  }));
+                }
+                silenceTimer = null;
+              }, 1500);
+            }
             const pcm = new Int16Array(input.length);
             for (let i = 0; i < input.length; i++) {
               const s = Math.max(-1, Math.min(1, input[i]));
