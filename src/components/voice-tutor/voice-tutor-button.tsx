@@ -19,6 +19,7 @@ export function VoiceTutorButton() {
   const scriptRef = useRef<ScriptProcessorNode | null>(null);
   const audioQRef = useRef<AudioBuffer[]>([]);
   const playingRef = useRef(false);
+  const chatHistory = useRef<string[]>([]); // user transcriptions only
 
   const vaultData = useVaultStore((s) => s.vault);
 
@@ -84,9 +85,13 @@ export function VoiceTutorButton() {
       const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + KEY;
 
       const vaultCtx = vault.notes
-        .map((n: any) => `## ${n.title || n.path}\n${(n.content || "").slice(0, 800)}`)
+        .map((n: any) => `## ${n.title || n.path}\n${n.content || ""}`)
         .join("\n\n")
-        .slice(0, 50000);
+        .slice(0, 800000);
+
+      const historyCtx = chatHistory.current.length > 0
+        ? "\n\nPrevious questions the student asked:\n" + chatHistory.current.map((q, i) => `${i+1}. ${q}`).join("\n")
+        : "";
 
       if (!KEY) { setError("NEXT_PUBLIC_GEMINI_KEY not set"); setLoading(false); return; }
 
@@ -102,7 +107,7 @@ export function VoiceTutorButton() {
               system_instruction: {
                 parts: [
                   {
-                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${vaultCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
+                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${vaultCtx}${historyCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
                   },
                 ],
               },
@@ -198,6 +203,16 @@ export function VoiceTutorButton() {
             if (msg?.serverContent?.interrupted) {
               audioQRef.current = [];
               playingRef.current = false;
+            }
+            // Track user speech for conversation history
+            if (msg?.serverContent?.inputTranscription) {
+              const t = typeof msg.serverContent.inputTranscription === "string"
+                ? msg.serverContent.inputTranscription
+                : msg.serverContent.inputTranscription.text || "";
+              if (t) {
+                chatHistory.current.push(t);
+                if (chatHistory.current.length > 10) chatHistory.current = chatHistory.current.slice(-10);
+              }
             }
             const parts = msg?.serverContent?.modelTurn?.parts || [];
             for (const p of parts) {
