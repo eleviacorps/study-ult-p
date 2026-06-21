@@ -200,9 +200,9 @@ export function VoiceTutorButton() {
               audioQRef.current = [];
               playingRef.current = false;
             }
-            // Trim convo log to last 5 turns
-            if (msg?.serverContent?.turnComplete && convoLogRef.current.length > 10) {
-              convoLogRef.current = convoLogRef.current.slice(-10);
+            // Trim convo log to last 20 turns (keep manageable)
+            if (msg?.serverContent?.turnComplete && convoLogRef.current.length > 40) {
+              convoLogRef.current = convoLogRef.current.slice(-40);
             }
             // Track conversation for context persistence
             if (msg?.serverContent?.inputTranscription) {
