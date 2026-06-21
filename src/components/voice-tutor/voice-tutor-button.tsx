@@ -72,15 +72,18 @@ export function VoiceTutorButton() {
       await outCtx.resume();
       outCtxRef.current = outCtx;
 
+      const MODEL = "models/gemini-2.5-flash-native-audio-preview-09-2025";
+      const KEY = process.env.NEXT_PUBLIC_GEMINI_KEY || "";
+      const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + KEY;
+
       const vaultCtx = vaultData?.notes
         ?.map((n: any) => `${n.path}\n${(n.content || "").slice(0, 2000)}`)
         .join("\n\n")
         .slice(0, 100000) || "";
 
-      const res = await fetch("/api/gemini-live/token");
-      const { url, key } = await res.json();
+      if (!KEY) { setError("NEXT_PUBLIC_GEMINI_KEY not set"); setLoading(false); return; }
 
-      const ws = new WebSocket(`${url}?key=${key}`);
+      const ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
       wsRef.current = ws;
 
@@ -88,7 +91,7 @@ export function VoiceTutorButton() {
         ws.send(
           JSON.stringify({
             setup: {
-              model: "models/gemini-2.5-flash-native-audio-preview-09-2025",
+              model: MODEL,
               system_instruction: {
                 parts: [
                   {
