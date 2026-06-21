@@ -59,8 +59,8 @@ export function VoiceTutorButton() {
           },
         }));
 
-        // Send mic via MediaRecorder (Opus/webm) - Gemini Live accepts any audio
-        const rec = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+        // Send mic via MediaRecorder
+        const rec = new MediaRecorder(stream);
         mediaRecRef.current = rec;
         rec.ondataavailable = (e) => {
           if (e.data.size > 0 && ws.readyState === WebSocket.OPEN)
@@ -69,17 +69,29 @@ export function VoiceTutorButton() {
         rec.start(100);
         setActive(true);
         setLoading(false);
+
+        // Send text trigger after setup so model speaks immediately
+        setTimeout(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              clientContent: { turns: [{ role: "user", parts: [{ text: "Start teaching" }] }], turnComplete: true }
+            }));
+          }
+        }, 1500);
       };
 
       ws.onmessage = (e) => {
         if (typeof e.data === "string") {
           try {
             const msg = JSON.parse(e.data);
-            if (msg?.setupComplete) console.log("Setup OK");
+            console.log("WS MSG:", Object.keys(msg).join(","));
+            if (msg?.setupComplete) console.log("*** SETUP COMPLETE ***");
+            if (msg?.error) console.error("WS ERROR:", JSON.stringify(msg.error));
             const text = msg?.serverContent?.modelTurn?.parts?.[0]?.text;
-            if (text) console.log("Tutor:", text);
-          } catch {}
-        } else if (e.data instanceof ArrayBuffer && e.data.byteLength > 44) {
+            if (text) console.log("TUTOR TEXT:", text);
+            if (msg?.serverContent?.turnComplete) console.log("*** TURN COMPLETE ***");
+          } catch (e) { console.log("WS PARSE ERR:", (e as any)?.message, e.data?.substring(0, 200)); }
+        } else if (e.data instanceof ArrayBuffer) {
           // Skip WAV headers, use raw PCM
           const raw = new Int16Array(e.data);
           if (raw.length > 0) {
