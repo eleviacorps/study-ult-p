@@ -85,9 +85,9 @@ export function VoiceTutorButton() {
       const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + KEY;
 
       const vaultCtx = vault.notes
-        .map((n: any) => `## ${n.title || n.path}\n${n.content || ""}`)
+        .map((n: any) => `## ${n.title || n.path}\n${(n.content || "").slice(0, 800)}`)
         .join("\n\n")
-        .slice(0, 800000);
+        .slice(0, 50000);
 
       const historyCtx = chatHistory.current.length > 0
         ? "\n\nPrevious questions the student asked:\n" + chatHistory.current.map((q, i) => `${i+1}. ${q}`).join("\n")
