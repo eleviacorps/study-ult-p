@@ -19,7 +19,8 @@ export function VoiceTutorButton() {
   const scriptRef = useRef<ScriptProcessorNode | null>(null);
   const audioQRef = useRef<AudioBuffer[]>([]);
   const playingRef = useRef(false);
-  const chatHistory = useRef<string[]>([]); // user transcriptions only
+  const canSpeakRef = useRef(false);
+  const chatHistory = useRef<string[]>([]);
 
   const vaultData = useVaultStore((s) => s.vault);
 
@@ -139,6 +140,7 @@ export function VoiceTutorButton() {
           let silenceTimer: ReturnType<typeof setTimeout> | null = null;
           script.onaudioprocess = (ev) => {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!canSpeakRef.current) return; // Muted while AI speaks
             const input = ev.inputBuffer.getChannelData(0);
             // Silence detection: check if amplitude is above threshold
             let maxAmp = 0;
@@ -186,6 +188,7 @@ export function VoiceTutorButton() {
           script.connect(inCtx.destination);
 
           // Send initial greeting
+          canSpeakRef.current = false; // Wait for AI to finish first response
           ws.send(
             JSON.stringify({
               clientContent: {
@@ -203,8 +206,14 @@ export function VoiceTutorButton() {
             if (msg?.serverContent?.interrupted) {
               audioQRef.current = [];
               playingRef.current = false;
+              canSpeakRef.current = true;
             }
-            // Track user speech for conversation history
+            // Mute mic while AI speaks, unmute when done
+            const parts = msg?.serverContent?.modelTurn?.parts || [];
+            const hasAudio = parts.some((p: any) => p.inlineData?.data);
+            if (hasAudio) canSpeakRef.current = false;
+            if (msg?.serverContent?.turnComplete) canSpeakRef.current = true;
+            // Track user speech
             if (msg?.serverContent?.inputTranscription) {
               const t = typeof msg.serverContent.inputTranscription === "string"
                 ? msg.serverContent.inputTranscription
