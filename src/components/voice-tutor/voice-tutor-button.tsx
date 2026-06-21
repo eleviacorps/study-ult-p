@@ -35,6 +35,8 @@ export function VoiceTutorButton() {
     src.start();
   }, []);
 
+  const turnCountRef = useRef(0);
+
   const toggle = useCallback(async () => {
     if (active) {
       // Disconnect
@@ -198,6 +200,17 @@ export function VoiceTutorButton() {
             if (msg?.serverContent?.interrupted) {
               audioQRef.current = [];
               playingRef.current = false;
+            }
+            // Auto-reconnect every 12 turns to prevent context growth
+            if (msg?.serverContent?.turnComplete) {
+              turnCountRef.current++;
+              if (turnCountRef.current >= 12) {
+                turnCountRef.current = 0;
+                // Silent reconnect
+                ws.close();
+                toggle(); // re-initiate
+                return;
+              }
             }
             const parts = msg?.serverContent?.modelTurn?.parts || [];
             for (const p of parts) {
