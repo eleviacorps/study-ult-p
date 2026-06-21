@@ -99,6 +99,10 @@ export function VoiceTutorButton() {
           JSON.stringify({
             setup: {
               model: MODEL,
+            contextWindowCompression: {
+              triggerTokens: "104857",
+              slidingWindow: { targetTokens: "52428" },
+            },
               system_instruction: {
                 parts: [
                   {
