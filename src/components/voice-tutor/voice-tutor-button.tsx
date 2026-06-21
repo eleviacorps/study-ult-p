@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Mic, MicOff, Loader2 } from "lucide-react";
 import { useVaultStore } from "@/stores/vault-store";
 
-const RECV_SR = 24000;
+const AUDIO_SR = 24000;
 
 export function VoiceTutorButton() {
   const [active, setActive] = useState(false);
@@ -40,7 +40,8 @@ export function VoiceTutorButton() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      audioCtxRef.current = new AudioContext({ sampleRate: RECV_SR });
+      audioCtxRef.current = new AudioContext();
+      await audioCtxRef.current.resume();
 
       const vaultCtx = vaultData?.notes?.map((n: any) => `${n.path}\n${(n.content || "").slice(0, 2000)}`).join("\n\n").slice(0, 300000) || "";
 
@@ -99,7 +100,7 @@ export function VoiceTutorButton() {
             for (let i = 0; i < raw.length; i++) f32[i] = raw[i] / 32768;
             const ctx = audioCtxRef.current;
             if (ctx) {
-              const buf = ctx.createBuffer(1, f32.length, RECV_SR);
+              const buf = ctx.createBuffer(1, raw.length, AUDIO_SR);
               buf.getChannelData(0).set(f32);
               audioChunksRef.current.push(buf);
               if (!isPlayingRef.current) playNext();
