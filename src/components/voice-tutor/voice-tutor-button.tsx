@@ -166,6 +166,11 @@ export function VoiceTutorButton() {
         if (data.includes("serverContent")) {
           try {
             const msg = JSON.parse(data);
+            // Handle interruption
+            if (msg?.serverContent?.interrupted) {
+              audioQRef.current = [];
+              playingRef.current = false;
+            }
             const parts = msg?.serverContent?.modelTurn?.parts || [];
             for (const p of parts) {
               if (p.inlineData?.data) {
