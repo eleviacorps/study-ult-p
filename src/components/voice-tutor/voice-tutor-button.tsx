@@ -58,6 +58,13 @@ export function VoiceTutorButton() {
     setLoading(true);
     setError("");
 
+    const vault = vaultData;
+    if (!vault || !vault.notes || vault.notes.length === 0) {
+      setError("Vault not loaded yet. Open a chapter first.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -76,11 +83,10 @@ export function VoiceTutorButton() {
       const KEY = process.env.NEXT_PUBLIC_GEMINI_KEY || "";
       const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + KEY;
 
-      const vaultCtx = vaultData?.notes
-        ?.slice(0, 3)
-        .map((n: any) => `${n.path}\n${(n.content || "").slice(0, 500)}`)
+      const vaultCtx = vault.notes
+        .map((n: any) => `## ${n.title || n.path}\n${(n.content || "").slice(0, 800)}`)
         .join("\n\n")
-        .slice(0, 10000) || "";
+        .slice(0, 50000);
 
       if (!KEY) { setError("NEXT_PUBLIC_GEMINI_KEY not set"); setLoading(false); return; }
 
@@ -96,7 +102,7 @@ export function VoiceTutorButton() {
               system_instruction: {
                 parts: [
                   {
-                    text: `You are a JEE Physics voice tutor.\n\nVAULT:\n${vaultCtx}\n\nHave a natural conversation. Teach the user physics. Keep responses conversational.`,
+                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${vaultCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
                   },
                 ],
               },
