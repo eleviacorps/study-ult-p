@@ -148,5 +148,6 @@ function normalizeMessage(message: ChatMessage): Record<string, unknown> {
   if (Array.isArray(message.tool_calls)) normalized.tool_calls = message.tool_calls;
   if (message.tool_call_id) normalized.tool_call_id = message.tool_call_id;
   if (message.name) normalized.name = message.name;
+  if ((message as any).reasoning_content) normalized.reasoning_content = (message as any).reasoning_content;
   return normalized;
 }
