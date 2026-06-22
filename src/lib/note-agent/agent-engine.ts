@@ -1137,7 +1137,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                   max_tokens: 65536,
                   stream: true,
                 }),
-                signal: AbortSignal.timeout(600_000),
+                signal: AbortSignal.timeout(1_800_000),
               });
               if (!res.ok) {
                 const err = await res.text().catch(() => "");
