@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
+import { QuestionCard as NewQCard, parseQuestionBlocks } from "@/components/questions/question-renderer";
 import { useLlm } from "@/lib/llm-context";
 import { updateStudyState, addPoints } from "@/lib/study-state";
 import { getAiCache, setAiCache } from "@/lib/ai-cache";
@@ -320,6 +321,30 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                 <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Answer</p>
                 <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
                   <MarkdownRenderer content={question.answer} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* ── Solution (step-by-step) ── */}
+      {question.solution && (
+        <div className="mt-3">
+          <button
+            onClick={() => toggle("solution")}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            {revealed.has("solution") ? "Hide Solution" : "Show Solution"}
+          </button>
+          <AnimatePresence>
+            {revealed.has("solution") && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="p-3 mt-2 rounded-xl bg-[#1856FF]/5 border border-[#1856FF]/20">
+                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Solution</p>
+                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={question.solution} />
                 </div>
               </motion.div>
             )}
