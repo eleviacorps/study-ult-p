@@ -1198,7 +1198,12 @@ function makeToolHandler(workspace: Map<string, string>) {
                       _readCache.delete(path);
                       _fullReadCache.delete(path);
                       filesWritten.push({ path, bytes: content.length, lines: content.split("\n").length });
+                      subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: true, path, bytes: content.length }) });
+                    } else {
+                      // Main handler pattern: return error so model retries
+                      subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ error: "Missing content", path }) });
                     }
+                    continue;
                   }
                   subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: true }) });
                 }
