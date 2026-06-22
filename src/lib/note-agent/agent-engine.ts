@@ -1189,7 +1189,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                 subMessages.push(assistantMsg);
                 for (const tc of tcArray) {
                   let argsJson: Record<string, unknown> = {};
-                  try { argsJson = JSON.parse(tc.function.arguments); } catch { continue; }
+                  try { argsJson = JSON.parse(tc.function.arguments); } catch {}
                   if (tc.function.name === "write_file") {
                     const path = argsJson.path as string;
                     const content = argsJson.content as string;
