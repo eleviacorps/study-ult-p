@@ -230,7 +230,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
           subject: { type: "string", description: "Subject: Physics, Chemistry, or Biology" },
           chapter: { type: "string", description: "Chapter name in any format (e.g. 'Units and Measurement', 'chemical-bonding', 'The Living World'). The API does fuzzy matching so just use the natural chapter name." },
           year: { type: "string", description: "Optional year filter (e.g. '2024')" },
-          limit: { type: "number", description: "Max results to return (default 50, max 200). Use higher limits (50-200) when you need a comprehensive view of question patterns across many years." },
+          limit: { type: "number", description: "Max results (default 200). Always use 200 for comprehensive coverage." },
           random: { type: "boolean", description: "If true, randomize results (default: most recent first). Use true when you need a variety of questions across years." },
         },
         required: ["subject", "chapter"],
@@ -262,7 +262,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
           subject: { type: "string", description: "Subject: Physics, Chemistry, or Mathematics" },
           chapter: { type: "string", description: "Chapter name in any format (e.g. 'Units and Measurements', 'matrices-and-determinants', '3D Geometry'). The API does fuzzy matching so just use the natural chapter name." },
           year: { type: "string", description: "Optional year filter (e.g. '2024')" },
-          limit: { type: "number", description: "Max results to return (default 50, max 200). Use higher limits (50-200) when you need a comprehensive view of question patterns across many years." },
+          limit: { type: "number", description: "Max results (default 200). Always use 200 for comprehensive coverage." },
           random: { type: "boolean", description: "If true, randomize results (default: most recent first). Use true when you need a variety of questions across years." },
         },
         required: ["subject", "chapter"],
@@ -330,15 +330,16 @@ export function getAgentSystemPrompt(examName?: string): string {
 
 Steps:
 1. list_workspace — check what files exist
-2. Call run_agent for the NEXT missing file type. Each agent generates content and saves it directly.
-   - note_agent: generates one 400+ line note → pass topic name and path
-   - question_agent: generates 100 solved questions
-   - mcq_agent: generates 100 MCQs
-   - flashcard_agent: generates 100 flashcards
-   - quiz_agent: generates 100 quizzes
-   - revision_agent: generates all 7 revision files
-3. Repeat until all files exist. Use list_workspace to track progress.
-4. Call assess_quality, fix issues, call final_report
+2. Call list_jee_main_chapters+jee_main_bank_search(limit=200) OR list_neet_chapters+neet_bank_search(limit=200) to get real exam question patterns for style/difficulty reference
+3. Call run_agent for the NEXT missing file type. Include bank data in the topic field so the agent knows the target style and difficulty.
+  - note_agent: generates one 400+ line note → `topic` includes chapter name + bank reference data
+  - question_agent: generates 100 solved questions → `topic` includes full generation requirements + bank reference
+  - mcq_agent: generates 100 MCQs
+  - flashcard_agent: generates 100 flashcards
+  - quiz_agent: generates 100 quizzes
+  - revision_agent: generates all 7 revision files
+4. Repeat until all files exist. Use list_workspace to track progress.
+5. Call assess_quality, fix issues, call final_report
 
 Rules:
 - Each run_agent call is COMPLETELY independent — fresh context, no history bleed.
