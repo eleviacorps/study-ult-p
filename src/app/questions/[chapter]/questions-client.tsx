@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
-import { NoteRenderer } from "@/components/reader/note-renderer";
+import { QuestionContent } from "@/components/questions/question-content";
 import { QuestionCard as NewQCard, parseQuestionBlocks } from "@/components/questions/question-renderer";
 import { useLlm } from "@/lib/llm-context";
 import { updateStudyState, addPoints } from "@/lib/study-state";
@@ -260,14 +260,14 @@ function QuestionCard({ question, index }: { question: Question; index: number }
       {question.given && (
         <div className="mb-3">
           <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Given</p>
-          <div className="text-xs opacity-60"><NoteRenderer content={question.given} /></div>
+          <div className="text-xs opacity-60"><QuestionContent content={question.given} /></div>
         </div>
       )}
 
       {question.find && (
         <div className="mb-3">
           <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Find</p>
-          <div className="text-xs opacity-60"><NoteRenderer content={question.find} /></div>
+          <div className="text-xs opacity-60"><QuestionContent content={question.find} /></div>
         </div>
       )}
 
@@ -320,7 +320,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                 className="p-3 mt-2 rounded-xl bg-[#10B981]/5 border border-[#10B981]/20">
                 <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Answer</p>
                 <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
-                  <NoteRenderer content={question.answer} />
+                  <QuestionContent content={question.answer} />
                 </div>
               </motion.div>
             )}
@@ -344,7 +344,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                 className="p-3 mt-2 rounded-xl bg-[#1856FF]/5 border border-[#1856FF]/20">
                 <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Solution</p>
                 <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
-                  <NoteRenderer content={question.solution} />
+                  <QuestionContent content={question.solution} />
                 </div>
               </motion.div>
             )}
@@ -368,7 +368,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                 className="p-3 mt-2 rounded-xl bg-[#F59E0B]/5 border border-[#F59E0B]/20">
                 <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Explanation</p>
                 <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
-                  <NoteRenderer content={question.explanation} />
+                  <QuestionContent content={question.explanation} />
                 </div>
               </motion.div>
             )}
@@ -421,7 +421,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
               <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                 className="p-3 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10">
                 <div className="prose-glass text-[11px] opacity-70 leading-relaxed max-w-none">
-                  <NoteRenderer content={aiScore.feedback} />
+                  <QuestionContent content={aiScore.feedback} />
                 </div>
               </motion.div>
             )}
@@ -450,7 +450,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
                 className="p-3 rounded-xl bg-[#8B5CF6]/5 border border-[#8B5CF6]/10">
                 <div className="prose-glass text-xs opacity-70 leading-relaxed max-w-none">
-                  <NoteRenderer content={aiRawContent} />
+                  <QuestionContent content={aiRawContent} />
                 </div>
               </motion.div>
             )}
@@ -470,19 +470,19 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                     <div>
                       <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Concept Insight</p>
                       <div className="prose-glass text-xs opacity-70 leading-relaxed max-w-none">
-                        <NoteRenderer content={aiStructured.insight} />
+                        <QuestionContent content={aiStructured.insight} />
                       </div>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Approach</p>
                       <div className="prose-glass text-xs opacity-70 leading-relaxed max-w-none">
-                        <NoteRenderer content={aiStructured.approach} />
+                        <QuestionContent content={aiStructured.approach} />
                       </div>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Hint</p>
                       <div className="prose-glass text-xs opacity-70 leading-relaxed max-w-none">
-                        <NoteRenderer content={aiStructured.hint} />
+                        <QuestionContent content={aiStructured.hint} />
                       </div>
                     </div>
                   </div>
@@ -500,13 +500,13 @@ function QuestionCard({ question, index }: { question: Question; index: number }
                     <div>
                       <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Step-by-Step</p>
                       <div className="prose-glass text-xs opacity-70 leading-relaxed max-w-none">
-                        <NoteRenderer content={aiStructured.stepByStep} />
+                        <QuestionContent content={aiStructured.stepByStep} />
                       </div>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Answer</p>
                       <div className="prose-glass text-xs opacity-70 leading-relaxed max-w-none">
-                        <NoteRenderer content={aiStructured.answer} />
+                        <QuestionContent content={aiStructured.answer} />
                       </div>
                     </div>
                   </div>
