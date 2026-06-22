@@ -23,6 +23,8 @@ export function VoiceTutorButton() {
   const chatHistory = useRef<string[]>([]);
 
   const vaultData = useVaultStore((s) => s.vault);
+  const currentChapter = useVaultStore((s) => s.currentChapter);
+  const currentNote = useVaultStore((s) => s.currentNote);
 
   const playNext = useCallback(() => {
     if (playingRef.current || audioQRef.current.length === 0) return;
@@ -85,10 +87,18 @@ export function VoiceTutorButton() {
       const KEY = process.env.NEXT_PUBLIC_GEMINI_KEY || "";
       const WS_URL = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=" + KEY;
 
+      const cn = currentNote;
+      const cc = currentChapter;
+      const focusedCtx = cn
+        ? `## Current Note: ${cn.title || ""}\n${(cn.content || "").slice(0, 3000)}`
+        : cc
+        ? `## Current Chapter: ${cc.name || ""}\n` + vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `### ${n.title || n.path}\n${(n.content || "").slice(0, 500)}`).join("\n\n").slice(0, 5000)
+        : "";
+
       const vaultCtx = vault.notes
         .map((n: any) => `## ${n.title || n.path}\n${(n.content || "").slice(0, 800)}`)
         .join("\n\n")
-        .slice(0, 50000);
+        .slice(0, 45000);
 
       const historyCtx = chatHistory.current.length > 0
         ? "\n\nPrevious questions the student asked:\n" + chatHistory.current.map((q, i) => `${i+1}. ${q}`).join("\n")
@@ -108,7 +118,7 @@ export function VoiceTutorButton() {
               system_instruction: {
                 parts: [
                   {
-                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${vaultCtx}${historyCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
+                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${focusedCtx ? "Currently viewing:\n" + focusedCtx + "\n\n" : ""}All vault notes:\n${vaultCtx}${historyCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
                   },
                 ],
               },
