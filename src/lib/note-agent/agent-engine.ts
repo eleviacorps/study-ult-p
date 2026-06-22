@@ -1147,6 +1147,7 @@ function makeToolHandler(workspace: Map<string, string>) {
               const decoder = new TextDecoder();
               let sseBuf = "";
               let msgContent = "";
+              let reasoningContent = "";
               let toolCalls: Record<number, { id: string; function: { name: string; arguments: string } }> = {};
               while (true) {
                 const { done, value } = await reader.read();
@@ -1163,6 +1164,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                     const chunk = JSON.parse(p);
                     const delta = chunk.choices?.[0]?.delta;
                     if (delta?.content) msgContent += delta.content;
+                    if (delta?.reasoning_content) reasoningContent += delta.reasoning_content;
                     if (delta?.tool_calls) {
                       for (const tc of delta.tool_calls) {
                         const idx = tc.index ?? 0;
@@ -1183,6 +1185,7 @@ function makeToolHandler(workspace: Map<string, string>) {
               if (tcArray.length > 0) {
                 subFinished = false; // more to do after tools
                 const assistantMsg: Record<string, unknown> = { role: "assistant", content: msgContent || null, tool_calls: tcArray };
+                if (reasoningContent) assistantMsg.reasoning_content = reasoningContent;
                 subMessages.push(assistantMsg);
                 for (const tc of tcArray) {
                   let argsJson: Record<string, unknown> = {};
@@ -1200,7 +1203,9 @@ function makeToolHandler(workspace: Map<string, string>) {
                   subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: true }) });
                 }
               } else {
-                subMessages.push({ role: "assistant", content: msgContent || "" });
+                const assistantMsg: Record<string, unknown> = { role: "assistant", content: msgContent || "" };
+                if (reasoningContent) assistantMsg.reasoning_content = reasoningContent;
+                subMessages.push(assistantMsg);
               }
             }
             return JSON.stringify({ success: true, agent: agentName, topic, filesWritten, turnCount: subTurns });
