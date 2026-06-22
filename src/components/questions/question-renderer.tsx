@@ -1,191 +1,162 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ChevronDown, ChevronUp, BookOpen, Lightbulb, Target,
-  AlertTriangle, Zap, Brain, CheckCircle, XCircle,
-} from "lucide-react";
+import { Eye, EyeOff, Lightbulb, ListOrdered, ChevronDown, ChevronUp } from "lucide-react";
+import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { cn } from "@/lib/cn";
 
-interface QuestionData {
+interface ParsedQ {
   id: string;
-  title: string;
   number: number;
+  title: string;
   topic: string;
   subtopic: string;
   difficulty: string;
   type: string;
-  marks: number;
+  marks: string;
   given: string;
   find: string;
   approach: string;
   solution: string;
   answer: string;
   explanation: string;
-  content: string;
 }
 
-interface QuestionCardProps {
-  question: QuestionData;
-  index: number;
+function parseQuestionBlocks(content: string): ParsedQ[] {
+  const blocks = content.split(/^## Q(\d+)\.\s*/m).filter(Boolean);
+  const results: ParsedQ[] = [];
+  for (let i = 1; i + 1 < blocks.length; i += 2) {
+    const num = parseInt(blocks[i], 10);
+    const raw = blocks[i + 1];
+    const titleLine = raw.split("\n")[0]?.replace(/^##\s*/, "").trim() || "";
+
+    const get = (key: string) => {
+      const re = new RegExp(`### ${key}:\\s*\\n([\\s\\S]*?)(?=\\n###\\s|\\n##\\s|$)`, "i");
+      const m = raw.match(re);
+      return m ? m[1].trim() : "";
+    };
+
+    results.push({
+      id: `q-${num}`,
+      number: num,
+      title: titleLine,
+      topic: raw.match(/\*\*Topic:\*\*\s*(.+?)(?:\||$)/)?.[1]?.trim() || "",
+      subtopic: raw.match(/\*\*Subtopic:\*\*\s*(.+?)(?:\||$)/)?.[1]?.trim() || "",
+      difficulty: raw.match(/\*\*Difficulty:\*\*\s*(.+?)(?:\||$)/)?.[1]?.trim() || "",
+      type: raw.match(/\*\*Type:\*\*\s*(.+?)(?:\||$)/)?.[1]?.trim() || "",
+      marks: raw.match(/\*\*Marks:\*\*\s*(.+?)(?:\||$|\\n)/)?.[1]?.trim() || "",
+      given: get("Given"),
+      find: get("Find"),
+      approach: get("Approach"),
+      solution: get("Solution"),
+      answer: get("Answer"),
+      explanation: raw.match(/### Explanation:\\s*\\n([\\s\\S]*?)(?=\\n###\\s|\\n##\\s|$)/i)?.[1]?.trim() || "",
+    });
+  }
+  return results;
 }
 
-const difficultyColors: Record<string, string> = {
-  Easy: "text-green-400 bg-green-400/10 border-green-400/20",
-  Moderate: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
-  Hard: "text-red-400 bg-red-400/10 border-red-400/20",
-};
+const difficultyClass = (d: string) =>
+  d === "Easy" ? "bg-[#10B981]/10 text-[#10B981]" :
+  d === "Hard" ? "bg-[#EF4444]/10 text-[#EF4444]" :
+  "bg-[#F59E0B]/10 text-[#F59E0B]";
 
-function QuestionCard({ question, index }: QuestionCardProps) {
-  const [open, setOpen] = useState(false);
-  const dc = difficultyColors[question.difficulty] || "text-white/40 bg-white/[0.04] border-white/[0.04]";
+export function QuestionCard({ block, index }: { block: ParsedQ; index: number }) {
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [showSolution, setShowSolution] = useState(false);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass rounded-xl border border-white/[0.04] overflow-hidden"
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+      className="glass p-5 sm:p-6"
     >
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-start gap-3 p-4 text-left hover:bg-white/[0.02] transition-colors"
-      >
-        <span className="flex-shrink-0 w-8 h-8 rounded-lg bg-[#1856FF]/10 flex items-center justify-center text-xs font-semibold text-[#1856FF]">
-          {question.number}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white/80 font-medium line-clamp-2">{question.title}</p>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full border", dc)}>
-              {question.difficulty}
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <span className="text-xs font-mono opacity-20">Q{index + 1}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {block.difficulty && (
+            <span className={cn("text-[10px] px-2 py-0.5 rounded-md font-medium", difficultyClass(block.difficulty))}>
+              {block.difficulty}
             </span>
-            {question.topic && (
-              <span className="text-[10px] text-white/30 px-1.5 py-0.5 rounded-full bg-white/[0.03]">
-                {question.topic}
-              </span>
-            )}
-            {question.type && (
-              <span className="text-[10px] text-white/30 px-1.5 py-0.5 rounded-full bg-white/[0.03]">
-                {question.type}
-              </span>
-            )}
-          </div>
+          )}
+          {block.topic && <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] opacity-30">{block.topic}</span>}
+          {block.marks && <span className="text-[10px] opacity-20">{block.marks} marks</span>}
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-white/20 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-white/20 flex-shrink-0" />}
-      </button>
+      </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 space-y-3 border-t border-white/[0.04] pt-3">
-              {question.given && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 mb-1">Given</p>
-                  <p className="text-sm text-white/60 whitespace-pre-wrap">{question.given}</p>
+      <h3 className="text-sm font-semibold mb-3">{block.title}</h3>
+
+      {/* Given */}
+      {block.given && (
+        <div className="mb-3">
+          <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Given</p>
+          <div className="text-xs opacity-60"><MarkdownRenderer content={block.given} /></div>
+        </div>
+      )}
+
+      {/* Find */}
+      {block.find && (
+        <div className="mb-3">
+          <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Find</p>
+          <div className="text-xs opacity-60"><MarkdownRenderer content={block.find} /></div>
+        </div>
+      )}
+
+      {/* Solution toggle */}
+      {block.solution && (
+        <div className="mb-3">
+          <button onClick={() => setShowSolution(!showSolution)}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors">
+            <ListOrdered className="w-3.5 h-3.5" />
+            {showSolution ? "Hide Solution" : "Show Solution"}
+          </button>
+          <AnimatePresence>
+            {showSolution && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="p-3 mt-2 rounded-xl bg-[#1856FF]/5 border border-[#1856FF]/20">
+                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Solution</p>
+                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={block.solution} />
                 </div>
-              )}
-              {question.find && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 mb-1">Find</p>
-                  <p className="text-sm text-white/60 whitespace-pre-wrap">{question.find}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Approach */}
+      {block.approach && (
+        <div className="mb-3">
+          <button onClick={() => {/* toggle approach */}}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors">
+            <Lightbulb className="w-3.5 h-3.5" />
+            Approach
+          </button>
+        </div>
+      )}
+
+      {/* Answer toggle */}
+      {block.answer && (
+        <div className="mt-3 pt-3 border-t border-white/[0.04]">
+          <button onClick={() => setShowAnswer(!showAnswer)}
+            className="flex items-center gap-2 text-xs opacity-40 hover:opacity-70 transition-colors">
+            {showAnswer ? <><EyeOff className="w-3.5 h-3.5" /> Hide Answer</> : <><Eye className="w-3.5 h-3.5" /> Show Answer</>}
+          </button>
+          <AnimatePresence>
+            {showAnswer && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                className="p-3 mt-2 rounded-xl bg-[#10B981]/5 border border-[#10B981]/20">
+                <p className="text-[10px] uppercase tracking-wider opacity-25 mb-1">Answer</p>
+                <div className="prose-glass text-xs opacity-80 leading-relaxed max-w-none">
+                  <MarkdownRenderer content={block.answer} />
                 </div>
-              )}
-              {question.approach && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 mb-1">Approach</p>
-                  <p className="text-sm text-white/60 whitespace-pre-wrap">{question.approach}</p>
-                </div>
-              )}
-              {question.solution && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 mb-1">Solution</p>
-                  <p className="text-sm text-white/60 whitespace-pre-wrap font-mono">{question.solution}</p>
-                </div>
-              )}
-              {question.answer && (
-                <div className="bg-green-500/5 border border-green-500/10 rounded-xl p-3">
-                  <p className="text-[10px] uppercase tracking-wider text-green-400/60 mb-1">Answer</p>
-                  <p className="text-sm text-green-400 whitespace-pre-wrap">{question.answer}</p>
-                </div>
-              )}
-              {question.explanation && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-white/30 mb-1">Explanation</p>
-                  <p className="text-sm text-white/60 whitespace-pre-wrap">{question.explanation}</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </motion.div>
   );
 }
 
-function parseQuestionsFromContent(content: string): QuestionData[] {
-  // Split by ## Q<number>. pattern, but only in the questions/mcq sections
-  const lines = content.split("\n");
-  const sections: string[] = [];
-  let currentSection = "";
-  let inQuestionSection = false;
-
-  for (const line of lines) {
-    if (line.startsWith("## ") && !line.match(/^## Q\d/)) {
-      // Non-question heading — check if it's a questions/mcqs section
-      const isQSection = /question|mcq|practice/i.test(line);
-      if (isQSection || inQuestionSection) {
-        if (currentSection.trim()) sections.push(currentSection);
-        currentSection = "";
-        inQuestionSection = isQSection;
-      } else {
-        if (currentSection.trim()) sections.push(currentSection);
-        currentSection = "";
-        inQuestionSection = false;
-      }
-    }
-    if (inQuestionSection) {
-      currentSection += line + "\n";
-    }
-  }
-  if (currentSection.trim() && inQuestionSection) sections.push(currentSection);
-
-  // Parse questions from each section
-  const questions: QuestionData[] = [];
-  for (const section of sections) {
-    const blocks = section.split(/^## Q(\d+)\.\s*/m).filter(Boolean);
-    // blocks[0] = text before Q1 (skip)
-    // blocks[1] = number "1", blocks[2] = content
-    for (let i = 1; i + 1 < blocks.length; i += 2) {
-      const num = parseInt(blocks[i], 10);
-      const content = blocks[i + 1];
-      const titleLine = content.split("\n")[0]?.trim() || "";
-      
-      questions.push({
-        id: `q-${num}`,
-        title: titleLine,
-        number: num,
-        topic: "",
-        subtopic: "",
-        difficulty: "",
-        type: "",
-        marks: 0,
-        given: "",
-        find: "",
-        approach: "",
-        solution: "",
-        answer: "",
-        explanation: "",
-        content: content,
-      });
-    }
-  }
-  return questions;
-}
-
-export { QuestionCard, parseQuestionsFromContent };
+export { parseQuestionBlocks };
