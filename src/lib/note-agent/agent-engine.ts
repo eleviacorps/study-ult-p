@@ -1198,11 +1198,6 @@ function makeToolHandler(workspace: Map<string, string>) {
                       _readCache.delete(path);
                       _fullReadCache.delete(path);
                       filesWritten.push({ path, bytes: content.length, lines: content.split("\n").length });
-                    } else if (path) {
-                      // write_file called without content (truncated tool call) - create empty placeholder
-                      workspace.set(path, "");
-                      _readCache.delete(path);
-                      _fullReadCache.delete(path);
                     }
                   }
                   subMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: true }) });
