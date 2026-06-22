@@ -98,13 +98,14 @@ $$[calculation]$$
 - [[wikilinks]] to other notes
 
 RULES:
-- ALL callouts: >[!KEY-CONCEPT], >[!JEE-INSIGHT], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT]
-- $$...$$ LaTeX for ALL formulas
-- [[wikilinks]] for cross-references
-- 4+ solved examples with FULL step-by-step
-- 4+ common mistakes
-- Bold key terms
-- Write ONCE using write_file. Do NOT revise.`,
+|- ALL math expressions MUST use proper delimiters: $...$ for inline, $$...$$ for display. NEVER write bare LaTeX commands like \mu, \times, \text, \frac outside $...$ or $$...$$. Example: write $q = 2\ \mu\text{C}$ NOT q = 2\ \mu\text{C}
+|- ALL callouts: >[!KEY-CONCEPT], >[!JEE-INSIGHT], >[!COMMON-MISTAKE], >[!DEEP-INSIGHT], >[!INTUITION], >[!TIP], >[!IMPORTANT]
+|- $$...$$ LaTeX for ALL formulas
+|- [[wikilinks]] for cross-references
+|- 4+ solved examples with FULL step-by-step
+|- 4+ common mistakes
+|- Bold key terms
+|- Write ONCE using write_file. Do NOT revise.`,
     tools: [WRITE_FILE_TOOL],
   },
   {
@@ -133,7 +134,10 @@ DISTRIBUTION: Q1-Q20 Easy, Q21-Q60 Moderate, Q61-Q100 Hard
 Include: numerical, assertion-reason, statement-based, true/false, matching, comprehension types
 Mix topics across all chapter sections.
 
-Write the ENTIRE file in ONE write_file call. All 100 questions.`,
+Write the ENTIRE file in ONE write_file call. All 100 questions.
+
+RULES:
+|- ALL math expressions MUST use proper delimiters: $...$ for inline, $$...$$ for display. NEVER write bare LaTeX commands outside delimiters.`,
     tools: [WRITE_FILE_TOOL],
   },
   {
@@ -164,7 +168,10 @@ USE THIS EXACT FORMAT FOR EACH MCQ:
 DISTRIBUTION: Q1-Q20 Easy, Q21-Q60 Moderate, Q61-Q100 Hard
 Include assertion-reason, statement-combination types.
 
-Write the ENTIRE file in ONE write_file call.`,
+Write the ENTIRE file in ONE write_file call.
+
+RULES:
+|- ALL math expressions MUST use proper delimiters: $...$ for inline, $$...$$ for display. NEVER write bare LaTeX commands outside delimiters.`,
     tools: [WRITE_FILE_TOOL],
   },
   {
@@ -193,7 +200,10 @@ $$...$$ (if applicable)
 DISTRIBUTION: FC1-FC40 Conceptual, FC41-FC70 Formula, FC71-FC85 Comparison, FC86-FC100 Common Mistake
 Cover all chapter topics.
 
-Write the ENTIRE file in ONE write_file call.`,
+Write the ENTIRE file in ONE write_file call.
+
+RULES:
+|- ALL math expressions MUST use proper delimiters: $...$ for inline, $$...$$ for display. NEVER write bare LaTeX commands outside delimiters.`,
     tools: [WRITE_FILE_TOOL],
   },
   {
@@ -219,7 +229,10 @@ USE THIS EXACT FORMAT FOR EACH QUIZ ITEM:
 DISTRIBUTION: Q1-Q20 Easy, Q21-Q60 Moderate, Q61-Q100 Hard
 Mix conceptual and numerical questions across all topics.
 
-Write the ENTIRE file in ONE write_file call.`,
+Write the ENTIRE file in ONE write_file call.
+
+RULES:
+|- ALL math expressions MUST use proper delimiters: $...$ for inline, $$...$$ for display. NEVER write bare LaTeX commands outside delimiters.`,
     tools: [WRITE_FILE_TOOL],
   },
   {
@@ -237,7 +250,10 @@ Files:
 6. graphs_visualizations.md — E vs r graphs, field line patterns described in text
 7. memory_techniques.md — mnemonics, tricks, comparison tables
 
-Write ALL 7 files before finishing.`,
+Write ALL 7 files before finishing.
+
+RULES:
+|- ALL math expressions MUST use proper delimiters: $...$ for inline, $$...$$ for display. NEVER write bare LaTeX commands outside delimiters.`,
     tools: [WRITE_FILE_TOOL],
   },
 ];
