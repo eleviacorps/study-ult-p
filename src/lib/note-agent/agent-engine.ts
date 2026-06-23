@@ -1194,15 +1194,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                     const path = argsJson.path as string;
                     const content = argsJson.content as string;
                     if (path && content) {
-                      // Wrap bare LaTeX commands (not already in $...$) in $...$
-                      let cleaned = content;
-                      cleaned = cleaned.replace(
-                        /(?<!\$)(\\+mu|\\+times|\\+text|\\+frac|\\+cdot|\\+rightarrow|\\+infty|\\+partial|\\+nabla|\\+alpha|\\+beta|\\+gamma|\\+theta|\\+phi|\\+omega|\\+lambda|\\+sigma|\\+pi|\\+Delta|\\+Omega)\b/g,
-                        '$$$1$'
-                      );
-                      // Wrap bare subscript: C_1 → $C_1$ (not already in $...$)
-                      cleaned = cleaned.replace(/(?<!\$)([A-Za-z]+)_(\d+|[A-Za-z]+)(?!\$)/g, '$$$1_$2$');
-                      workspace.set(path, cleaned);
+                      workspace.set(path, content);
                       _readCache.delete(path);
                       _fullReadCache.delete(path);
                       filesWritten.push({ path, bytes: content.length, lines: content.split("\n").length });
