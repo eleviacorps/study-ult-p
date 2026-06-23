@@ -291,7 +291,7 @@ function QuestionCard({ question, index }: { question: Question; index: number }
               >
                 <div className="flex items-center gap-2">
                   <span className="opacity-25">{opt.label})</span>
-                  <span className="flex-1"><QuestionContent content={opt.text} /></span>
+                  <span className="flex-1 flex items-center"><QuestionContent content={opt.text} className="[&_div]:my-0 [&_p]:my-0" /></span>
                   {showResult && isCorrect && <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981] flex-shrink-0" />}
                   {showResult && isSelected && !isCorrect && <XCircle className="w-3.5 h-3.5 text-[#EF4444] flex-shrink-0" />}
                 </div>
