@@ -65,6 +65,11 @@ export default function ReaderPage() {
     if (!isLoaded || !vault) return;
     const found = vault.notes.find((n) => n.id === params.note);
     setNote(found || null);
+    if (found) {
+      useVaultStore.getState().setCurrentNote(found);
+      const ch = vault.chapters?.find((c: any) => c.name === found.chapter);
+      if (ch) useVaultStore.getState().setCurrentChapter(ch);
+    }
   }, [isLoaded, vault, params.note]);
 
   if (!isLoaded || !vault) {
