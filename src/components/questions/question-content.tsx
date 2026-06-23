@@ -56,7 +56,7 @@ export function QuestionContent({ content, className }: { content: string; class
     <div className={cn("prose-glass max-w-full min-w-0 break-words", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: "#ff0000" }]]}
         components={{
           a({ href, children, ...props }) {
             const isWiki = href && !href.startsWith("http") && !href.startsWith("#");
