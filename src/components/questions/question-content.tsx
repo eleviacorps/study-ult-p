@@ -11,6 +11,10 @@ import { isMermaidSource, MERMAID_STARTERS } from "@/lib/mermaid-security";
 
 export function QuestionContent({ content, className }: { content: string; className?: string }) {
   if (!content || !content.trim()) return null;
+  // Debug: log content to see if $ signs are present
+  if (typeof window !== 'undefined' && content.includes('$')) {
+    console.log('QuestionContent raw:', content.substring(0, 200));
+  }
 
   const trimmed = content.trim();
   if (isMermaidSource(trimmed)) {
