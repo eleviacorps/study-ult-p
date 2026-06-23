@@ -316,7 +316,7 @@ export const NOTE_AGENT_TOOLS: ToolDef[] = [
             enum: ["note_agent", "question_agent", "mcq_agent", "flashcard_agent", "quiz_agent", "revision_agent"],
           },
           topic: { type: "string", description: "Topic/chapter name. For note_agent: single topic name. For others: full chapter name." },
-          path: { type: "string", description: "Target file path in workspace (e.g. 'Electrostatics/notes/coulombs_law.md' or 'Electrostatics/questions/100_questions.md'). For revision_agent, use revision folder path." },
+          path: { type: "string", description: "EXACT target file path in workspace. Format: ChapterName/filetype/filename.md — e.g. 'Electric_Charges_And_Fields/notes/coulombs_law.md' or 'Electric_Charges_And_Fields/questions/100_questions.md'. For revision_agent, path is the revision folder e.g. 'Electric_Charges_And_Fields/revision/'. Use underscores for spaces in chapter names. Path must match real workspace structure verified by list_workspace." },
         },
         required: ["agent_name", "topic", "path"],
       },
@@ -330,16 +330,17 @@ export function getAgentSystemPrompt(examName?: string): string {
 
 Steps:
 1. list_workspace — check what files exist
-2. Call list_jee_main_chapters+jee_main_bank_search(limit=200) OR list_neet_chapters+neet_bank_search(limit=200) to get real exam question patterns for style/difficulty reference
-3. Call run_agent for the NEXT missing file type. Include bank data in the topic field so the agent knows the target style and difficulty.
-  - note_agent: generates one 400+ line note → `topic` includes chapter name + bank reference data
-  - question_agent: generates 100 solved questions → `topic` includes full generation requirements + bank reference
-  - mcq_agent: generates 100 MCQs
-  - flashcard_agent: generates 100 flashcards
-  - quiz_agent: generates 100 quizzes
-  - revision_agent: generates all 7 revision files
-4. Repeat until all files exist. Use list_workspace to track progress.
-5. Call assess_quality, fix issues, call final_report
+2. Call run_agent for the NEXT missing file type. Each agent generates content and saves it directly.
+   - note_agent: generates one 400+ line note → pass topic name and path
+   - question_agent: generates 100 solved questions
+   - mcq_agent: generates 100 MCQs
+   - flashcard_agent: generates 100 flashcards
+   - quiz_agent: generates 100 quizzes
+   - revision_agent: generates all 7 revision files
+   Optionally call bank tools first for style reference, but do NOT delay generation waiting for bank data.
+3. Repeat until all files exist. Use list_workspace to track progress.
+  You can call multiple run_agent in one turn for independent files.
+4. Call assess_quality, fix issues, call final_report
 
 Rules:
 - Each run_agent call is COMPLETELY independent — fresh context, no history bleed.
