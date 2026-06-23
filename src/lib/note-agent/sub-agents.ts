@@ -147,7 +147,7 @@ RULES:
 
 USE THIS EXACT FORMAT FOR EACH MCQ:
 
-## Q<number>. <MCQ Title>
+### Q<number>. <MCQ Title>
 **Topic:** [[Topic Name]] | **Subtopic:** Subtopic | **Difficulty:** Easy/Moderate/Hard | **Marks:** 4
 
 ### Problem:
