@@ -330,15 +330,11 @@ export function getAgentSystemPrompt(examName?: string): string {
 
 Steps:
 1. list_workspace — check what files exist
-2. Call bank tools ONCE: list_jee_main_chapters+jee_main_bank_search(limit=200) AND list_neet_chapters+neet_bank_search(limit=200) to get real exam patterns from both. Save this as your style reference.
-3. Call run_agent for the NEXT missing file type. Include bank data + topic in the topic field.
-   You can call MULTIPLE run_agent in one turn for independent files.
-   - note_agent: generates one 400+ line note → topic includes chapter name + bank reference
-   - question_agent: generates 100 solved questions
-   - mcq_agent: generates 100 MCQs
-   - flashcard_agent: generates 100 flashcards
-   - quiz_agent: generates 100 quizzes
-   - revision_agent: generates all 7 revision files
+2. Call bank tools ONCE: jee_main_bank_search(limit=200) + neet_bank_search(limit=200)
+3. Call run_agent for the NEXT missing file type. Generate full content in ONE shot.
+   - Call MULTIPLE run_agent in one turn for independent files.
+   - The SKILL defines exact format for each file type.
+   - Include bank data in the topic field as style reference.
 4. Repeat until all files exist. Use list_workspace to track progress.
 5. Call assess_quality, fix issues, call final_report
 
