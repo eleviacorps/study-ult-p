@@ -11,18 +11,16 @@ import { isMermaidSource, MERMAID_STARTERS } from "@/lib/mermaid-security";
 
 export function QuestionContent({ content, className }: { content: string; className?: string }) {
   if (!content || !content.trim()) return null;
-  // Debug: log content to see if $ signs are present
-  if (typeof window !== 'undefined' && content.includes('$')) {
-    console.log('QuestionContent raw:', content.substring(0, 200));
-  }
+  // Ensure blank line before GFM tables so remarkMath doesn't get confused by | chars
+  let processed = content.replace(/^(?=\|.+\|.*\|)/m, "\n");
 
-  const trimmed = content.trim();
+  const trimmed = processed.trim();
   if (isMermaidSource(trimmed)) {
     return <MermaidDiagram source={trimmed} />;
   }
 
   // Wrap mermaid blocks in code fences
-  const lines = content.split(/\r?\n/);
+  const lines = processed.split(/\r?\n/);
   const insideFence = new Set<number>();
   let fenceActive = false;
   for (let i = 0; i < lines.length; i++) {
@@ -39,7 +37,7 @@ export function QuestionContent({ content, className }: { content: string; class
     }
   }
 
-  let finalContent = content;
+  let finalContent = processed.replace(/^\n/, "");
   if (mermaidStart >= 0) {
     let end = mermaidStart + 1;
     while (end < lines.length) {
@@ -53,7 +51,7 @@ export function QuestionContent({ content, className }: { content: string; class
       end++;
     }
     const block = lines.slice(mermaidStart, end).join("\n");
-    finalContent = content.replace(block, "```mermaid\n" + block + "\n```");
+    finalContent = processed.replace(block, "```mermaid\n" + block + "\n```");
   }
 
   return (
