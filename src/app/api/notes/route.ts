@@ -161,7 +161,7 @@ export async function POST(request: Request) {
           message: "Ingested via batch upsert",
           metadata: { canonical_slug: canonicalSlug(toUpsert[i].path || toUpsert[i].title) },
         } : null))
-        .filter(Boolean);
+        .filter((x): x is NonNullable<typeof x> => x != null);
       if (logEntries.length > 0) {
         await supabase.from("vault_ingestion_logs").insert(logEntries);
       }
