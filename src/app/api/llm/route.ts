@@ -90,9 +90,12 @@ export async function POST(request: Request) {
       if (bodyText) {
         try {
           const json = JSON.parse(bodyText);
-          if (json.choices?.[0]?.message?.content) {
-            const sseContent = json.choices[0].message.content;
-            const sseBody = `data: {"choices":[{"delta":{"content":${JSON.stringify(sseContent)},"finish_reason":"stop"}}]}\n\ndata: [DONE]\n\n`;
+          const msg = json.choices?.[0]?.message;
+          if (msg?.content || msg?.tool_calls) {
+            const delta: Record<string, unknown> = {};
+            if (msg.content) delta.content = msg.content;
+            if (msg.tool_calls) delta.tool_calls = msg.tool_calls;
+            const sseBody = `data: {"choices":[{"delta":${JSON.stringify(delta)},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n`;
             return new Response(sseBody, {
               status: 200,
               headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
@@ -143,7 +146,7 @@ function isValidMessage(message: unknown): message is ChatMessage {
 function normalizeMessage(message: ChatMessage): Record<string, unknown> {
   const normalized: Record<string, unknown> = {
     role: message.role,
-    content: typeof message.content === "string" ? message.content : "",
+    content: typeof message.content === "string" ? message.content : null,
   };
   if (Array.isArray(message.tool_calls)) normalized.tool_calls = message.tool_calls;
   if (message.tool_call_id) normalized.tool_call_id = message.tool_call_id;

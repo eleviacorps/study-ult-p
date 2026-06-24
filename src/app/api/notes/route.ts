@@ -35,7 +35,8 @@ export async function GET() {
     .from("user_notes")
     .select("chapter,subject,author,path,title,content,tags,content_hash")
     .eq("user_id", user.id)
-    .order("chapter", { ascending: true });
+    .order("chapter", { ascending: true })
+    .limit(500);
 
   if (error) {
     await log.error("notes_fetch_failed", error);
@@ -149,6 +150,21 @@ export async function POST(request: Request) {
           errors.push(`${toUpsert[i].path}: ${result.value}`);
         }
       }
+
+      // Batch insert ingestion logs at the end instead of per-document
+      const logEntries = ingestionResults
+        .map((r, i) => (r.status === "fulfilled" && !r.value ? {
+          user_id: user.id,
+          source: toUpsert[i].path,
+          content_hash: toUpsert[i].content_hash || "",
+          status: "indexed",
+          message: "Ingested via batch upsert",
+          metadata: { canonical_slug: canonicalSlug(toUpsert[i].path || toUpsert[i].title) },
+        } : null))
+        .filter(Boolean);
+      if (logEntries.length > 0) {
+        await supabase.from("vault_ingestion_logs").insert(logEntries);
+      }
     }
   }
 
@@ -251,7 +267,7 @@ async function ingestVaultDocument(supabase: Awaited<ReturnType<typeof createCli
         metadata: { source: "user_notes", tags: note.tags || [] },
         updated_at: now,
       },
-      { onConflict: "content_hash" }
+      { onConflict: "user_id,content_hash" }
     )
     .select("id")
     .single();
@@ -260,11 +276,10 @@ async function ingestVaultDocument(supabase: Awaited<ReturnType<typeof createCli
   if (!document?.id) return "vault_document_missing";
 
   const chunks = await buildChunks(note.content, contentHash);
-  await supabase.from("vault_chunks").delete().eq("document_id", document.id);
 
   if (chunks.length === 0) return null;
 
-  const { error: chunkError } = await supabase.from("vault_chunks").insert(
+  const { error: chunkError } = await supabase.from("vault_chunks").upsert(
     chunks.map((chunk, index) => ({
       document_id: document.id,
       user_id: userId,
@@ -278,19 +293,11 @@ async function ingestVaultDocument(supabase: Awaited<ReturnType<typeof createCli
         subject: note.subject || "",
         source_path: note.path,
       },
-    }))
+    })),
+    { onConflict: "document_id,chunk_index", ignoreDuplicates: false }
   );
 
   if (chunkError) return chunkError.message;
-
-  await supabase.from("vault_ingestion_logs").insert({
-    user_id: userId,
-    source: note.path,
-    content_hash: contentHash,
-    status: "indexed",
-    message: `Indexed ${chunks.length} retrieval chunks`,
-    metadata: { document_id: document.id, canonical_slug: slug },
-  });
 
   return null;
 }

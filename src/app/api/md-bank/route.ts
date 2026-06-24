@@ -39,25 +39,28 @@ export async function GET(request: Request) {
   const author = searchParams.get("author");
   const chapter = searchParams.get("chapter");
   const q = searchParams.get("q");
+  const limit = Math.min(Number(searchParams.get("limit") || 50), 200);
+  const offset = Math.max(Number(searchParams.get("offset") || 0), 0);
 
   let query = supabase
     .from("md_bank")
-    .select("id, title, author, subject, chapter, tags, filename, description, created_at, created_by")
-    .order("created_at", { ascending: false });
+    .select("id, title, author, subject, chapter, tags, filename, description, created_at, created_by", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (subject) query = query.eq("subject", subject);
   if (author) query = query.eq("author", author);
   if (chapter) query = query.eq("chapter", chapter);
   if (q) query = query.or(`title.ilike.%${q}%,subject.ilike.%${q}%,author.ilike.%${q}%,chapter.ilike.%${q}%,description.ilike.%${q}%`);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) {
     await log.error("md_bank_fetch_failed", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await log.success(200, `fetched ${(data||[]).length} md bank entries`);
-  return NextResponse.json(data || []);
+  await log.success(200, `fetched ${(data||[]).length} md bank entries (total: ${count || 0})`);
+  return NextResponse.json({ entries: data || [], total: count || 0, limit, offset });
 }
 
 export async function POST(request: Request) {

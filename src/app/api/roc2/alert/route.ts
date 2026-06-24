@@ -33,7 +33,9 @@ export async function POST(request: Request) {
   const log = logRequest("POST /api/roc2/alert", null);
 
   try {
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    // In production, auth is always required regardless of Supabase URL presence.
+    // In development, skip auth check if Supabase URL is not configured.
+    if (process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_SUPABASE_URL) {
       const supabase = await createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {

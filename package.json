@@ -13,7 +13,6 @@
     "cap:open": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.3.4",
     "@capawesome/capacitor-google-sign-in": "^0.1.2",
     "@supabase/ssr": "^0.10.3",
@@ -25,7 +24,6 @@
     "d3-zoom": "^3.0.0",
     "date-fns": "^4.2.1",
     "framer-motion": "^12.40.0",
-    "function-plot": "^1.25.4",
     "katex": "^0.16.47",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",

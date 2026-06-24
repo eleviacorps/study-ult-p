@@ -102,6 +102,9 @@ function validateToolArgs(name: string, args: Record<string, unknown>): string |
     if (def.type === "string" && typeof args[key] !== "string") {
       return `Parameter "${key}" for ${name} must be a string, got ${typeof args[key]}`;
     }
+    if (def.type === "number" && typeof args[key] !== "number") {
+      return `Parameter "${key}" for ${name} must be a number, got ${typeof args[key]}`;
+    }
     if (def.type === "boolean" && typeof args[key] !== "boolean") {
       return `Parameter "${key}" for ${name} must be boolean, got ${typeof args[key]}`;
     }
@@ -134,20 +137,11 @@ function autoFillWriteFileArgs(args: Record<string, unknown>, msgContent: string
   const text = reasoningContent || msgContent || "";
   if (!text) return false;
   let filled = false;
-  if (!args.path && !args.content) {
-    // Both missing: extract path from first file path mention, content from rest
-    const extMd = extractMarkdown(text);
-    const extPath = extractFilePath(text);
-    if (extPath && extMd) { args.path = extPath; args.content = extMd; filled = true; }
-    else if (extMd) { args.content = extMd; filled = true; }
-    else if (extPath) { args.path = extPath; filled = true; }
-  } else if (args.path && !args.content) {
-    const md = extractMarkdown(text);
-    if (md) { args.content = md; filled = true; }
-  } else if (args.content && !args.path) {
-    const p = extractFilePath(text);
-    if (p) { args.path = p; filled = true; }
-  }
+  const extMd = extractMarkdown(text);
+  const extPath = extractFilePath(text);
+  if (extPath && extMd) { args.path = extPath; args.content = extMd; filled = true; }
+  else if (extPath && !args.path) { args.path = extPath; }
+  else if (extMd && !args.content) { args.content = extMd; }
   return filled;
 }
 
@@ -162,7 +156,7 @@ function extractMarkdown(text: string): string | null {
       break;
     }
     // Also markdown wikilinks
-    if (/\[\[[^\]]+\]\]/.test(trimmed) && trimmed.length > 20) {
+    if (/\[\[[^\]]+\]\]/.test(trimmed)) {
       start = i;
       break;
     }
@@ -453,10 +447,12 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       hint = ` The ${truncatedToolInfo.name} tool call was cut off. Retry with the complete arguments.`;
     }
 
-    const completionTokens = usage?.completion_tokens ?? 0;
+    const tokenInfo = usage?.completion_tokens
+      ? `got ${usage.completion_tokens} completion tokens`
+      : "token limit exceeded";
     const continuation: Record<string, unknown> = {
       role: "user",
-      content: `[Output exceeded token limit (got ${completionTokens} completion tokens). Continue immediately — do NOT explain, plan, or recap. Just output the next tool call. Write ONLY 5-10 more items at a time using append:true — anything larger will truncate again.]${hint}`,
+      content: `[Output ${tokenInfo}. Continue immediately — do NOT explain, plan, or recap. Just output the next tool call. Write ONLY 5-10 more items at a time using append:true — anything larger will truncate again.]${hint}`,
     };
     // FIX Bug 9: a truncation is not an idle turn. Return a non-empty content
     // marker so the idle-turn counter is not incremented.
@@ -515,10 +511,6 @@ async function runAgentTurnInner(messages: Record<string, unknown>[], tools: Too
       }
       newMsgs.push({ role: "tool", tool_call_id: tc.id, content: result });
       step.toolCalls.push({ name: tc.function.name, args, result: result.substring(0, 500) });
-    }
-    for (const tc2 of toolCalls) {
-      if (tc2.function.name !== "write_file") continue;
-      try { const a = JSON.parse(tc2.function.arguments); } catch {}
     }
     return { newMessages: newMsgs, steps: [step], finished: false, content: step.response, usage };
   }
@@ -1172,7 +1164,7 @@ function makeToolHandler(workspace: Map<string, string>) {
                           toolCalls[idx] = { id: tc.id || "", function: { name: tc.function?.name || "", arguments: tc.function?.arguments || "" } };
                         } else {
                           if (tc.function?.arguments) toolCalls[idx].function.arguments += tc.function.arguments;
-                          if (tc.function?.name) toolCalls[idx].function.name = tc.function.name;
+                          if (tc.function?.name) toolCalls[idx].function.name += tc.function.name;
                         }
                       }
                     }
@@ -1282,8 +1274,8 @@ export async function runAgentEngine(params: AgentEngineParams): Promise<void> {
       return;
     }
 
-    // Compaction at 300K tokens — prevents context from reaching 500K+ per turn
-    if (lastPromptTokens > 300_000) {
+    // Compaction at 1M tokens — matches DeepSeek's 1M context window
+    if (lastPromptTokens > 1_000_000) {
       const systemMsg = messages[0];
       const userMsg = messages[1];
       const originalUserContent = typeof userMsg?.content === "string" ? userMsg.content : "";

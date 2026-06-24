@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { deflateSync } from "node:zlib";
+import { deflateRawSync } from "node:zlib";
 import { isMermaidSource, sanitizeSvg, MERMAID_STARTERS } from "@/lib/mermaid-security";
 import { logRequest } from "@/lib/server-log";
 
 const KROKI_BASE = "https://kroki.io";
 
 function encodeDeflateBase64(source: string): string {
-  const compressed = deflateSync(Buffer.from(source, "utf-8"), { level: 9 });
+  const compressed = deflateRawSync(Buffer.from(source, "utf-8"), { level: 9 });
   return compressed.toString("base64url");
 }
 
@@ -69,7 +69,9 @@ export async function POST(request: Request) {
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 300);
-      const detail = krokiError || `Kroki returned HTTP ${res.status}`;
+      const detail = process.env.NODE_ENV === "development"
+        ? krokiError
+        : "Diagram rendering failed. Please check your syntax.";
       return NextResponse.json({ error: "kroki_render_failed", detail }, { status: 422 });
     }
 

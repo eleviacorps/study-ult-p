@@ -40,28 +40,23 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
 
-    // Special mode: list all subjects with question counts
+    // Special mode: list all subjects (distinct, single column)
     if (searchParams.get("mode") === "subjects") {
       const { data } = await supabase
         .from("jee_main_bank")
-        .select("subject, chapter");
-      const counts: Record<string, { chapters: number; questions: number }> = {};
-      const seenChapters = new Set<string>();
-      for (const r of (data || []) as { subject: string; chapter: string }[]) {
-        if (!counts[r.subject]) counts[r.subject] = { chapters: 0, questions: 0 };
-        counts[r.subject].questions++;
-        const ck = `${r.subject}/${r.chapter}`;
-        if (!seenChapters.has(ck)) { seenChapters.add(ck); counts[r.subject].chapters++; }
-      }
-      return NextResponse.json({ subjects: Object.entries(counts).map(([subject, info]) => ({ subject, ...info })) });
+        .select("subject")
+        .order("subject");
+      const subjects = [...new Set(data?.map(r => r.subject) || [])].filter(Boolean);
+      return NextResponse.json({ subjects });
     }
 
-    // Special mode: list available chapters
+    // Special mode: list available chapters (distinct pairs)
     if (searchParams.get("mode") === "chapters") {
       const subject = searchParams.get("subject");
       let q = supabase
         .from("jee_main_bank")
-        .select("subject, chapter", { count: "exact", head: false });
+        .select("subject, chapter")
+        .order("chapter", { ascending: true });
       if (subject) q = q.eq("subject", subject);
       const { data } = await q;
       const seen = new Set<string>();
@@ -91,29 +86,13 @@ export async function GET(request: Request) {
     if (subject) query = query.eq("subject", subject);
     if (year) query = query.eq("year", year);
 
-    // Chapter matching: try exact slug first, then fuzzy
+    // Chapter matching: single OR query (exact + ILIKE fallback in one round trip)
     if (chapter) {
-      query = query.eq("chapter", chapter);
+      const slug = slugify(chapter);
+      query = query.or(`chapter.eq.${chapter},chapter.ilike.%${chapter.replace(/-/g, " ")}%,chapter.ilike.%${slug}%`);
     }
 
     let { data, error } = await query;
-
-    // If exact chapter match returned 0 results, try ILIKE fuzzy match
-    if (chapter && (!data || data.length === 0)) {
-      let fuzzy = supabase
-        .from("jee_main_bank")
-        .select("id,question_id,subject,chapter,year,type,difficulty,question_text,options,correct_answer,solution_text,has_diagram,metadata")
-        .limit(limit);
-
-      if (subject) fuzzy = fuzzy.eq("subject", subject);
-      if (year) fuzzy = fuzzy.eq("year", year);
-
-      const slug = slugify(chapter);
-      fuzzy = fuzzy.or(`chapter.ilike.%${chapter.replace(/-/g, " ")}%,chapter.ilike.%${slug}%`);
-      const result = await fuzzy;
-      data = result.data;
-      if (!error) error = result.error;
-    }
 
     if (error) {
       return NextResponse.json({ questions: [], total: 0, error: error.message }, { status: 500 });

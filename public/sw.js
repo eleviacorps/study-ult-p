@@ -7,9 +7,18 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
-    )
+    (async () => {
+      // Delete old cache versions
+      const names = await caches.keys();
+      await Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)));
+      // Enforce max cache entries (50)
+      const cache = await caches.open(CACHE_NAME);
+      const keys = await cache.keys();
+      const MAX_ENTRIES = 50;
+      if (keys.length > MAX_ENTRIES) {
+        await Promise.all(keys.slice(0, keys.length - MAX_ENTRIES).map((r) => cache.delete(r)));
+      }
+    })()
   );
 });
 
@@ -26,7 +35,9 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/api/") &&
     event.request.method === "GET"
   ) {
-    event.respondWith(networkThenCache(event.request));
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
   }
 });
 
@@ -37,19 +48,6 @@ async function cacheThenNetwork(request) {
     return cached;
   }
   return fetchAndCache(request);
-}
-
-async function networkThenCache(request) {
-  try {
-    const response = await fetchAndCache(request);
-    return response;
-  } catch {
-    const cached = await caches.match(request);
-    return cached || new Response(JSON.stringify({ error: "offline" }), {
-      status: 503,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
 }
 
 async function fetchAndCache(request) {

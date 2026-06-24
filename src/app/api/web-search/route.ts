@@ -88,9 +88,13 @@ const GARBAGE_PATTERNS = [
 function isGarbage(s: string): boolean {
   return GARBAGE_PATTERNS.some((p) => p.test(s));
 }
-async function fetchDdg(url: string): Promise<{ html: string; status: number }> {
+async function fetchDdg(url: string, signal?: AbortSignal): Promise<{ html: string; status: number }> {
+  const timeoutSignal = AbortSignal.timeout(10_000);
+  const combinedSignal = signal && typeof AbortSignal.any === "function"
+    ? AbortSignal.any([timeoutSignal, signal])
+    : signal || timeoutSignal;
   const res = await fetch(url, {
-    signal: AbortSignal.timeout(10_000),
+    signal: combinedSignal,
     headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
   });
   return { html: await res.text(), status: res.status };
@@ -111,49 +115,64 @@ export async function POST(request: Request) {
     let results: SearchResult[] = [];
     let backend = "";
 
-    // Backend 1: DuckDuckGo lite (simplest HTML)
-    if (results.length === 0) {
-      try {
-        const { html } = await fetchDdg(`https://lite.duckduckgo.com/lite/?q=${encoded}`);
-        results = parseLiteTable(html);
-        if (results.length > 0) backend = "ddg-lite";
-      } catch {}
-    }
-
-    // Backend 2: DuckDuckGo html (richer results)
-    if (results.length === 0) {
-      try {
-        const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`);
-        results = parseDdgHtml(html);
-        if (results.length > 0) backend = "ddg-html";
-      } catch {}
-    }
-
-    // Backend 3: Wikipedia (free API, covers all academic topics)
-    if (results.length === 0) {
-      try {
-        results = await searchWikipedia(query);
-        if (results.length > 0) backend = "wikipedia";
-      } catch {}
-    }
-
-    // Backend 4: Raw text extraction (last resort — skip if garbage)
-    if (results.length === 0) {
-      try {
-        const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`);
-        const text = html
-          .replace(/<script[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, "\n")
-          .split(/\n{3,}/)
-          .map((b) => b.replace(/\s+/g, " ").trim())
-          .filter((b) => b.length > 60 && b.length < 600 && /[A-Z]/.test(b) && /[a-z]/.test(b) && !/^\s*[{<]/.test(b) && !b.includes("duckduckgo.com") && !isGarbage(b));
-        for (const block of text.slice(0, 5)) {
-          const title = block.slice(0, 80);
-          results.push({ title, link: "", snippet: block });
+    // Master timeout for the entire search chain (25s)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    try {
+      // Backend 1: DuckDuckGo lite (simplest HTML)
+      if (results.length === 0) {
+        try {
+          const { html } = await fetchDdg(`https://lite.duckduckgo.com/lite/?q=${encoded}`, controller.signal);
+          results = parseLiteTable(html);
+          if (results.length > 0) backend = "ddg-lite";
+        } catch (err) {
+          console.warn(`[web-search] Backend 1 (ddg-lite) failed:`, err instanceof Error ? err.message : err);
         }
-        if (results.length > 0) backend = "raw";
-      } catch {}
+      }
+
+      // Backend 2: DuckDuckGo html (richer results)
+      if (results.length === 0) {
+        try {
+          const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`, controller.signal);
+          results = parseDdgHtml(html);
+          if (results.length > 0) backend = "ddg-html";
+        } catch (err) {
+          console.warn(`[web-search] Backend 2 (ddg-html) failed:`, err instanceof Error ? err.message : err);
+        }
+      }
+
+      // Backend 3: Wikipedia (free API, covers all academic topics)
+      if (results.length === 0) {
+        try {
+          results = await searchWikipedia(query);
+          if (results.length > 0) backend = "wikipedia";
+        } catch (err) {
+          console.warn(`[web-search] Backend 3 (wikipedia) failed:`, err instanceof Error ? err.message : err);
+        }
+      }
+
+      // Backend 4: Raw text extraction (last resort — skip if garbage)
+      if (results.length === 0) {
+        try {
+          const { html } = await fetchDdg(`https://html.duckduckgo.com/html/?q=${encoded}`, controller.signal);
+          const text = html
+            .replace(/<script[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, "\n")
+            .split(/\n{3,}/)
+            .map((b) => b.replace(/\s+/g, " ").trim())
+            .filter((b) => b.length > 60 && b.length < 600 && /[A-Z]/.test(b) && /[a-z]/.test(b) && !/^\s*[{<]/.test(b) && !b.includes("duckduckgo.com") && !isGarbage(b));
+          for (const block of text.slice(0, 5)) {
+            const title = block.slice(0, 80);
+            results.push({ title, link: "", snippet: block });
+          }
+          if (results.length > 0) backend = "raw";
+        } catch (err) {
+          console.warn(`[web-search] Backend 4 (raw) failed:`, err instanceof Error ? err.message : err);
+        }
+      }
+    } finally {
+      clearTimeout(timeout);
     }
 
     // Filter any garbage that snuck through

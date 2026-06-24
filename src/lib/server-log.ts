@@ -89,21 +89,6 @@ export class RequestLogger {
     await this.flush("error", 500, message);
   }
 
-  /** Log a debug event mid-request (e.g. "auth check passed", "batch insert complete") */
-  async debug(event: string, extra?: Record<string, unknown>): Promise<void> {
-    const entry: LogEntry = {
-      route: this.route,
-      user_id: this.userId,
-      method: this.method,
-      level: "debug",
-      status_code: 0,
-      duration_ms: Date.now() - this.start,
-      message: event,
-      metadata: { ...this.metadata, ...extra },
-    };
-    await insertLogEntry(entry);
-  }
-
   private async flush(level: LogLevel, statusCode: number, message: string): Promise<void> {
     const duration = Date.now() - this.start;
     const entry: LogEntry = {
