@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVaultStore } from "@/stores/vault-store";
 import { Header } from "@/components/layout/header";
@@ -583,10 +583,12 @@ export default function QuestionsPage() {
   const [page, setPage] = useState(0);
   const chapterName = decodeURIComponent(params.chapter);
   // Set current chapter for voice tutor context
-  if (vault?.chapters) {
-    const ch = vault.chapters.find((c: any) => c.name === chapterName);
-    if (ch) useVaultStore.getState().setCurrentChapter(ch);
-  }
+  useEffect(() => {
+    if (vault?.chapters) {
+      const ch = vault.chapters.find((c: any) => c.name === chapterName);
+      if (ch) useVaultStore.getState().setCurrentChapter(ch);
+    }
+  }, [vault, chapterName]);
 
   if (!isLoaded || !vault) {
     return (<div className="min-h-screen"><Header /><div className="p-8 space-y-4">{Array.from({ length: 3 }).map((_, i) => (<div key={i} className="h-40 skeleton rounded-[20px]" />))}</div></div>);
