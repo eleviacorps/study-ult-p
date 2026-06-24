@@ -86,10 +86,11 @@ export async function GET(request: Request) {
     if (subject) query = query.eq("subject", subject);
     if (year) query = query.eq("year", year);
 
-    // Chapter matching: single OR query (exact + ILIKE fallback in one round trip)
+    // Chapter matching: single OR query with properly sanitized string literals
     if (chapter) {
-      const slug = slugify(chapter);
-      query = query.or(`chapter.eq.${chapter},chapter.ilike.%${chapter.replace(/-/g, " ")}%,chapter.ilike.%${slug}%`);
+      const exact = chapter.replace(/['%,._]/g, "");
+      const spaced = chapter.replace(/-/g, " ").replace(/['%,._]/g, "");
+      query = query.or(`chapter.eq.${exact},chapter.ilike.%${spaced}%`);
     }
 
     let { data, error } = await query;

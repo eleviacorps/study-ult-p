@@ -36,7 +36,7 @@ export async function GET() {
     .select("chapter,subject,author,path,title,content,tags,content_hash")
     .eq("user_id", user.id)
     .order("chapter", { ascending: true })
-    .limit(500);
+    .limit(10000);
 
   if (error) {
     await log.error("notes_fetch_failed", error);
