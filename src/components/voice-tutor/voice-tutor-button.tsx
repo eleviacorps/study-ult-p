@@ -90,9 +90,9 @@ export function VoiceTutorButton() {
       const cn = currentNote;
       const cc = currentChapter;
       const focusedCtx = cn
-        ? `## Current Note: ${cn.title || ""}\n${cn.content || ""}`
+        ? `## Current Note: ${cn.title || ""}\n${(cn.content || "").slice(0, 50000)}`
         : cc
-        ? `## Current Chapter: ${cc.name || ""}\n` + vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `### ${n.title || n.path}\n${n.content || ""}`).join("\n\n")
+        ? `## Current Chapter: ${cc.name || ""}\n` + vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `### ${n.title || n.path}\n${n.content || ""}`).join("\n\n").slice(0, 100000)
         : "";
 
       const vaultCtx = vault.notes
