@@ -90,15 +90,15 @@ export function VoiceTutorButton() {
       const cn = currentNote;
       const cc = currentChapter;
       const focusedCtx = cn
-        ? `## Current Note: ${cn.title || ""}\n${(cn.content || "").slice(0, 3000)}`
+        ? `## Current Note: ${cn.title || ""}\n${cn.content || ""}`
         : cc
-        ? `## Current Chapter: ${cc.name || ""}\n` + vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `### ${n.title || n.path}\n${(n.content || "").slice(0, 500)}`).join("\n\n").slice(0, 5000)
+        ? `## Current Chapter: ${cc.name || ""}\n` + vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `### ${n.title || n.path}\n${n.content || ""}`).join("\n\n")
         : "";
 
       const vaultCtx = vault.notes
-        .map((n: any) => `## ${n.title || n.path}\n${(n.content || "").slice(0, 800)}`)
+        .map((n: any) => `## ${n.title || n.path}\n${n.content || ""}`)
         .join("\n\n")
-        .slice(0, 45000);
+        .slice(0, 300000);
 
       const historyCtx = chatHistory.current.length > 0
         ? "\n\nPrevious questions the student asked:\n" + chatHistory.current.map((q, i) => `${i+1}. ${q}`).join("\n")
