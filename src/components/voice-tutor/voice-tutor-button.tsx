@@ -98,7 +98,7 @@ export function VoiceTutorButton() {
       const vaultCtx = vault.notes
         .map((n: any) => `## ${n.title || n.path}\n${n.content || ""}`)
         .join("\n\n")
-        .slice(0, 300000);
+        .slice(0, 120000);
 
       const historyCtx = chatHistory.current.length > 0
         ? "\n\nPrevious questions the student asked:\n" + chatHistory.current.map((q, i) => `${i+1}. ${q}`).join("\n")
