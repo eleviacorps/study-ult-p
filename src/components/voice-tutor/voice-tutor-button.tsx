@@ -89,11 +89,13 @@ export function VoiceTutorButton() {
 
       const cn = currentNote;
       const cc = currentChapter;
-      const focusedCtx = cn
-        ? `## Current Note: ${cn.title || ""}\n${(cn.content || "").slice(0, 50000)}`
-        : cc
-        ? `## Current Chapter: ${cc.name || ""}\n` + vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `### ${n.title || n.path}\n${n.content || ""}`).join("\n\n").slice(0, 100000)
-        : "";
+      let tutorCtx = "";
+      if (cn) {
+        tutorCtx = `${cn.title || ""}\n\n${cn.content || ""}`;
+      } else if (cc) {
+        tutorCtx = vault.notes.filter((n: any) => n.chapter === cc.name).map((n: any) => `${n.title || n.path}\n\n${n.content || ""}`).join("\n\n---\n\n");
+      }
+      if (tutorCtx.length > 200000) tutorCtx = tutorCtx.slice(0, 200000);
 
       const vaultCtx = vault.notes
         .map((n: any) => `## ${n.title || n.path}\n${n.content || ""}`)
@@ -118,7 +120,7 @@ export function VoiceTutorButton() {
               system_instruction: {
                 parts: [
                   {
-                    text: `You are a JEE Physics voice tutor. Use the following notes as your reference material:\n\n${focusedCtx ? "Currently viewing:\n" + focusedCtx + "\n\n" : ""}All vault notes:\n${vaultCtx}${historyCtx}\n\nHave a natural conversation. Teach the user physics based on these notes. Keep responses conversational and brief.`,
+                    text: `You are a JEE Physics voice tutor. You have access to the following material:\n\n${tutorCtx || "(No note currently open)"}\n\n${historyCtx}\n\nTeach the user physics based on this material. Keep responses conversational and brief.`,
                   },
                 ],
               },
