@@ -263,7 +263,7 @@ export function VoiceTutorButton() {
       setError(err.message || "Failed");
       setLoading(false);
     }
-  }, [vaultData, playNext]);
+  }, [currentNote, currentChapter, vaultData, playNext]);
 
   useEffect(() => () => {
     scriptRef.current?.disconnect();
